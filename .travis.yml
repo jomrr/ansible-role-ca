@@ -12,7 +12,6 @@ services: docker
 env:
   matrix:
     - MOLECULE_DIST: 'jam82/arch-molecule:latest'
-    - MOLECULE_DIST: 'jam82/centos-molecule:7'
     - MOLECULE_DIST: 'jam82/centos-molecule:8'
     - MOLECULE_DIST: 'jam82/debian-molecule:9'
     - MOLECULE_DIST: 'jam82/debian-molecule:10'
@@ -25,4 +24,4 @@ install:
 script:
   - molecule --version
   - ansible --version
-  - molecule test
+  - travis_wait 30 molecule test
