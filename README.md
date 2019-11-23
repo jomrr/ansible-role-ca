@@ -2,7 +2,13 @@
 
 Ansible role for setting up a Certificate Authority with openssl.
 
-This roles sets up a 3-tier CA with openssl consisting of a Root CA, Intermediate CA and Component CA, Identity CA and Software CA.
+This roles sets up a 3-tier CA with openssl consisting of
+
+* Root CA
+  * Intermediate CA
+    * Component CA
+    * Identity CA
+    * Software CA
 
 It is mainly created for use with a Samba AD in personal environments.
 
