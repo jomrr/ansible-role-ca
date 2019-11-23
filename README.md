@@ -1,4 +1,4 @@
-# ansible-role-ca ![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca) [![Build Status](https://travis-ci.org/jam82/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jam82/ansible-role-ca)
+# ansible-role-ca ![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca)
 
 Ansible role for setting up a Certificate Authority with openssl.
 
