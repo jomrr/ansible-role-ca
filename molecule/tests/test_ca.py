@@ -7,5 +7,6 @@ testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
 
 
 def test_verify(host):
-    output = host.check_output('openssl verify /etc/ssl/home/certs/my-mobile.crt')
+    test = 'openssl verify /etc/ssl/home/certs/my-mobile.crt'
+    output = host.check_output(test)
     assert 'OK' in output
