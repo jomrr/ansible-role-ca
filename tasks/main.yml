@@ -1,0 +1,7 @@
+---
+# role: ansible-role-ca
+# file: tasks/main.yml
+
+- name: Import tasks for role ansible-role-ca
+  import_tasks: tasks.yml
+  when: ca_enabled | bool

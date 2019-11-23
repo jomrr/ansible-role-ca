@@ -1,0 +1,6 @@
+#!/bin/sh
+
+openssl ca -batch -gencrl \
+  -config /etc/ssl/{{ ca_name_short }}/etc/software-ca.conf \
+  -out /etc/ssl/{{ ca_name_short }}/crl/software-ca.crl \
+  -passin file:/etc/ssl/{{ ca_name_short }}/ca/software-ca/pwd/software-ca.pwd

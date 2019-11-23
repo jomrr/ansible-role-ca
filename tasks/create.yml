@@ -1,0 +1,42 @@
+---
+# role: ansible-role-ca
+# file: tasks/create.yml
+
+- name: Set fact for list of certificates to create
+  set_fact:
+    ca_certificate_dict: |
+      {% set cert_dict = [] -%}
+      {% for ca in ca_certs.keys() -%}
+        {% for config in ca_certs[ca].keys() -%}
+          {% for cert in ca_certs[ca][config] -%}
+            {% set ca_dummy = cert_dict.extend(
+                 [{ 'ca': ca,
+                    'config': config,
+                    'cert': cert,
+                    'file': cert.cn  | replace(' ', '-') | regex_replace('[\(\)]') | regex_replace('^CN=(.*)-OU=.*$','\\1') | lower }]
+               ) -%}
+          {%- endfor %}
+        {%- endfor %}
+      {%- endfor %}
+      {{ cert_dict }}
+
+- name: Create CSR configuration files
+  template:
+    src: "etc/{{ item.config }}.conf.j2"
+    dest: /etc/ssl/{{ ca_name_short }}/etc/{{ item.file }}.conf
+    owner: root
+    group: root
+    mode: '600'
+  loop: "{{ ca_certificate_dict }}"
+
+- name: Create certificates
+  shell: |
+    /usr/local/bin/{{ ca_name_short }}-ca-create-{{ item.config }} \
+      {{ item.file }} \
+      {{ item.config }} \
+      {{ item.ca }}
+  args:
+    chdir: "/etc/ssl/{{ ca_name_short }}/"
+    creates: "/etc/ssl/{{ ca_name_short }}/certs/{{ item.file }}.pem"
+    executable: '/bin/sh'
+  loop: "{{ ca_certificate_dict }}"

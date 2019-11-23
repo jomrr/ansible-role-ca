@@ -1,0 +1,55 @@
+---
+# role: ansible-role-ca
+# file: tasks/tasks.yml
+
+- name: Set os_family dependent variables
+  include_vars: "{{ vars_file }}"
+  with_first_found:
+    - files:
+        - '{{ ansible_os_family }}.yml'
+        - 'main.yml'
+  loop_control:
+    loop_var: vars_file
+
+- name: Set distribution dependent variables
+  include_vars: "{{ vars_file }}"
+  with_first_found:
+    - files:
+        - '{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml'
+        - '{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml'
+        - '{{ ansible_distribution }}.yml'
+      skip: true
+  loop_control:
+    loop_var: vars_file
+
+- name: Install packages for ansible-role-ca
+  package:
+    name: "{{ ca_packages }}"
+    state: present
+  tags:
+    - install
+
+- name: Import tasks for initializing the CA
+  import_tasks: init.yml
+  tags:
+    - cron-crl
+    - dhparam
+    - init
+    - init-conf
+    - init-dirs
+    - init-files
+    - init-intermediate
+    - init-root
+    - init-scripts
+    - init-subs
+    - trusted-ca-store
+
+- name: Import tasks to revoke certificates
+  import_tasks: revoke.yml
+  tags:
+    - revoke
+
+- name: Import tasks for creating certificates
+  import_tasks: create.yml
+  tags:
+    - create

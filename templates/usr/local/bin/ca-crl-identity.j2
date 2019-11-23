@@ -1,0 +1,6 @@
+#!/bin/sh
+
+openssl ca -batch -gencrl \
+  -config /etc/ssl/{{ ca_name_short }}/etc/identity-ca.conf \
+  -out /etc/ssl/{{ ca_name_short }}/crl/identity-ca.crl \
+  -passin file:/etc/ssl/{{ ca_name_short }}/ca/identity-ca/pwd/identity-ca.pwd

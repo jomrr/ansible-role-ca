@@ -1,0 +1,19 @@
+---
+# role: ansible-role-ca
+# file: vars/main.yml
+
+ca_packages:
+  - ca-certificates
+  - openssl
+  - pwgen
+
+ca_trusted:
+  Debian:
+    ca_trusted_path: '/usr/local/share/ca-certificates'
+    ca_trusted_update: '/usr/sbin/update-ca-certificates'
+  RedHat:
+    ca_trusted_path: '/etc/pki/ca-trust/source/anchors'
+    ca_trusted_update: '/bin/update-ca-trust'
+  Suse:
+    ca_trusted_path: '/usr/share/pki/trust/anchors'
+    ca_trusted_update: 'update-ca-certificates'

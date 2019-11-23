@@ -1,0 +1,195 @@
+---
+# role: ansible-role-ca
+# file: molecule/all/molecule.yml
+
+dependency:
+  name: galaxy
+driver:
+  name: docker
+lint:
+  name: yamllint
+  options:
+    config-file: molecule/shared/yamllint.yml
+platforms:
+  - name: ca-amazon
+    image: "jam82/amazon-molecule:latest"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-arch
+    image: "jam82/arch-molecule:latest"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-centos7
+    image: "jam82/centos-molecule:7"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-centos8
+    image: "jam82/centos-molecule:8"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-debian9
+    image: "jam82/debian-molecule:9"
+    command: "/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-debian10
+    image: "jam82/debian-molecule:10"
+    command: "/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-debian
+    image: "jam82/debian-molecule:latest"
+    command: "/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-suse15
+    image: "jam82/suse-molecule:15"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ssh-suse
+    image: "jam82/suse-molecule:latest"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-suse-tumbleweed
+    image: "jam82/suse-molecule:tumbleweed"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-oracle7
+    image: "jam82/oracle-molecule:7"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-oracle
+    image: "jam82/oracle-molecule:latest"
+    command: "/usr/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-ubuntu1604
+    image: "jam82/ubuntu-molecule:16.04"
+    command: "/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-ubuntu1804
+    image: "jam82/ubuntu-molecule:18.04"
+    command: "/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - name: ca-ubuntu
+    image: "jam82/ubuntu-molecule:latest"
+    command: "/lib/systemd/systemd"
+    pre_build_image: True
+    privileged: True
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+provisioner:
+  name: ansible
+  log: True
+  lint:
+    name: ansible-lint
+  playbooks:
+    prepare: ../shared/prepare.yml
+    converge: ../shared/playbook.yml
+  inventory:
+    group_vars:
+      all:
+        ca_enabled: True
+        ca_country: 'DE'
+        ca_state: 'Bayern'
+        ca_locality: 'Erlangen'
+        ca_organization: 'Homebase'
+        ca_organizational_unit: 'Homebase Certificate Authority'
+        ca_name: 'Homebase'
+        ca_name_short: 'home'
+        ca_base_url: 'http://pki.yourdomain.tld'
+        ca_certs:
+          component-ca:
+            client:
+              - cn: 'MyMobile'
+            mskdc:
+              - cn: 'dc.yourdomain.tld'
+                san:
+                  - 'DNS:dc.yourdomain.tld'
+                  - 'DNS:ad.yourdomain.tld'
+                  - 'IP:192.168.10.10'
+            server:
+              - cn: 'server.yourdomain.tld'
+                san:
+                  - 'DNS:server.yourdomain.tld'
+                  - 'DNS:mail.yourdomain.tld'
+                  - 'IP:192.168.10.11'
+            timestamp:
+              - cn: 'My Software Timestamp'
+            oscp:
+              - cn: 'My OCSP Signature'
+          identity-ca:
+            email:
+              - cn: 'Jonas Mauer'
+                email: 'jonas@yourdomain.tld'
+                san:
+                  - 'email:copy'
+                  - 'email:jam@yourdomain.tld'
+            identity:
+              - cn: 'Jonas Mauer'
+                email: 'jonas@yourdomain.tld'
+                san:
+                  - 'email:copy'
+                  - 'otherName:msUPN;UTF8:jonas@dc.yourdomain.tld'
+          software-ca:
+            codesigning:
+              - cn: 'My Software'
+scenario:
+  name: all
+  test_sequence:
+    - lint
+    - destroy
+    - syntax
+    - create
+    - converge
+    - idempotence
+    - verify
+    - destroy
+verifier:
+  name: testinfra
+  env:
+    PYTHONWARNINGS: "ignore"
+  directory: ../tests
+  options:
+    v: True
+    sudo: True
+  lint:
+    name: flake8
