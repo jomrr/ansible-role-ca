@@ -20,7 +20,7 @@ if [ -z $2 ]; then
 fi
 
 CWD=`pwd`
-cd /etc/ssl/{{ ca_name_short }}
+cd {{ ca_base_dir }}
 
 if [ ! -f certs/$1.pem ];then
     exit 0
@@ -29,7 +29,7 @@ fi
 SERIAL_FILE='ca/$2-ca/db/$2-ca.crt.srl'
 
 openssl ca \
-    -config etc/$2-ca.conf \
+    -config ca/etc/$2-ca.conf \
     -revoke certs/$1.pem \
     -crl_reason superseded \
     -passin file:ca/$2-ca/pwd/$2-ca.pwd

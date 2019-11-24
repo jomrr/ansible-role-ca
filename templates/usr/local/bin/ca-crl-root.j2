@@ -1,6 +1,6 @@
 #!/bin/sh
 
 openssl ca -batch -gencrl \
-  -config /etc/ssl/{{ ca_name_short }}/etc/root-ca.conf \
-  -out /etc/ssl/{{ ca_name_short }}/crl/root-ca.crl \
-  -passin file:/etc/ssl/{{ ca_name_short }}/ca/root-ca/pwd/root-ca.pwd
+  -config {{ ca_base_dir }}/ca/etc/root-ca.conf \
+  -out {{ ca_base_dir }}/crl/root-ca.crl \
+  -passin file:{{ ca_base_dir }}/ca/root-ca/pwd/root-ca.pwd

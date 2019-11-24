@@ -1,4 +1,4 @@
-# ansible-role-ca ![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca)
+# ansible-role-ca ![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca) [![Build Status](https://travis-ci.org/jam82/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jam82/ansible-role-ca)
 
 Ansible role for setting up a Certificate Authority with openssl.
 
@@ -40,7 +40,7 @@ Variables for this
 | ca_organization | 'Mustermann AG' | Oragnization in distginguished name |
 | ca_organizational_unit | 'Mustermann Certificate Authority' | OragnizationalUnit in distginguished name |
 | ca_name | 'Mustermann' | DisplayName of the CA, in this case "Mustermann Root CA", etc. |
-| ca_name_short | 'mustermann'  | Foldername/filename to store the CA in in /etc/ssl/ and for the scripts |
+| ca_dir | 'mustermann'  | Foldername/filename to store the CA in in /etc/ssl/ and for the scripts |
 | ca_base_url | 'http://pki.yourdomain.tld' | Base URL used for building CRL path, etc. |
 | ca_ocsp_enable | False | Add OCSP Information to openssl config files |
 | ca_ocsp_url | 'http://oscp.yourdomain.tld' | FQDN of OCSP responder |
@@ -48,6 +48,7 @@ Variables for this
 | ca_default_md | 'sha512' | Default hash algorithm to use, SHA2-512 |
 | ca_unique_subject | 'yes' | Unique subjects mean, that two certificates cannot have the same CommonName |
 | ca_link_crls_to_webdir | '' | Create symlinks for CRLs to Webserver directory (see ca_base_url) |
+| ca_create_dhparams | False | When True creates a 4096 bit Diffie-Hellman parameters file (takes a long time, ~12 min) |
 | ca_cron_jobs | [big List], see [main.yml](https://github.com/jam82/ansible-role-ca/blob/master/defaults/main.yml) | List of cronjobs to generate CRLs (run daily/weekly) |
 | ca_root_default_days | 3652 | No of days the root CA and its signed certs are valid |
 | ca_root_default_crl_days | 30 | No of days the root CA CRLs are valid |
@@ -60,7 +61,7 @@ Variables for this
 | ca_software_default_days | 1826 | No of days certificates from Software CA are valid |
 | ca_software_default_crl_days | 30 | No of days the Software CA CRLs are valid |
 | ca_certs | {} | Dictionary of certificate infos, for certs to create. See [Example](#example) |
-| ca_revoke | [] | List of dicts, i.e. `- { file: 'my-phone.pem', ca: 'component' }`. Looks for `file` in `/etc/ssl/{{ca_name_short}}/certs`. |
+| ca_revoke | [] | List of dicts, i.e. `- { file: 'my-phone.pem', ca: 'component' }`. Looks for `file` in `/etc/ssl/{{ca_dir}}/certs`. |
 
 ## Dependencies
 
@@ -87,7 +88,7 @@ Here is an example ready to use: <a name="example"></>
     ca_organization: 'Homebase'
     ca_organizational_unit: 'Homebase Certificate Authority'
     ca_name: 'Homebase'
-    ca_name_short: 'home'
+    ca_dir: 'home'
     ca_base_url: 'http://pki.yourdomain.tld'
     ca_certs:
       component:

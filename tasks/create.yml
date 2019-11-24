@@ -13,7 +13,7 @@
                  [{ 'ca': ca,
                     'config': config,
                     'cert': cert,
-                    'file': cert.cn  | replace(' ', '-') | regex_replace('[\(\)]') | regex_replace('^CN=(.*)-OU=.*$','\\1') | lower }]
+                    'file': cert.cn | replace(' ', '-') | regex_replace('[\(\)]') | regex_replace('^CN=(.*)-OU=.*$','\\1') | lower }]
                ) -%}
           {%- endfor %}
         {%- endfor %}
@@ -23,7 +23,7 @@
 - name: Create CSR configuration files
   template:
     src: "etc/{{ item.config }}.conf.j2"
-    dest: /etc/ssl/{{ ca_name_short }}/etc/{{ item.file }}.conf
+    dest: "{{ ca_base_dir }}/etc/{{ item.file }}.conf"
     owner: root
     group: root
     mode: '600'
@@ -31,12 +31,12 @@
 
 - name: Create certificates
   shell: |
-    /usr/local/bin/{{ ca_name_short }}-ca-create-{{ item.config }} \
+    /usr/local/bin/{{ ca_dir }}-ca-create-{{ item.config }} \
       {{ item.file }} \
       {{ item.config }} \
       {{ item.ca }}
   args:
-    chdir: "/etc/ssl/{{ ca_name_short }}/"
-    creates: "/etc/ssl/{{ ca_name_short }}/certs/{{ item.file }}.pem"
+    chdir: "{{ ca_base_dir }}/"
+    creates: "{{ ca_base_dir }}/certs/{{ item.file }}.pem"
     executable: '/bin/sh'
   loop: "{{ ca_certificate_dict }}"

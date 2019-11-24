@@ -43,7 +43,7 @@ provisioner:
         ca_organization: 'Homebase'
         ca_organizational_unit: 'Homebase Certificate Authority'
         ca_name: 'Homebase'
-        ca_name_short: 'home'
+        ca_dir: 'home'
         ca_base_url: 'http://pki.yourdomain.tld'
         ca_certs:
           component:

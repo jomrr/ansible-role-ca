@@ -2,39 +2,17 @@
 # role: ansible-role-ca
 # file: tasks/init.yml
 
-- name: Create CA directories
+- name: "Create CA directories"
   file:
     path: "{{ item.dir }}"
     state: directory
     owner: root
     group: root
     mode: "{{ item.mode }}"
-  loop:
-    - { dir: "/etc/ssl/{{ ca_name_short }}", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/etc", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/crl", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/certs", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/tmp", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/root-ca/db", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/root-ca/private", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/root-ca/pwd", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca/db", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca/private", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca/pwd", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/identity-ca/db", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/identity-ca/private", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/identity-ca/pwd", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/component-ca/db", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/component-ca/private", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/component-ca/pwd", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/software-ca/db", mode: '755' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/software-ca/private", mode: '700' }
-    - { dir: "/etc/ssl/{{ ca_name_short }}/ca/software-ca/pwd", mode: '700' }
-  tags:
-    - init-dirs
+  loop: "{{ ca_init_dirs }}"
+  tags: init-dirs
 
-- name: Create CA files
+- name: "Create CA files"
   file:
     path: "{{ item.file }}"
     state: touch
@@ -43,158 +21,106 @@
     mode: "{{ item.mode }}"
     access_time: preserve
     modification_time: preserve
-  loop:
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/root-ca/db/root-ca.db", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/root-ca/db/root-ca.db.attr", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/root-ca/db/root-ca.crl.srl", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/root-ca/pwd/root-ca.pwd", mode: '600' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca/db/intermediate-ca.db", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca/db/intermediate-ca.db.attr", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca/db/intermediate-ca.crl.srl", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca/pwd/intermediate-ca.pwd", mode: '600' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/identity-ca/db/identity-ca.db", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/identity-ca/db/identity-ca.db.attr", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/identity-ca/db/identity-ca.crl.srl", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/identity-ca/pwd/identity-ca.pwd", mode: '600' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/component-ca/db/component-ca.db", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/component-ca/db/component-ca.db.attr", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/component-ca/db/component-ca.crl.srl", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/component-ca/pwd/component-ca.pwd", mode: '600' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/software-ca/db/software-ca.db", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/software-ca/db/software-ca.db.attr", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/software-ca/db/software-ca.crl.srl", mode: '644' }
-    - { file: "/etc/ssl/{{ ca_name_short }}/ca/software-ca/pwd/software-ca.pwd", mode: '600' }
-  tags:
-    - init-files
+  loop: "{{ ca_init_files }}"
+  tags: init-files
 
-- name: "Initialize configuration files for {{ ca_name }} CA"
+- name: "Initialize configuration files"
   template:
-    src: "{{ item }}.j2"
-    dest: "/etc/ssl/{{ ca_name_short }}/{{ item }}"
+    src: "etc/{{ item.path }}-ca.conf.j2"
+    dest: "{{ ca_base_dir }}/ca/etc/{{ item.path }}-ca.conf"
     owner: root
     group: root
     mode: '600'
-  loop:
-    - 'etc/component-ca.conf'
-    - 'etc/identity-ca.conf'
-    - 'etc/intermediate-ca.conf'
-    - 'etc/root-ca.conf'
-    - 'etc/software-ca.conf'
-  tags:
-    - init-conf
+  loop: "{{ ca_init_names }}"
+  tags: init-conf
 
-- name: "Intitialize {{ ca_name }} Root CA"
+- name: "Generate password files"
   shell: |
-    pwgen -s 64 1 > ca/root-ca/pwd/root-ca.pwd
-    openssl req -batch -new \
-      -config etc/root-ca.conf \
-      -out ca/root-ca.csr \
-      -keyout ca/root-ca/private/root-ca.key \
-      -passout file:ca/root-ca/pwd/root-ca.pwd
-    openssl ca -batch -create_serial -selfsign \
-      -config etc/root-ca.conf \
-      -in ca/root-ca.csr \
-      -out ca/root-ca.crt \
-      -extensions root_ca_ext \
-      -passin file:ca/root-ca/pwd/root-ca.pwd
-    openssl x509 -in ca/root-ca.crt -out ca/root-ca.pem -outform PEM
-    openssl x509 -in ca/root-ca.crt -out ca/root-ca.cer -outform DER
-    echo 01 > ca/root-ca/db/root-ca.crl.srl
-    openssl ca -batch -gencrl \
-      -config etc/root-ca.conf \
-      -out crl/root-ca.crl \
-      -passin file:ca/root-ca/pwd/root-ca.pwd
+    pwgen -s 64 1 > ca/{{ item.path }}-ca/pwd/{{ item.path }}-ca.pwd && \
+    chmod 600 ca/{{ item.path }}-ca/pwd/{{ item.path }}-ca.pwd
   args:
-    chdir: "/etc/ssl/{{ ca_name_short }}/"
-    creates: "/etc/ssl/{{ ca_name_short }}/crl/root-ca.crl"
-    executable: '/bin/sh'
-  tags:
-    - init-root
+    chdir: "{{ ca_base_dir }}/"
+    creates: "{{ ca_base_dir }}/ca/{{ item.path }}-ca/pwd/{{ item.path }}-ca.pwd"
+  loop: "{{ ca_init_names }}"
+  tags: init-pwds
 
-- name: "Intitialize {{ ca_name }} Intermediate CA"
+- name: "Create Keys and CSRs"
   shell: |
-    pwgen -s 64 1 > ca/intermediate-ca/pwd/intermediate-ca.pwd
     openssl req -batch -new \
-      -config etc/intermediate-ca.conf \
-      -out ca/intermediate-ca.csr \
-      -keyout ca/intermediate-ca/private/intermediate-ca.key \
-      -passout file:ca/intermediate-ca/pwd/intermediate-ca.pwd
-    openssl ca -batch -create_serial \
-      -config etc/root-ca.conf \
-      -in ca/intermediate-ca.csr \
-      -out ca/intermediate-ca.crt \
-      -extensions intermediate_ca_ext \
-      -passin file:ca/root-ca/pwd/root-ca.pwd
-    openssl x509 -in ca/intermediate-ca.crt -out ca/intermediate-ca.pem -outform PEM
-    openssl x509 -in ca/intermediate-ca.crt -out ca/intermediate-ca.cer -outform DER
-    echo 01 > ca/intermediate-ca/db/intermediate-ca.crl.srl
-    openssl ca -batch -gencrl \
-      -config etc/intermediate-ca.conf \
-      -out crl/intermediate-ca.crl \
-      -passin file:ca/intermediate-ca/pwd/intermediate-ca.pwd
-    cat ca/intermediate-ca.crt ca/root-ca.crt > ca/intermediate-ca-chain.crt
-    cat ca/intermediate-ca.pem ca/root-ca.pem > ca/intermediate-ca-chain.pem
-    openssl crl2pkcs7 -nocrl \
-    -certfile ca/intermediate-ca-chain.pem -inform PEM \
-    -out ca/intermediate-ca-chain.p7c \
-    -outform der
-  args:
-    chdir: "/etc/ssl/{{ ca_name_short }}/"
-    creates: "/etc/ssl/{{ ca_name_short }}/ca/intermediate-ca-chain.p7c"
-    executable: '/bin/sh'
-  tags:
-    - init-intermediate
-
-- name: "Intitialize {{ ca_name }} Sub CAs"
-  shell: |
-    pwgen -s 64 1 > ca/{{ item.path }}-ca/pwd/{{ item.path }}-ca.pwd
-    openssl req -batch -new \
-      -config etc/{{ item.path }}-ca.conf \
-      -out ca/{{ item.path }}-ca.csr \
+      -config ca/etc/{{ item.path }}-ca.conf \
+      -out ca/csr/{{ item.path }}-ca.csr \
       -keyout ca/{{ item.path }}-ca/private/{{ item.path }}-ca.key \
-      -passout file:ca/{{ item.path }}-ca/pwd/{{ item.path }}-ca.pwd
-    openssl ca -batch -create_serial \
-      -config etc/intermediate-ca.conf \
-      -in ca/{{ item.path }}-ca.csr \
+      -passout file:ca/{{ item.path }}-ca/pwd/{{ item.path }}-ca.pwd && \
+    chmod 600 ca/{{ item.path }}-ca/private/{{ item.path }}-ca.key
+  args:
+    chdir: "{{ ca_base_dir }}/"
+    creates: "{{ ca_base_dir }}/ca/{{ item.path }}-ca/private/{{ item.path }}-ca.key"
+  loop: "{{ ca_init_names }}"
+  tags: init-keys
+
+- name: "Create certificates and sign"
+  shell: |
+    openssl ca -batch -create_serial {{ item.param }} \
+      -config ca/etc/{{ item.sign }}-ca.conf \
+      -in ca/csr/{{ item.path }}-ca.csr \
       -out ca/{{ item.path }}-ca.crt \
-      -extensions signing_ca_ext \
-      -passin file:ca/intermediate-ca/pwd/intermediate-ca.pwd
-    openssl x509 -in ca/{{ item.path }}-ca.crt -out ca/{{ item.path }}-ca.pem -outform PEM
-    openssl x509 -in ca/{{ item.path }}-ca.crt -out ca/{{ item.path }}-ca.cer -outform DER
-    echo 01 > ca/{{ item.path }}-ca/db/{{ item.path }}-ca.crl.srl
+      -extensions {{ item.ext }} \
+      -passin file:ca/{{ item.sign }}-ca/pwd/{{ item.sign }}-ca.pwd
+  args:
+    chdir: "{{ ca_base_dir }}/"
+    creates: "{{ ca_base_dir }}/ca/{{ item.path }}-ca.crt"
+  loop: "{{ ca_init_names }}"
+  tags: init-certs
+
+- name: "Gernerate initial CRLs"
+  shell: |
+    echo 01 > ca/{{ item.path }}-ca/db/{{ item.path }}-ca.crl.srl && \
     openssl ca -batch -gencrl \
-      -config etc/{{ item.path }}-ca.conf \
+      -config ca/etc/{{ item.path }}-ca.conf \
       -out crl/{{ item.path }}-ca.crl \
       -passin file:ca/{{ item.path }}-ca/pwd/{{ item.path }}-ca.pwd
-    cat ca/{{ item.path }}-ca.crt ca/intermediate-ca-chain.crt > ca/{{ item.path }}-ca-chain.crt
-    cat ca/{{ item.path }}-ca.pem ca/intermediate-ca-chain.pem > ca/{{ item.path }}-ca-chain.pem
-    openssl crl2pkcs7 -nocrl \
-      -certfile ca/{{ item.path }}-ca-chain.pem -inform PEM \
-      -out ca/{{ item.path }}-ca-chain.p7c \
-      -outform der
   args:
-    chdir: "/etc/ssl/{{ ca_name_short }}/"
-    creates: "/etc/ssl/{{ ca_name_short }}/ca/{{ item.path }}-ca.crt"
-    executable: '/bin/bash'
-  loop:
-    - { name: 'Component', path: 'component'}
-    - { name: 'Identity', path: 'identity'}
-    - { name: 'Software', path: 'software'}
-  tags:
-    - init-subs
+    chdir: "{{ ca_base_dir }}/"
+    creates: "{{ ca_base_dir }}/crl/{{ item.path }}-ca.crl"
+  loop: "{{ ca_init_names }}"
+  tags: init-crls
 
-- name: "Generate Diffie-Hellman parameters with {{ ca_default_bits }} bits"
+- name: "Export certificates in DER and PEM format"
+  shell: |
+    openssl x509 -in ca/{{ item.path }}-ca.crt -out ca/{{ item.path }}-ca.pem -outform PEM
+    openssl x509 -in ca/{{ item.path }}-ca.crt -out ca/{{ item.path }}-ca.cer -outform DER
+  args:
+    chdir: "{{ ca_base_dir }}/"
+    creates: "{{ ca_base_dir }}/ca/{{ item.path }}-ca.cer"
+  loop: "{{ ca_init_names }}"
+  tags: init-export
+
+- name: "Create certificate chains"
+  shell: |
+    cat ca/{{ item.path }}-ca.pem ca/{{ item.sign }}-ca.pem > ca/{{ item.path }}-ca-chain.pem
+    openssl crl2pkcs7 -nocrl \
+    -certfile ca/{{ item.path }}-ca-chain.pem -inform PEM \
+    -out ca/{{ item.path }}-ca-chain.p7c \
+    -outform DER
+  args:
+    chdir: "{{ ca_base_dir }}/"
+    creates: "{{ ca_base_dir }}/ca/{{ item.path }}-ca-chain.p7c"
+  loop: "{{ ca_init_names }}"
+  when: item.path != item.sign
+  tags: init-chain
+
+- name: "Generate {{ ca_default_bits }} bits Diffie-Hellman parameters file (takes a long time)"
   openssl_dhparam:
     path: /etc/ssl/dhparams.pem
     size: "{{ ca_default_bits }}"
     state: present
-  tags:
-    - dhparam
+  when: ca_create_dhparams | bool
+  tags: dhparams
 
 - name: "Create management scripts for {{ ca_name }} CA"
   template:
     src: "usr/local/bin/{{ item }}.j2"
-    dest: "/usr/local/bin/{{ ca_name_short }}-{{ item }}"
+    dest: "/usr/local/bin/{{ ca_dir }}-{{ item }}"
     owner: root
     group: root
     mode: '700'
@@ -213,8 +139,7 @@
     - 'ca-crl-root'
     - 'ca-crl-software'
     - 'ca-revoke'
-  tags:
-    - init-scripts
+  tags: init-scripts
 
 - name: Enable cron jobs for generating CRLs
   cron:
@@ -224,23 +149,16 @@
     minute: "{{ item.minute }}"
     job: "{{ item.job }}"
     user: root
-    cron_file: "{{ ca_name_short }}-crls"
+    cron_file: "{{ ca_dir }}-crls"
     state: "{{ item.state }}"
   loop: "{{ ca_cron_jobs }}"
-  tags:
-    - cron-crl
+  tags: cron-crl
 
 - name: Add CA certificates to trusted ca store
   copy:
-    src: "/etc/ssl/{{ ca_name_short }}/ca/{{ item }}"
-    dest: "{{ ca_trusted[ansible_os_family]['ca_trusted_path'] }}/{{ item }}"
+    src: "{{ ca_base_dir }}/ca/{{ item.path }}-ca.crt"
+    dest: "{{ ca_trusted_path }}/{{ ca_dir }}-{{ item.path }}-ca.crt"
     remote_src: yes
-  loop:
-    - 'root-ca.crt'
-    - 'intermediate-ca.crt'
-    - 'component-ca.crt'
-    - 'identity-ca.crt'
-    - 'software-ca.crt'
-  notify: update trusted ca certs
-  tags:
-    - trusted-ca-store
+  loop: "{{ ca_init_names }}"
+  notify: Update trusted CA certs
+  tags: update-ca-store

@@ -1,0 +1,11 @@
+---
+# role: ansible-role-ca
+# file: vars/Debian.yml
+
+ca_packages:
+  - ca-certificates
+  - openssl
+  - pwgen
+
+ca_trusted_path: '/usr/local/share/ca-certificates'
+ca_trusted_update: '/usr/sbin/update-ca-certificates'

@@ -2,7 +2,7 @@
 
 [ default ]
 ca                      = software-ca           # CA name
-dir                     = /etc/ssl/{{ ca_name_short }} # Top dir
+dir                     = {{ ca_base_dir }}     # Top dir
 base_url                = {{ ca_base_url }}     # CA base URL
 aia_url                 = $base_url/$ca.cer     # CA certificate URL
 crl_url                 = $base_url/$ca.crl     # CRL distribution point

@@ -8,7 +8,5 @@ ca_packages:
   - openssl
   - pwgen
 
-ca_trusted:
-  Archlinux:
-    ca_trusted_path: '/usr/share/ca-certificates/trust-source/anchors'
-    ca_trusted_update: 'trust extract-compat'
+ca_trusted_path: '/usr/share/ca-certificates/trust-source/anchors'
+ca_trusted_update: 'trust extract-compat'

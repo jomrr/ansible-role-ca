@@ -2,7 +2,7 @@
 
 [ default ]
 ca                      = component-ca          # CA name
-dir                     = /etc/ssl/{{ ca_name_short }} # Top dir
+dir                     = {{ ca_base_dir }}     # Top dir
 base_url                = {{ ca_base_url }}     # CA base URL
 aia_url                 = $base_url/$ca.cer     # CA certificate URL
 crl_url                 = $base_url/$ca.crl     # CRL distribution point
@@ -92,7 +92,7 @@ authorityInfoAccess     = @ocsp_info
 authorityInfoAccess     = @issuer_info
 {% endif %}
 crlDistributionPoints   = @crl_info
-certificatePolicies     = {{ ca_name_short }}MediumDevice
+certificatePolicies     = {{ ca_dir }}MediumDevice
 
 [ mskdc_ext ]
 keyUsage                = critical,digitalSignature,keyEncipherment
@@ -106,7 +106,7 @@ authorityInfoAccess     = @ocsp_info
 authorityInfoAccess     = @issuer_info
 {% endif %}
 crlDistributionPoints   = @crl_info
-certificatePolicies     = {{ ca_name_short }}MediumDevice
+certificatePolicies     = {{ ca_dir }}MediumDevice
 
 [ client_ext ]
 keyUsage                = critical,digitalSignature
@@ -120,7 +120,7 @@ authorityInfoAccess     = @ocsp_info
 authorityInfoAccess     = @issuer_info
 {% endif %}
 crlDistributionPoints   = @crl_info
-certificatePolicies     = {{ ca_name_short }}MediumDevice
+certificatePolicies     = {{ ca_dir }}MediumDevice
 
 [ timestamp_ext ]
 keyUsage                = critical,digitalSignature
@@ -130,7 +130,7 @@ subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 authorityInfoAccess     = @issuer_info
 crlDistributionPoints   = @crl_info
-certificatePolicies     = {{ ca_name_short }}MediumDevice
+certificatePolicies     = {{ ca_dir }}MediumDevice
 
 [ ocsp_ext ]
 keyUsage                = critical,digitalSignature
@@ -140,7 +140,7 @@ subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 authorityInfoAccess     = @issuer_info
 noCheck                 = null
-certificatePolicies     = {{ ca_name_short }}MediumDevice
+certificatePolicies     = {{ ca_dir }}MediumDevice
 
 [ crl_ext ]
 authorityKeyIdentifier  = keyid:always
@@ -164,4 +164,4 @@ URI.0                   = $crl_url
 oid_section             = additional_oids
 
 [ additional_oids ]
-{{ ca_name_short }}MediumDevice = {{ ca_name }} Medium Device Assurance, 1.3.6.1.4.1.0.1.7.9
+{{ ca_dir }}MediumDevice = {{ ca_name }} Medium Device Assurance, 1.3.6.1.4.1.0.1.7.9

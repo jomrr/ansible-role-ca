@@ -2,7 +2,7 @@
 
 [ default ]
 ca                      = identity-ca           # CA name
-dir                     = /etc/ssl/{{ ca_name_short }} # Top dir
+dir                     = {{ ca_base_dir }}     # Top dir
 base_url                = {{ ca_base_url }}     # CA base URL
 aia_url                 = $base_url/$ca.cer     # CA certificate URL
 crl_url                 = $base_url/$ca.crl     # CRL distribution point
@@ -44,7 +44,7 @@ new_certs_dir           = $dir/ca/$ca           # Certificate archive
 serial                  = $dir/ca/$ca/db/$ca.crt.srl # Serial number file
 crlnumber               = $dir/ca/$ca/db/$ca.crl.srl # CRL number file
 database                = $dir/ca/$ca/db/$ca.db # Index file
-unique_subject          = no                    # Require unique subject
+unique_subject          = {{ ca_unique_subject }} # Require unique subject
 default_days            = {{ ca_identity_default_days }} # How long to certify for
 default_md              = {{ ca_default_md }}   # MD to use
 policy                  = match_pol             # Default naming policy
@@ -85,7 +85,7 @@ subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 authorityInfoAccess     = @issuer_info
 crlDistributionPoints   = @crl_info
-certificatePolicies     = {{ ca_name_short }}MediumAssurance
+certificatePolicies     = {{ ca_dir }}MediumAssurance
 
 [ email_ext ]
 keyUsage                = critical,digitalSignature,keyEncipherment,nonRepudiation
@@ -95,7 +95,7 @@ subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 authorityInfoAccess     = @issuer_info
 crlDistributionPoints   = @crl_info
-certificatePolicies     = {{ ca_name_short }}MediumAssurance
+certificatePolicies     = {{ ca_dir }}MediumAssurance
 
 [ crl_ext ]
 authorityKeyIdentifier  = keyid:always
@@ -113,4 +113,4 @@ URI.0                   = $crl_url
 oid_section             = additional_oids
 
 [ additional_oids ]
-{{ ca_name_short }}MediumAssurance     = {{ ca_name }} Medium Assurance, 1.3.6.1.4.1.0.1.7.8
+{{ ca_dir }}MediumAssurance     = {{ ca_name }} Medium Assurance, 1.3.6.1.4.1.0.1.7.8

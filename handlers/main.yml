@@ -2,16 +2,16 @@
 # role: ansible-role-ca
 # file: handlers/main.yml
 
-- name: update trusted ca certs
-  command: "{{ ca_trusted[ansible_os_family]['ca_trusted_update'] }}"
+- name: Update trusted CA certs
+  command: "{{ ca_trusted_update }}"
 
 - name: Regenerate CRLs
   shell: |
-    /usr/local/bin/{{ ca_name_short }}-ca-crl-root
-    /usr/local/bin/{{ ca_name_short }}-ca-crl-intermediate
-    /usr/local/bin/{{ ca_name_short }}-ca-crl-component
-    /usr/local/bin/{{ ca_name_short }}-ca-crl-identity
-    /usr/local/bin/{{ ca_name_short }}-ca-crl-software
+    /usr/local/bin/{{ ca_dir }}-ca-crl-root
+    /usr/local/bin/{{ ca_dir }}-ca-crl-intermediate
+    /usr/local/bin/{{ ca_dir }}-ca-crl-component
+    /usr/local/bin/{{ ca_dir }}-ca-crl-identity
+    /usr/local/bin/{{ ca_dir }}-ca-crl-software
   args:
     executable: '/bin/sh'
-    removes: "/etc/ssl/{{ ca_name_short }}/crl/root.ca.crl"
+    removes: "{{ ca_base_dir }}/crl/root.ca.crl"

@@ -2,16 +2,16 @@
 # role: ansible-role-ca
 # file: tasks/tasks.yml
 
-- name: Set os_family dependent variables
-  include_vars: "{{ vars_file }}"
-  with_first_found:
-    - files:
-        - '{{ ansible_os_family }}.yml'
-        - 'main.yml'
-  loop_control:
-    loop_var: vars_file
+- name: "Set fact base_dir"
+  set_fact:
+    ca_base_dir: "/etc/ssl/{{ ca_dir }}"
+  tags: always
 
-- name: Set distribution dependent variables
+- name: "Set os_family dependent variables"
+  include_vars: '{{ ansible_os_family }}.yml'
+  tags: always
+
+- name: "Set distribution dependent variables"
   include_vars: "{{ vars_file }}"
   with_first_found:
     - files:
@@ -22,34 +22,20 @@
   loop_control:
     loop_var: vars_file
 
-- name: Install packages for ansible-role-ca
+- name: "Install packages for ansible-role-ca"
   package:
     name: "{{ ca_packages }}"
     state: present
-  tags:
-    - install
+  tags: install
 
-- name: Import tasks for initializing the CA
+- name: "Import tasks for initializing the CA"
   import_tasks: init.yml
-  tags:
-    - cron-crl
-    - dhparam
-    - init
-    - init-conf
-    - init-dirs
-    - init-files
-    - init-intermediate
-    - init-root
-    - init-scripts
-    - init-subs
-    - trusted-ca-store
+  tags: init
 
-- name: Import tasks to revoke certificates
+- name: "Import tasks to revoke certificates"
   import_tasks: revoke.yml
-  tags:
-    - revoke
+  tags: revoke
 
-- name: Import tasks for creating certificates
+- name: "Import tasks for creating certificates"
   import_tasks: create.yml
-  tags:
-    - create
+  tags: create

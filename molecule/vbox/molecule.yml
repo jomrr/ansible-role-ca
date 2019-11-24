@@ -17,16 +17,36 @@ platforms:
     box: "archlinux/archlinux"
     cpus: 2
     memory: 1024
+  - name: ca-centos7
+    box: "centos/7"
+    cpus: 2
+    memory: 1024
   - name: ca-centos8
     box: "centos/8"
+    cpus: 2
+    memory: 1024
+  - name: ca-debian9
+    box: "debian/stretch64"
     cpus: 2
     memory: 1024
   - name: ca-debian10
     box: "debian/buster64"
     cpus: 2
     memory: 1024
+  - name: ca-ubuntu1604
+    box: "ubuntu/xenial64"
+    cpus: 2
+    memory: 1024
   - name: ca-ubuntu1804
     box: "ubuntu/bionic64"
+    cpus: 2
+    memory: 1024
+  - name: ca-suse151
+    box: "bento/opensuse-leap-15.1"
+    cpus: 2
+    memory: 1024
+  - name: ca-suse-tw
+    box: "opensuse/Tumbleweed.x86_64"
     cpus: 2
     memory: 1024
 provisioner:
@@ -47,7 +67,7 @@ provisioner:
         ca_organization: 'Homebase'
         ca_organizational_unit: 'Homebase Certificate Authority'
         ca_name: 'Homebase'
-        ca_name_short: 'home'
+        ca_dir: 'home'
         ca_base_url: 'http://pki.yourdomain.tld'
         ca_certs:
           component:

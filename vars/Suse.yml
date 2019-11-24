@@ -1,0 +1,12 @@
+---
+# role: ansible-role-ca
+# file: vars/Suse.yml
+
+ca_packages:
+  - ca-certificates
+  - cron
+  - openssl
+  - pwgen
+
+ca_trusted_path: '/usr/share/pki/trust/anchors'
+ca_trusted_update: 'update-ca-certificates'

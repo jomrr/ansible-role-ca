@@ -2,7 +2,7 @@
 
 [ default ]
 ca                      = root-ca               # CA name
-dir                     = /etc/ssl/{{ ca_name_short }} # Top dir
+dir                     = {{ ca_base_dir }}     # Top dir
 base_url                = {{ ca_base_url }}     # CA base URL
 aia_url                 = $base_url/$ca.cer     # CA certificate URL
 crl_url                 = $base_url/$ca.crl     # CRL distribution point
@@ -90,7 +90,7 @@ subjectKeyIdentifier    = hash
 authorityKeyIdentifier  = keyid:always
 authorityInfoAccess     = @issuer_info
 crlDistributionPoints   = @crl_info
-certificatePolicies     = {{ ca_name_short }}MediumAssurance,{{ ca_name_short }}MediumDevice
+certificatePolicies     = {{ ca_dir }}MediumAssurance,{{ ca_dir }}MediumDevice
 
 [ crl_ext ]
 authorityKeyIdentifier  = keyid:always
@@ -108,5 +108,5 @@ URI.0                   = $crl_url
 oid_section             = additional_oids
 
 [ additional_oids ]
-{{ ca_name_short }}MediumAssurance     = {{ ca_name }} Medium Assurance, 1.3.6.1.4.1.0.1.7.8
-{{ ca_name_short }}MediumDevice        = {{ ca_name }} Medium Device Assurance, 1.3.6.1.4.1.0.1.7.9
+{{ ca_dir }}MediumAssurance     = {{ ca_name }} Medium Assurance, 1.3.6.1.4.1.0.1.7.8
+{{ ca_dir }}MediumDevice        = {{ ca_name }} Medium Device Assurance, 1.3.6.1.4.1.0.1.7.9

@@ -2,18 +2,72 @@
 # role: ansible-role-ca
 # file: vars/main.yml
 
-ca_packages:
-  - ca-certificates
-  - openssl
-  - pwgen
+ca_init_names:
+  - path: 'root'
+    param: '-selfsign'
+    passin: ''
+    sign: 'root'
+    ext: 'root_ca_ext'
+  - path: 'intermediate'
+    param: ''
+    passin: '-passin file:ca/root-ca/pwd/root-ca.pwd'
+    sign: 'root'
+    ext: 'intermediate_ca_ext'
+  - path: 'component'
+    param: ''
+    passin: '-passin file:ca/intermediate-ca/pwd/intermediate-ca.pwd'
+    sign: 'intermediate'
+    ext: 'signing_ca_ext'
+  - path: 'identity'
+    param: ''
+    passin: '-passin file:ca/intermediate-ca/pwd/intermediate-ca.pwd'
+    sign: 'intermediate'
+    ext: 'signing_ca_ext'
+  - path: 'software'
+    param: ''
+    passin: '-passin file:ca/intermediate-ca/pwd/intermediate-ca.pwd'
+    sign: 'intermediate'
+    ext: 'signing_ca_ext'
 
-ca_trusted:
-  Debian:
-    ca_trusted_path: '/usr/local/share/ca-certificates'
-    ca_trusted_update: '/usr/sbin/update-ca-certificates'
-  RedHat:
-    ca_trusted_path: '/etc/pki/ca-trust/source/anchors'
-    ca_trusted_update: '/bin/update-ca-trust'
-  Suse:
-    ca_trusted_path: '/usr/share/pki/trust/anchors'
-    ca_trusted_update: 'update-ca-certificates'
+ca_init_dirs:
+  - { dir: "{{ ca_base_dir }}", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/etc", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/crl", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/csr", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/certs", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/tmp", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/csr", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/etc", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/root-ca/db", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/root-ca/private", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/root-ca/pwd", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/intermediate-ca/db", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/intermediate-ca/private", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/intermediate-ca/pwd", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/identity-ca/db", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/identity-ca/private", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/identity-ca/pwd", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/component-ca/db", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/component-ca/private", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/component-ca/pwd", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/software-ca/db", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/ca/software-ca/private", mode: '700' }
+  - { dir: "{{ ca_base_dir }}/ca/software-ca/pwd", mode: '700' }
+
+ca_init_files:
+  - { file: "{{ ca_base_dir }}/ca/root-ca/db/root-ca.db", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/root-ca/db/root-ca.db.attr", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/root-ca/db/root-ca.crl.srl", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/intermediate-ca/db/intermediate-ca.db", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/intermediate-ca/db/intermediate-ca.db.attr", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/intermediate-ca/db/intermediate-ca.crl.srl", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/identity-ca/db/identity-ca.db", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/identity-ca/db/identity-ca.db.attr", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/identity-ca/db/identity-ca.crl.srl", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/component-ca/db/component-ca.db", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/component-ca/db/component-ca.db.attr", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/component-ca/db/component-ca.crl.srl", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/software-ca/db/software-ca.db", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/software-ca/db/software-ca.db.attr", mode: '644' }
+  - { file: "{{ ca_base_dir }}/ca/software-ca/db/software-ca.crl.srl", mode: '644' }

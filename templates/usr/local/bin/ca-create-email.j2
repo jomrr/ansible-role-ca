@@ -26,7 +26,7 @@ if [ -z $3 ]; then
 fi
 
 CWD=`pwd`
-cd /etc/ssl/{{ ca_name_short }}
+cd {{ ca_base_dir }}
 
 SERIAL_FILE='ca/$2-ca/db/$2-ca.crt.srl'
 
@@ -44,7 +44,7 @@ openssl req -batch -new \
     -keyout tmp/$1.key \
     -passout file:ca/$3-ca/pwd/$1.pwd && \
 openssl ca -batch ${CREATE_SERIAL} \
-    -config etc/$3-ca.conf \
+    -config ca/etc/$3-ca.conf \
     -in tmp/$1.csr \
     -out tmp/$1.crt \
     -extensions $2_ext \
