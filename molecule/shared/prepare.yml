@@ -58,6 +58,6 @@
       yum:
         name:
           - epel-release
-          - cron
+          - cronie
         state: present
       when: ansible_os_family == 'RedHat'
