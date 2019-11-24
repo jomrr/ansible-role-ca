@@ -61,7 +61,7 @@ Variables for this
 | ca_software_default_days | 1826 | No of days certificates from Software CA are valid |
 | ca_software_default_crl_days | 30 | No of days the Software CA CRLs are valid |
 | ca_certs | {} | Dictionary of certificate infos, for certs to create. See [Example](#example) |
-| ca_revoke | [] | List of dicts, i.e. `- { file: 'my-phone.pem', ca: 'component' }`. Looks for `file` in `/etc/ssl/{{ca_dir}}/certs`. |
+| ca_revoke | [] | List of dicts, i.e. `- { file: 'my-phone', ca: 'component' }`. Looks for `file`.pem in `/etc/ssl/{{ca_dir}}/certs`. |
 
 ## Dependencies
 
