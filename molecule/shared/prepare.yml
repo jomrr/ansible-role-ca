@@ -56,7 +56,7 @@
 
     - name: Install EPEL and cron
       yum:
-        name: 
+        name:
           - epel-release
           - cron
         state: present
