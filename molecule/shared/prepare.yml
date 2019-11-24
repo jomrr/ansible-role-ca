@@ -56,6 +56,8 @@
 
     - name: Install EPEL and cron
       yum:
-        name: epel-release cron
+        name: 
+          - epel-release
+          - cron
         state: present
       when: ansible_os_family == 'RedHat'
