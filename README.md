@@ -41,9 +41,9 @@ Variables for this
 | ca_organizational_unit | 'Mustermann Certificate Authority' | OragnizationalUnit in distginguished name |
 | ca_name | 'Mustermann' | DisplayName of the CA, in this case "Mustermann Root CA", etc. |
 | ca_dir | 'mustermann'  | Foldername/filename to store the CA in in /etc/ssl/ and for the scripts |
-| ca_base_url | 'http://pki.yourdomain.tld' | Base URL used for building CRL path, etc. |
+| ca_base_url | '<http://pki.yourdomain.tld>' | Base URL used for building CRL path, etc. |
 | ca_ocsp_enable | False | Add OCSP Information to openssl config files |
-| ca_ocsp_url | 'http://oscp.yourdomain.tld' | FQDN of OCSP responder |
+| ca_ocsp_url | '<http://oscp.yourdomain.tld>' | FQDN of OCSP responder |
 | ca_default_bits | 4096 | Default key size of RSA keys |
 | ca_default_md | 'sha512' | Default hash algorithm to use, SHA2-512 |
 | ca_unique_subject | 'yes' | Unique subjects mean, that two certificates cannot have the same CommonName |
