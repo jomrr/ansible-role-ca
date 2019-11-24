@@ -35,15 +35,27 @@
         update_cache: yes
       when: ansible_pkg_mgr == 'yum'
 
-    - name: Install EPEL
-      yum:
-        name: epel-release
-        state: present
-      when: ansible_os_family == 'RedHat'
-
     - name: Update zypper cache
       zypper:
         name: grep
         state: present
         update_cache: yes
       when: ansible_pkg_mgr == 'zypper'
+
+    - name: Install cron
+      apt:
+        name: cron
+        state: present
+      when: ansible_os_family == 'Debian'
+
+    - name: Install cron
+      yum:
+        name: cron
+        state: present
+      when: ansible_os_family == 'Debian'
+
+    - name: Install EPEL and cron
+      yum:
+        name: epel-release cron
+        state: present
+      when: ansible_os_family == 'RedHat'
