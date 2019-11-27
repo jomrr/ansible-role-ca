@@ -70,7 +70,7 @@
               'config': ca_cert_item.config,
               'export': ca_export_item,
               'file': ca_cert_item.file,
-              'protect_key': ca_cert_item.protect_key 
+              'protect_key': ca_cert_item.protect_key
             }]) -%}
         {%- endfor -%}
       {%- endfor -%}
