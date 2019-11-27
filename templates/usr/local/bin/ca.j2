@@ -1,0 +1,367 @@
+#!/bin/bash
+
+# This is a wrapper script for openssl
+# that helps to operate the CA(s)
+
+# Exit immediately if a variable is undefined.
+set -o nounset
+
+# 1. section: global constants
+
+declare -r ERR_ROOT="This script must be run with super-user privileges."
+declare -r REQUIRED_PROGS="openssl tar pwgen"
+declare -r SCRIPTPATH=$( cd $(dirname ${BASH_SOURCE[0]}) > /dev/null; pwd -P )
+declare -r TMP_FILE_PREFIX=${TMPDIR:-/tmp}/prog.$$
+declare -ar CA_LEVELS=({{ ca_list | join(' ') }})
+
+# 2. section: variables
+
+declare common_name
+declare config
+declare create_serial
+declare extensions
+declare filename
+declare format
+declare opt_i;
+declare opt_p;
+declare opt_r;
+declare opt_t;
+declare opt_w;
+declare opt_x;
+declare signing_ca
+
+# 3. section: functions
+
+# all progs need to be given as parameters
+check_required_programs() {
+  for p in ${@}; do
+    hash "${p}" 2>&- || { \
+      echo >&2 " Required program \"${p}\" not installed or not found in PATH.";
+      exit 1;
+    }
+  done
+}
+
+check_root() {
+  if [[ $EUID -ne 0 ]]; then
+    echo ${ERR_ROOT}
+    exit 1
+  fi
+}
+
+cleanup() {
+  if ls ${TMP_FILE_PREFIX}.* 1> /dev/null 2>&1; then
+    rm -f ${TMP_FILE_PREFIX}.*
+  fi
+  return 1
+}
+
+err() {
+  echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@" >&2
+}
+
+create_csr() {
+  local csr_command
+  csr_command="openssl req -batch -new 
+    -config {{ ca_base_dir }}/etc/${filename}.conf \
+    -out ${TMP_FILE_PREFIX}.${filename}.csr \
+    -keyout ${TMP_FILE_PREFIX}.${filename}.key"
+
+  # for some keys we want password protection (i.e. identities, codesigning)
+  if [[ -n ${opt_p:-} ]]; then
+    csr_command="${csr_command} -passout file:{{ ca_base_dir }}/pwd/${filename}.pwd"
+    pwgen -s 64 1 > {{ ca_base_dir }}/pwd/${filename}.pwd
+  fi
+
+  if ! ${csr_command} ; then
+    err "Creating CSR and Key (${filename}) has failed."
+    cleanup; exit 1
+  else
+    mv ${TMP_FILE_PREFIX}.${filename}.csr {{ ca_base_dir }}/csr/${filename}.csr
+    chmod 644 {{ ca_base_dir }}/csr/${filename}.csr
+    mv ${TMP_FILE_PREFIX}.${filename}.key {{ ca_base_dir }}/certs/${filename}.key
+    chmod 644 {{ ca_base_dir }}/certs/${filename}.key
+  fi
+  return 0
+}
+
+create_crt() {
+  check_serial_file
+
+  local crt_command
+  crt_command="openssl ca -batch ${create_serial} \
+    -config {{ ca_base_dir }}/ca/etc/${signing_ca}-ca.conf \
+    -in {{ ca_base_dir }}/csr/${filename}.csr \
+    -out ${TMP_FILE_PREFIX}.${filename}.crt \
+    -extensions ${extensions}_ext \
+    -passin file:{{ ca_base_dir }}/ca/${signing_ca}-ca/pwd/${signing_ca}-ca.pwd"
+  
+  if ! ${crt_command} ; then
+    err "Issuing Certificate (${filename}) has failed."
+    cleanup; exit 1
+  else
+    mv ${TMP_FILE_PREFIX}.${filename}.crt {{ ca_base_dir }}/certs/${filename}.crt
+    chmod 644 {{ ca_base_dir }}/certs/${filename}.crt
+  fi
+  return 0
+}
+
+check_serial_file() {
+  local serial_file
+  serial_file="{{ ca_base_dir }}/ca/${signing_ca}-ca/db/${signing_ca}-ca.crt.srl"
+
+  if [[ -f ${serial_file} ]]; then
+    create_serial=""
+  else
+    create_serial="-create_serial"
+  fi
+}
+
+gen_crls() {
+  for ca_level in ${CA_LEVELS[@]}
+  do
+    openssl ca -batch -gencrl \
+      -config {{ ca_base_dir }}/ca/etc/${ca_level}-ca.conf \
+      -out {{ ca_base_dir }}/crl/${ca_level}-ca.crl \
+      -passin file:{{ ca_base_dir }}/ca/${ca_level}-ca/pwd/${ca_level}-ca.pwd
+  done
+}
+
+export_der() {
+  local der_command
+  der_command="openssl x509 \
+    -in {{ ca_base_dir }}/certs/${filename}.crt \
+    -out {{ ca_base_dir }}/certs/${filename}.der -outform DER"
+  
+  if ! ${der_command} ; then
+    err "Error exporting certificate ${filename} to DER Format."
+    cleanup; exit 1
+  else
+    cp -a {{ ca_base_dir }}/certs/${filename}.der \
+      {{ ca_base_dir }}/certs/${filename}.cer
+  fi
+}
+
+export_pem() {
+  local pem_command
+  pem_command="openssl x509 \
+    -in {{ ca_base_dir }}/certs/${filename}.crt \
+    -out {{ ca_base_dir }}/certs/${filename}.pem -outform PEM"
+  
+  if ! ${pem_command} ; then
+    err "Error exporting certificate ${filename} to PEM Format."
+    cleanup; exit 1
+  fi
+}
+
+export_p12() {
+  local p12_command
+  p12_command="openssl pkcs12 -export \
+    -name '"${common_name}"' \
+    -inkey {{ ca_base_dir }}/certs/${filename}.key \
+    -in {{ ca_base_dir }}/certs/${filename}.crt \
+    -certfile {{ ca_base_dir }}/ca/${signing_ca}-ca-chain.pem \
+    -out {{ ca_base_dir }}/certs/${filename}.p12"
+  
+  # for some keys we have password protection (i.e. identities, codesigning)
+  # pkcs12 in and out passwords must differ
+  if [[ -n ${opt_p:-} ]]; then
+    pwgen -s 64 1 > {{ ca_base_dir }}/pwd/${filename}.p12.txt
+    chmod 600 {{ ca_base_dir }}/pwd/${filename}.p12.txt
+    p12_command="${p12_command} -passin file:{{ ca_base_dir }}/pwd/${filename}.pwd"
+    p12_command="${p12_command} -passout file:{{ ca_base_dir }}/pwd/${filename}.p12.txt"
+  else
+    p12_command="${p12_command} -passout pass:"
+  fi
+
+  if ! bash -c "${p12_command}" ; then
+    err "Error exporting certificate ${filename} to P12 Format. ${p12_command}"
+    cleanup; exit 1
+  else
+    chmod 644 {{ ca_base_dir }}/certs/${filename}.p12
+  fi
+}
+
+revoke_cert() {
+  local revoke_time
+  revoke_time=$(date +"%Y%m%d_%H%M%S")
+
+  local revoke_command
+  revoke_command="openssl ca \
+    -config {{ ca_base_dir }}/ca/etc/${signing_ca}-ca.conf \
+    -revoke {{ ca_base_dir }}/certs/${filename}.crt \
+    -crl_reason superseded \
+    -passin file:{{ ca_base_dir }}/ca/${signing_ca}-ca/pwd/${signing_ca}-ca.pwd"
+  
+  if ! ${revoke_command} ; then
+    err "Error revoking certificate ${filename} with ${signing_ca} CA."
+    cleanup
+  fi
+
+  local revoke_list
+  revoke_list=$(ls \
+    {{ ca_base_dir }}/certs/${filename}.crt \
+    {{ ca_base_dir }}/certs/${filename}.csr \
+    {{ ca_base_dir }}/certs/${filename}.key \
+    {{ ca_base_dir }}/certs/${filename}.pem \
+    {{ ca_base_dir }}/etc/${filename}.conf \
+    {{ ca_base_dir }}/pwd/${filename}.pwd \
+  )
+
+  if [[ ! -d {{ ca_base_dir }}/revoked/ ]]; then
+    mkdir -p {{ ca_base_dir }}/revoked
+  fi
+
+  local archive_command
+  archive_command="tar \
+    -czf {{ ca_base_dir }}/revoked/${filename}.${revoke_time}.tar.gz ${revoke_list}"
+
+  if ! ${archive_command} ; then
+    err "Error archiving revoked certificate ${filename} from ${signing_ca} CA."
+    cleanup; exit 1
+  else
+    rm {{ ca_base_dir }}/certs/${filename}.*
+  fi
+
+  return 0
+}
+
+renew_cert() {
+  revoke_cert
+  create_csr
+  create_crt
+}
+
+usage() {
+
+  echo
+  echo -n "usage: $0 [OPTIONS] <FILENAME> (without suffix, i.e. my-cert)
+
+  -c  <FILENAME>  OpenSSL config file name without suffix, i.e. root-ca
+  -e  <EXTENSION> Extensions to add to Certificate, i.e. mskdc or email
+  -f  <FORMAT>    Output format for exports (DER, PEM, P12, PFX)
+  -g              Generate CRLs for all CAs
+  -h              Display this usage message
+  -i  <FILENAME>  Sign CSR and issue certificate,
+                  <FILENAME> without suffix, my-cert
+  -r  <FILENAME>  Create CSR and Key,
+                  <FILENAME> without suffix, i.e. my-cert
+  -s  <CA-NAME>   The signing CA name, i.e. root or component
+  -t  <FILENAME>  Export Certificate to specified Format (-f),
+                  <FILENAME> without suffix, i.e. my-cert
+  -u  <CN>        Common name for export with -f P12,
+                  i.e. <CN>='www.myserver.tld' or 'John Doe (Mail)'
+  -w  <FILENAME>  Renew a Certificate (equals -x, -r and -i)
+  -x  <FILENAME>  Revoke Certificate,
+                  <FILENAME> without suffix, i.e. my-cert
+
+"
+}
+
+# Single function
+main() {
+
+  cd {{ ca_base_dir }}
+  # the optional parameters string starting with ':' 
+  # for silent errors and h for help usage
+  local -r OPTS=':hc:e:f:gi:n:pr:s:t:u:w:x:'
+
+  while builtin getopts ${OPTS} opt "${@}"; do
+    case ${opt} in
+      c)  config="${OPTARG}";;
+      e)  extensions="${OPTARG}";;
+      f)  format="${OPTARG}";;
+      g)  gen_crls;;
+      h)  usage; exit 0;;
+      i)  opt_i=true; filename="${OPTARG}";;
+      n)  calist;="${OPTARG}";;
+      p)  opt_p=true;;
+      r)  opt_r=true; filename="${OPTARG}";;
+      s)  signing_ca="${OPTARG}";;
+      t)  opt_t=true; filename="${OPTARG}";;
+      u)  common_name="${OPTARG}";;
+      w)  opt_w=true; filename="${OPTARG}";;
+      x)  opt_x=true; filename="${OPTARG}";;
+      \?) err "Unknown option: -${OPTARG:-}"; exit 1;;
+      :)  err "Missing option argument for -${OPTARG:-}"; exit 1;;
+      *)  err "Unimplemented option: -${OPTARG:-}"; exit 1;;
+    esac
+  done
+  
+  # create csr
+  if [[ -n ${opt_r:-} ]]; then
+    create_csr
+  fi
+
+  # when issuing cert, check for signing_ca
+  if [[ -n ${opt_i:-} ]]; then
+    if [[ -z ${signing_ca:-} ]]; then
+      err 'Option -s (singing_ca) is needed for -i (issue).'
+      cleanup; exit 1
+    fi
+    if [[ -z ${extensions:-} ]]; then
+      err 'Option -e (extensions) is needed for -i (issue).'
+      cleanup; exit 1
+    fi
+    create_crt
+  fi
+
+  # when exporting, then check for format
+  if [[ -n ${opt_t:-} ]]; then
+    if [[ -z ${format:-} ]]; then
+      err 'Option -f (format) is needed for -t (export).'
+      cleanup; exit 1
+    elif [[ "${format:-}" == 'DER' ]]; then
+      export_der
+    elif [[ "${format:-}" == 'PEM' ]]; then
+      export_pem
+    elif [[ "${format:-}" == 'P12' ]]; then
+      if [[ -z ${signing_ca:-} ]]; then
+        err 'Option -s (signing_ca) is needed for -f P12.'
+        cleanup; exit 1
+      fi
+      if [[ -z ${common_name:-} ]]; then
+        err 'Option -u (common_name) is needed for -f P12.'
+        cleanup; exit 1
+      fi
+      export_p12
+    fi
+  fi
+
+  # when renewing a cert, then check for signing_ca
+  if [[ -n ${opt_w:-} ]]; then
+    if [[ -z ${signing_ca:-} ]]; then
+      err 'Option -s (singing_ca) is needed for -w (renew).'
+      cleanup; exit 1
+    fi
+    if [[ -z ${extensions:-} ]]; then
+      err 'Option -e (extensions) is needed for -w (renew).'
+      cleanup; exit 1
+    fi
+    renew_cert
+  fi
+
+  # when revoking, then check for signing_ca
+  if [[ -n ${opt_x:-} ]]; then
+    if [[ -z ${signing_ca:-} ]]; then
+      err 'Option -s (singing_ca) is needed for -x (revoke).'
+      cleanup; exit 1
+    fi
+    revoke_cert
+  fi
+
+  cleanup
+  exit 0
+
+}
+
+# set a trap for (calling) cleanup all stuff before process
+# termination by SIGHUBs
+trap "cleanup; exit 1" 1 2 3 13 15
+
+# some checks
+check_root
+check_required_programs ${REQUIRED_PROGS}
+
+# this is the main executable at the end
+main "$@"

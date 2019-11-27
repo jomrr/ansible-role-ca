@@ -24,8 +24,8 @@ req_extensions          = ca_reqext             # Desired extensions
 [ ca_dn ]
 countryName             = "{{ ca_country }}"
 organizationName        = "{{ ca_organization }}"
-organizationalUnitName  = "{{ ca_name }} Root CA"
-commonName              = "{{ ca_name }} Root CA"
+organizationalUnitName  = "{{ ca_organizational_unit }}"
+commonName              = "{{ item.name }}"
 
 [ ca_reqext ]
 keyUsage                = critical,keyCertSign,cRLSign

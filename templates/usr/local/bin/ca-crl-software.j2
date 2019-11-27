@@ -1,6 +1,0 @@
-#!/bin/sh
-
-openssl ca -batch -gencrl \
-  -config {{ ca_base_dir }}/ca/etc/software-ca.conf \
-  -out {{ ca_base_dir }}/crl/software-ca.crl \
-  -passin file:{{ ca_base_dir }}/ca/software-ca/pwd/software-ca.pwd

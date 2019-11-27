@@ -2,7 +2,7 @@
 
 [ req ]
 default_bits                = {{ ca_default_bits }} # RSA key size
-encrypt_key                 = yes                   # Protect private key
+encrypt_key                 = {{ item.protect_key | ternary('yes', 'no ') }}                   # Protect private key
 default_md                  = {{ ca_default_md }}   # MD to use
 utf8                        = yes                   # Input is UTF-8
 string_mask                 = utf8only              # Emit UTF-8 strings
@@ -16,7 +16,7 @@ stateOrProvinceName         = "{{ ca_state }}"
 localityName                = "{{ ca_locality }}"
 organizationName            = "{{ ca_organization }}"
 organizationalUnitName      = "{{ ca_organizational_unit }}"
-commonName                  = "{{ item.cert.cn }}"
+commonName                  = "{{ item.cn }}"
 
 [ codesign_reqext ]
 keyUsage                    = critical,digitalSignature
