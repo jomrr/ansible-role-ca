@@ -7,7 +7,7 @@ This role is flexible to set up a single tier CA, a 2-tier CA like:
 * Root CA
   * Intermediate CA
 
-or a 3/multi-tier CA with openssl consisting of
+or a 3 CA with openssl consisting of
 
 * Root CA
   * Intermediate CA
@@ -15,14 +15,14 @@ or a 3/multi-tier CA with openssl consisting of
     * Identity CA
     * Software CA
 
-You can even go further, just have a look on the `ca_init_names` list of
+You could go further, but you would have to add additional config files in `templates/etc/`. Just have a look on the `ca_init_names` list of
 dictionaries in the [defaults/main.yml](https://github.com/jam82/ansible-role-ca/blob/master/defaults/main.yml) file.
 
 The default is to set up a 3-tier CA like mentioned above.
 
 The role is mainly created for use with a Samba AD in personal environments.
 
-I know storing passwords on disk is not considered super safe, even with root only permissions.
+I know storing passwords on disk is not considered super safe, even with root-only permissions.
 This is just a convenient way to operate and automate it...
 if anyone gets root access to my systems, then sniffing my network traffic is the smaller problem.
 
@@ -31,9 +31,10 @@ If you want to operate an OCSP Responder as well, you have to configure it yours
 ## Supported Platforms
 
 * Archlinux
-* CentOS 8 with EPEL Repo
-* Debian 10
-* Ubuntu 18.04
+* CentOS 7, 8 (all with EPEL)
+* Debian 9, 10
+* Suse Leap 15.1, Tumbleweed
+* Ubuntu 16.04, 18.04
 
 ## Requirements
 
@@ -46,6 +47,7 @@ Variables for this
 | variable | default value in defaults/main.yml | description |
 | -------- | ---------------------------------- | ----------- |
 | ca_enabled | False | Determine whether role is enabled (True) or not (False) |
+| ca_init_names | [{},...] | See [defaults/main.yml](https://github.com/jam82/ansible-role-ca/blob/master/defaults/main.yml). List of dicts to build the CA hierarchy |
 | ca_country | 'DE' | Country in distginguished name |
 | ca_state | 'Bayern' | StateOrProvince in distginguished name |
 | ca_locality | 'Erlangen' | City in distginguished name |
@@ -188,7 +190,7 @@ If you want to revoke keys:
     - role: ansible-role-ca
 ```
 
-You can also combine ca_certs and ca_revoke, then the keys named in both
+You can also combine `ca_certs` and `ca_revoke`, then the keys named in both
 dictionary lists will be renewed.
 
 ## License and Author
