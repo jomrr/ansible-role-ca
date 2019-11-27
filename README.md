@@ -2,7 +2,7 @@
 
 Ansible role for setting up a Certificate Authority with openssl.
 
-This roles can felxibly set up a single tier CA, a 2-tier CA like:
+This role is flexible to set up a single tier CA, a 2-tier CA like:
 
 * Root CA
   * Intermediate CA
