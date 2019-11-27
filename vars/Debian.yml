@@ -6,6 +6,7 @@ ca_packages:
   - ca-certificates
   - openssl
   - pwgen
+  - tar
 
 ca_trusted_path: '/usr/local/share/ca-certificates'
 ca_trusted_update: '/usr/sbin/update-ca-certificates'
