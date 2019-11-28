@@ -87,7 +87,7 @@ Executing the role with default values does not make much sense.
 
 Here is an example ready to use: <a name="example"></a>
 
-The OIDs in the mskdc cert SubjectAlternativeName are 
+The OIDs in the mskdc cert SubjectAlternativeName are
 
 * Kerberos principalname = 1.3.6.1.5.2.2
 * msADGUID = 1.3.6.1.4.1.311.25.1
