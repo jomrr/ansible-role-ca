@@ -1,6 +1,0 @@
-#!/bin/sh
-
-openssl ca -batch -gencrl \
-  -config {{ ca_base_dir }}/ca/etc/intermediate-ca.conf \
-  -out {{ ca_base_dir }}/crl/intermediate-ca.crl \
-  -passin file:{{ ca_base_dir }}/ca/intermediate-ca/pwd/intermediate-ca.pwd

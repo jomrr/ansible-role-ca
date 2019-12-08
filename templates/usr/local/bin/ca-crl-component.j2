@@ -1,6 +1,0 @@
-#!/bin/sh
-
-openssl ca -batch -gencrl \
-  -config {{ ca_base_dir }}/ca/etc/component-ca.conf \
-  -out {{ ca_base_dir }}/crl/component-ca.crl \
-  -passin file:{{ ca_base_dir }}/ca/component-ca/pwd/component-ca.pwd

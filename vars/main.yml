@@ -2,28 +2,6 @@
 # role: ansible-role-ca
 # file: vars/main.yml
 
-ca_init_names:
-  - path: 'root'
-    param: '-selfsign'
-    sign: 'root'
-    ext: 'root_ca_ext'
-  - path: 'intermediate'
-    param: ''
-    sign: 'root'
-    ext: 'intermediate_ca_ext'
-  - path: 'component'
-    param: ''
-    sign: 'intermediate'
-    ext: 'signing_ca_ext'
-  - path: 'identity'
-    param: ''
-    sign: 'intermediate'
-    ext: 'signing_ca_ext'
-  - path: 'software'
-    param: ''
-    sign: 'intermediate'
-    ext: 'signing_ca_ext'
-
 ca_init_dirs:
   - { dir: "{{ ca_base_dir }}", mode: '755' }
   - { dir: "{{ ca_base_dir }}/ca", mode: '755' }
@@ -31,7 +9,7 @@ ca_init_dirs:
   - { dir: "{{ ca_base_dir }}/crl", mode: '755' }
   - { dir: "{{ ca_base_dir }}/csr", mode: '755' }
   - { dir: "{{ ca_base_dir }}/certs", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/tmp", mode: '755' }
+  - { dir: "{{ ca_base_dir }}/pwd", mode: '700' }
   - { dir: "{{ ca_base_dir }}/ca/csr", mode: '755' }
   - { dir: "{{ ca_base_dir }}/ca/etc", mode: '755' }
   - { dir: "{{ ca_base_dir }}/ca/root-ca/db", mode: '755' }

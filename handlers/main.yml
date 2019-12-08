@@ -7,11 +7,6 @@
 
 - name: Regenerate CRLs
   shell: |
-    /usr/local/bin/{{ ca_dir }}-ca-crl-root
-    /usr/local/bin/{{ ca_dir }}-ca-crl-intermediate
-    /usr/local/bin/{{ ca_dir }}-ca-crl-component
-    /usr/local/bin/{{ ca_dir }}-ca-crl-identity
-    /usr/local/bin/{{ ca_dir }}-ca-crl-software
+    /usr/local/bin/{{ ca_dir }}-ca -g
   args:
-    executable: '/bin/sh'
     removes: "{{ ca_base_dir }}/crl/root.ca.crl"

@@ -4,12 +4,11 @@
 
 - name: Revoke certificates
   shell: |
-    /usr/local/bin/{{ ca_dir }}-ca-revoke \
-      {{ item.file }} \
-      {{ item.ca }}
+    /usr/local/bin/{{ ca_dir }}-ca \
+      -x {{ item.file }} \
+      -s {{ item.ca }}
   args:
     chdir: "{{ ca_base_dir }}/"
-    removes: "{{ ca_base_dir }}/certs/{{ item.file }}.pem"
-    executable: '/bin/sh'
+    removes: "{{ ca_base_dir }}/certs/{{ item.file }}.crt"
   loop: "{{ ca_revoke }}"
   notify: Regenerate CRLs

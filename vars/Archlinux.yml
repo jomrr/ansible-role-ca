@@ -7,6 +7,7 @@ ca_packages:
   - cronie
   - openssl
   - pwgen
+  - tar
 
 ca_trusted_path: '/usr/share/ca-certificates/trust-source/anchors'
 ca_trusted_update: 'trust extract-compat'

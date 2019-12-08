@@ -44,7 +44,7 @@
   loop: "{{ ca_init_names }}"
   tags: init-pwds
 
-- name: "Create Keys and CSRs"
+- name: "Create CA CSRs and Keys"
   shell: |
     openssl req -batch -new \
       -config ca/etc/{{ item.path }}-ca.conf \
@@ -58,7 +58,7 @@
   loop: "{{ ca_init_names }}"
   tags: init-keys
 
-- name: "Create certificates and sign"
+- name: "Create CA Certificates and sign"
   shell: |
     openssl ca -batch -create_serial {{ item.param }} \
       -config ca/etc/{{ item.sign }}-ca.conf \
@@ -117,29 +117,23 @@
   when: ca_create_dhparams | bool
   tags: dhparams
 
-- name: "Create management scripts for {{ ca_name }} CA"
+- name: Set fact for CA List
+  set_fact:
+    ca_list: |
+      {% set ca_names = [] -%}
+      {% for ca_item in ca_init_names -%}
+        {% set ca_dummy = ca_names.append(ca_item.path) -%}
+      {%- endfor %}
+      {{ ca_names }}
+
+- name: "Create wrapper script /usr/local/bin/{{ ca_dir }}-ca"
   template:
-    src: "usr/local/bin/{{ item }}.j2"
-    dest: "/usr/local/bin/{{ ca_dir }}-{{ item }}"
+    src: "usr/local/bin/ca.j2"
+    dest: "/usr/local/bin/{{ ca_dir }}-ca"
     owner: root
     group: root
     mode: '700'
-  loop:
-    - 'ca-create-client'
-    - 'ca-create-codesign'
-    - 'ca-create-email'
-    - 'ca-create-identity'
-    - 'ca-create-mskdc'
-    - 'ca-create-ocsp'
-    - 'ca-create-server'
-    - 'ca-create-timestamp'
-    - 'ca-crl-component'
-    - 'ca-crl-identity'
-    - 'ca-crl-intermediate'
-    - 'ca-crl-root'
-    - 'ca-crl-software'
-    - 'ca-revoke'
-  tags: init-scripts
+  tags: init-wrapper
 
 - name: Enable cron jobs for generating CRLs
   cron:
@@ -149,7 +143,7 @@
     minute: "{{ item.minute }}"
     job: "{{ item.job }}"
     user: root
-    cron_file: "{{ ca_dir }}-crls"
+    cron_file: "{{ ca_dir }}-crl"
     state: "{{ item.state }}"
   loop: "{{ ca_cron_jobs }}"
   tags: cron-crl

@@ -1,6 +1,0 @@
-#!/bin/sh
-
-openssl ca -batch -gencrl \
-  -config {{ ca_base_dir }}/ca/etc/identity-ca.conf \
-  -out {{ ca_base_dir }}/crl/identity-ca.crl \
-  -passin file:{{ ca_base_dir }}/ca/identity-ca/pwd/identity-ca.pwd
