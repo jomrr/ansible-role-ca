@@ -4,4 +4,4 @@
 
 - name: Import tasks for role ansible-role-ca
   import_tasks: tasks.yml
-  when: ca_enabled | bool
+  when: ca_role_enabled | bool

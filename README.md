@@ -1,8 +1,10 @@
-# ansible-role-ca ![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca) [![Build Status](https://travis-ci.org/jam82/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jam82/ansible-role-ca)
+# ansible-role-ca 
 
-Ansible role for setting up a Certificate Authority with openssl.
+![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca) [![Build Status](https://travis-ci.org/jam82/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jam82/ansible-role-ca)
 
-This role is flexible to set up a single tier CA, a 2-tier CA like:
+**Ansible role for setting up a Certificate Authority with openssl.**
+
+This role is flexible to set up a single tier CA, a 2-tier CA like
 
 * Root CA
   * Intermediate CA
@@ -33,7 +35,7 @@ If you want to operate an OCSP Responder as well, you have to configure it yours
 * Archlinux
 * CentOS 7, 8 (all with EPEL)
 * Debian 9, 10
-* Suse Leap 15.1, Tumbleweed
+* OpenSuse Leap 15.1, Tumbleweed
 * Ubuntu 16.04, 18.04
 
 ## Requirements
@@ -42,40 +44,96 @@ Ansible 2.7 or higher is recommended.
 
 ## Variables
 
-Variables for this
+Variables and default for this role are:
 
-| variable | default value in defaults/main.yml | description |
-| -------- | ---------------------------------- | ----------- |
-| ca_enabled | False | Determine whether role is enabled (True) or not (False) |
-| ca_init_names | [{},...] | See [defaults/main.yml](https://github.com/jam82/ansible-role-ca/blob/master/defaults/main.yml). List of dicts to build the CA hierarchy |
-| ca_country | 'DE' | Country in distginguished name |
-| ca_state | 'Bayern' | StateOrProvince in distginguished name |
-| ca_locality | 'Erlangen' | City in distginguished name |
-| ca_organization | 'Yourdomain Private' | Oragnization in distginguished name |
-| ca_organizational_unit | 'Yourdomain Certificate Authority' | OragnizationalUnit in distginguished name |
-| ca_name | 'Yourdomain' | DisplayName of the CA, in this case "Mustermann Root CA", etc. |
-| ca_dir | 'your'  | Foldername/filename to store the CA in in /etc/ssl/ and for the scripts |
-| ca_base_url | '<http://pki.yourdomain.tld>' | Base URL used for building CRL path, etc. |
-| ca_ocsp_enable | False | Add OCSP Information to openssl config files |
-| ca_ocsp_url | '<http://oscp.yourdomain.tld>' | FQDN of OCSP responder |
-| ca_default_bits | 4096 | Default key size of RSA keys |
-| ca_default_md | 'sha512' | Default hash algorithm to use, SHA2-512 |
-| ca_unique_subject | 'yes' | Unique subjects mean, that two certificates cannot have the same CommonName |
-| ca_link_crls_to_webdir | '' | Create symlinks for CRLs to Webserver directory (see ca_base_url) |
-| ca_create_dhparams | False | When True creates a 4096 bit Diffie-Hellman parameters file (takes a long time, ~12 min) |
-| ca_cron_jobs | [{ name: "Generate CRLs for {{ ca_name }} CA", day: '*', hour: '0', minute: '1', job: "/usr/local/bin/{{ ca_dir }}-ca -g", state: present }] | List of cronjobs to generate CRLs (run daily/weekly) |
-| ca_root_default_days | 3652 | No of days the root CA and its signed certs are valid |
-| ca_root_default_crl_days | 30 | No of days the root CA CRLs are valid |
-| ca_intermediate_default_days | 3652 | No of days certificates from Intermediate CA are valid |
-| ca_intermediate_default_crl_days | 30 | No of days the Intermediate CA CRLs are valid |
-| ca_identity_default_days | 1095 | No of days certificates from Identity CA are valid |
-| ca_identity_default_crl_days | 30 | No of days the Identity CA CRLs are valid |
-| ca_component_default_days | 730 | No of days certificates from Component CA are valid |
-| ca_component_default_crl_days | 30 | No of days the Component CA CRLs are valid |
-| ca_software_default_days | 1826 | No of days certificates from Software CA are valid |
-| ca_software_default_crl_days | 30 | No of days the Software CA CRLs are valid |
-| ca_certs | {} | Dictionary of certificate infos, for certs to create. See [Example](#example) |
-| ca_revoke | [] | List of dicts, i.e. `- { file: 'my-phone', ca: 'component' }`. Looks for `file`.pem in `/etc/ssl/{{ca_dir}}/certs`. |
+```yaml
+---
+# role: ansible-role-ca
+# file: defaults/main.yml
+
+# The role is disabled by default, so you do not get in trouble.
+# Checked in tasks/main.yml which includes tasks.yml if enabled.
+ca_enabled: False
+
+# ca configuration
+ca_init_names:
+  - name: '{{ ca_name }} Root CA'
+    path: 'root'
+    param: '-selfsign'
+    sign: 'root'
+    ext: 'root_ca_ext'
+  - name: '{{ ca_name }} Intermediate CA'
+    path: 'intermediate'
+    param: ''
+    sign: "root"
+    ext: 'intermediate_ca_ext'
+  - name: '{{ ca_name }} Component CA'
+    path: 'component'
+    param: ''
+    sign: 'intermediate'
+    ext: 'signing_ca_ext'
+  - name: '{{ ca_name }} Identity CA'
+    path: 'identity'
+    param: ''
+    sign: 'intermediate'
+    ext: 'signing_ca_ext'
+  - name: '{{ ca_name }} Software CA'
+    path: 'software'
+    param: ''
+    sign: 'intermediate'
+    ext: 'signing_ca_ext'
+
+# general settings
+ca_country: 'DE'
+ca_state: 'Bayern'
+ca_locality: 'Erlangen'
+ca_organization: 'Yourdomain SE'
+ca_organizational_unit: 'Yourdomain Certificate Authority'
+ca_name: 'Yourdomain'  # display name
+ca_dir: 'your'  # small letter, i.e. ca_base_dir = /etc/ssl/{{ ca_dir }}
+ca_base_url: 'http://pki.yourdomain.tld'
+ca_oscp_enable: False
+ca_oscp_openssl_responder: False
+ca_oscp_url: 'http://oscp.yourdomain.tld'
+ca_default_bits: 4096
+ca_default_md: 'sha512'
+ca_unique_subject: 'yes'
+ca_link_crls_to_webdir: ''
+ca_create_dhparams: False
+ca_cron_jobs:
+  - name: "Generate CRLs for {{ ca_name }} CA"
+    day: '*'
+    hour: '0'
+    minute: '1'
+    job: "/usr/local/bin/{{ ca_dir }}-ca -g"
+    state: present
+
+# root-ca specific settings
+ca_root_default_days: 3652
+ca_root_default_crl_days: 30
+
+# intermediate-ca specific tower_settings
+ca_intermediate_default_days: 3652
+ca_intermediate_default_crl_days: 30
+
+# identity-ca specific settings
+ca_identity_default_days: 1095
+ca_identity_default_crl_days: 30
+
+# component-ca specific settings
+ca_component_default_days: 730
+ca_component_default_crl_days: 30
+
+# software-ca specific settings
+ca_software_default_days: 1826
+ca_software_default_crl_days: 30
+
+# dictionary for certificate management
+ca_certs: {}
+
+# list of dicts of certs to revoke
+ca_revoke: []
+```
 
 ## Dependencies
 
@@ -195,11 +253,11 @@ dictionary lists will be renewed.
 
 ## License and Author
 
-* Author:: Jonas Mauer (<jam@kabelmail.net>)
-* Copyright:: 2019, Jonas Mauer
+* Author:: [jam82](https://github.com/jam82/)
+* Copyright:: 2020, [jam82](https://github.com/jam82/)
 
-Licensed under MIT License;
-See LICENSE file in repository.
+Licensed under [MIT License](https://opensource.org/licenses/MIT).
+See [LICENSE](https://github.com/jam82/ansible-role-ca/blob/master/LICENSE) file in repository.
 
 ## References
 
