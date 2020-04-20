@@ -39,8 +39,8 @@ ca_certs:
       - cn: 'Jonas Mauer (Mail)'
         email: 'jonas@yourdomain.tld'
         san:
-            - 'email:move'
-            - 'email:jam@yourdomain.tld'
+          - 'email:move'
+          - 'email:jam@yourdomain.tld'
         protect_key: True
     identity:
       - cn: 'Jonas Mauer (ID)'

@@ -1,4 +1,4 @@
-# ansible-role-ca 
+# ansible-role-ca
 
 ![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca) [![Build Status](https://travis-ci.org/jam82/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jam82/ansible-role-ca)
 
@@ -143,7 +143,7 @@ None.
 
 Executing the role with default values does not make much sense.
 
-Here is an example ready to use: <a name="example"></a>
+Here is an example ready to use:
 
 The OIDs in the mskdc cert SubjectAlternativeName are
 
