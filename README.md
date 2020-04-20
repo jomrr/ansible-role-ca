@@ -33,10 +33,10 @@ If you want to operate an OCSP Responder as well, you have to configure it yours
 ## Supported Platforms
 
 * Archlinux
-* CentOS 7, 8 (all with EPEL)
+* CentOS 7, 8 (all with EPEL for pwgen)
 * Debian 9, 10
 * OpenSuse Leap 15.1, Tumbleweed
-* Ubuntu 16.04, 18.04
+* Ubuntu 18.04, 20.04
 
 ## Requirements
 

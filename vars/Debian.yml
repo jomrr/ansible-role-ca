@@ -4,6 +4,7 @@
 
 ca_packages:
   - ca-certificates
+  - cron
   - openssl
   - pwgen
   - tar

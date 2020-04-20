@@ -2,6 +2,10 @@
 # role: ansible-role-ca
 # file: tasks/create.yml
 
+- name: debug
+  debug:
+    msg: "{{ ca_certs }}"
+
 - name: Set fact for list of certificates to create
   set_fact:
     ca_certificates: |

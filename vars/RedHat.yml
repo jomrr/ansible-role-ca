@@ -4,6 +4,7 @@
 
 ca_packages:
   - ca-certificates
+  - cronie
   - openssl
   - pwgen
   - tar

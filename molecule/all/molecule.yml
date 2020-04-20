@@ -12,32 +12,6 @@ lint: |
   ansible-lint
   flake8
 platforms:
-  - name: ca-alpine311
-    image: "jam82/molecule-alpine:3.11"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-  - name: ca-alpine
-    image: "jam82/molecule-alpine:latest"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-  - name: ca-amazonlinux
-    image: "jam82/molecule-amazonlinux:latest"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-arch
     image: "jam82/molecule-archlinux:latest"
     override_command: False
@@ -48,14 +22,6 @@ platforms:
       - /run
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-centos6
-    image: "jam82/molecule-centos:6"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
   - name: ca-centos7
     image: "jam82/molecule-centos:7"
     override_command: False
@@ -96,16 +62,6 @@ platforms:
       - /run
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-debian
-    image: "jam82/molecule-debian:latest"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-opensuse15
     image: "jam82/molecule-opensuse:15"
     override_command: False
@@ -116,66 +72,8 @@ platforms:
       - /run
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-opensuse
-    image: "jam82/molecule-opensuse:latest"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-opensuse-tumbleweed
+  - name: ca-tumbleweed
     image: "jam82/molecule-opensuse:tumbleweed"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-oraclelinux6
-    image: "jam82/molecule-oraclelinux:6"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-  - name: ca-oraclelinux7
-    image: "jam82/molecule-oraclelinux:7"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-oraclelinux8
-    image: "jam82/molecule-oraclelinux:8"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-oraclelinux
-    image: "jam82/molecule-oraclelinux:latest"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-ubuntu1604
-    image: "jam82/molecule-ubuntu:16.04"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -204,16 +102,6 @@ platforms:
       - /run
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-ubuntu
-    image: "jam82/molecule-ubuntu:latest"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
 provisioner:
   name: ansible
   log: True
@@ -223,7 +111,56 @@ provisioner:
   inventory:
     group_vars:
       all:
-        ca_role_enabled: True
+        ca_country: 'DE'
+        ca_state: 'Bayern'
+        ca_locality: 'Erlangen'
+        ca_organization: 'Homebase'
+        ca_organizational_unit: 'Homebase Certificate Authority'
+        ca_name: 'Homebase'
+        ca_dir: 'home'
+        ca_base_url: 'http://pki.yourdomain.tld'
+        ca_certs:
+          component:
+          client:
+            - cn: 'My Mobile'
+            - cn: 'My Tablet'
+          mskdc:
+            - cn: 'dc.yourdomain.tld'
+              san:
+                - 'DNS = dc'
+                - 'DNS = ad.yourdomain.tld'
+                - 'IP = 192.168.10.10'
+                - 'otherName = 1.3.6.1.5.2.2;UTF8:dc.yourdomain.tld'
+                - 'otherName = 1.3.6.1.4.1.311.25.1;FORMAT:HEX,OCTETSTRING:2BEA00D953125447A22BCF28508DFED3'
+          server:
+            - cn: 'server.yourdomain.tld'
+              san:
+                - 'DNS = server.yourdomain.tld'
+                - 'DNS = mail.yourdomain.tld'
+                - 'IP = 192.168.10.11'
+          timestamp:
+            - cn: 'My Software Timestamp'
+          ocsp:
+            - cn: 'My OCSP Signature'
+          identity:
+            email:
+              - cn: 'Jonas Mauer (Mail)'
+                email: 'jonas@yourdomain.tld'
+                san:
+                  - 'email:move'
+                  - 'email:jam@yourdomain.tld'
+                protect_key: True
+            identity:
+              - cn: 'Jonas Mauer (ID)'
+                email: 'jonas@yourdomain.tld'
+                san:
+                  - 'email:move'
+                  - 'otherName:1.3.6.1.4.1.311.20.2.3;UTF8:jonas@dc.yourdomain.tld'
+                protect_key: True
+          software:
+            codesign:
+              - cn: 'My Software'
+                protect_key: True
 verifier:
   name: testinfra
   env:

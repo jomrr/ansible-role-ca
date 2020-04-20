@@ -13,27 +13,31 @@ ca_dir: 'home'
 ca_base_url: 'http://pki.yourdomain.tld'
 ca_certs:
   component:
-  client:
-    - cn: 'My Mobile'
-    - cn: 'My Tablet'
-  mskdc:
-    - cn: 'dc.yourdomain.tld'
-      san:
-        - 'DNS = dc'
-        - 'DNS = ad.yourdomain.tld'
-        - 'IP = 192.168.10.10'
-        - 'otherName = 1.3.6.1.5.2.2;UTF8:dc.yourdomain.tld'
-        - 'otherName = 1.3.6.1.4.1.311.25.1;FORMAT:HEX,OCTETSTRING:2BEA00D953125447A22BCF28508DFED3'
-  server:
-    - cn: 'server.yourdomain.tld'
-      san:
-        - 'DNS = server.yourdomain.tld'
-        - 'DNS = mail.yourdomain.tld'
-        - 'IP = 192.168.10.11'
-  timestamp:
-    - cn: 'My Software Timestamp'
-  ocsp:
-    - cn: 'My OCSP Signature'
+    client:
+      - cn: 'My Mobile'
+        export:
+          - DER
+          - PEM
+          - P12
+      - cn: 'My Tablet'
+    mskdc:
+      - cn: 'dc.yourdomain.tld'
+        san:
+          - 'DNS = dc'
+          - 'DNS = ad.yourdomain.tld'
+          - 'IP = 192.168.10.10'
+          - 'otherName = 1.3.6.1.5.2.2;UTF8:dc.yourdomain.tld'
+          - 'otherName = 1.3.6.1.4.1.311.25.1;FORMAT:HEX,OCTETSTRING:2BEA00D953125447A22BCF28508DFED3'
+    server:
+      - cn: 'server.yourdomain.tld'
+        san:
+          - 'DNS = server.yourdomain.tld'
+          - 'DNS = mail.yourdomain.tld'
+          - 'IP = 192.168.10.11'
+    timestamp:
+      - cn: 'My Software Timestamp'
+    ocsp:
+      - cn: 'My OCSP Signature'
   identity:
     email:
       - cn: 'Jonas Mauer (Mail)'
@@ -42,6 +46,8 @@ ca_certs:
           - 'email:move'
           - 'email:jam@yourdomain.tld'
         protect_key: True
+        export:
+          - P12
     identity:
       - cn: 'Jonas Mauer (ID)'
         email: 'jonas@yourdomain.tld'
@@ -49,6 +55,8 @@ ca_certs:
           - 'email:move'
           - 'otherName:1.3.6.1.4.1.311.20.2.3;UTF8:jonas@dc.yourdomain.tld'
         protect_key: True
+        export:
+          - P12
   software:
     codesign:
       - cn: 'My Software'

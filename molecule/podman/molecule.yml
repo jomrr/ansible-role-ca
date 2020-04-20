@@ -28,10 +28,6 @@ provisioner:
   playbooks:
     prepare: ../resources/playbooks/prepare.yml
     converge: ../resources/playbooks/converge.yml
-  inventory:
-    group_vars:
-      all:
-        ca_role_enabled: True
 verifier:
   name: testinfra
   env:
