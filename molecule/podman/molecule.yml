@@ -4,8 +4,6 @@
 
 dependency:
   name: galaxy
-  options:
-    role-file: molecule/resources/roles/requirements.yml
 driver:
   name: podman
 lint: |
@@ -30,10 +28,6 @@ provisioner:
   playbooks:
     prepare: ../resources/playbooks/prepare.yml
     converge: ../resources/playbooks/converge.yml
-  inventory:
-    group_vars:
-      all:
-        ca_role_enabled: True
 verifier:
   name: testinfra
   env:

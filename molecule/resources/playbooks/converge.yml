@@ -9,5 +9,4 @@
     - name: "Include variables to converge playbook"
       include_vars: vars.yml
   roles:
-    - role: common
     - role: ansible-role-ca

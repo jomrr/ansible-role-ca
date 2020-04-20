@@ -1,4 +1,4 @@
-# ansible-role-ca 
+# ansible-role-ca
 
 ![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca) [![Build Status](https://travis-ci.org/jam82/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jam82/ansible-role-ca)
 
@@ -33,10 +33,10 @@ If you want to operate an OCSP Responder as well, you have to configure it yours
 ## Supported Platforms
 
 * Archlinux
-* CentOS 7, 8 (all with EPEL)
+* CentOS 7, 8 (all with EPEL for pwgen)
 * Debian 9, 10
 * OpenSuse Leap 15.1, Tumbleweed
-* Ubuntu 16.04, 18.04
+* Ubuntu 18.04, 20.04
 
 ## Requirements
 
@@ -143,7 +143,7 @@ None.
 
 Executing the role with default values does not make much sense.
 
-Here is an example ready to use: <a name="example"></a>
+Here is an example ready to use:
 
 The OIDs in the mskdc cert SubjectAlternativeName are
 
