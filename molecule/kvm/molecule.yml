@@ -4,6 +4,8 @@
 
 dependency:
   name: galaxy
+  options:
+    role-file: requirements.yml
 driver:
   name: vagrant
   provider:
@@ -18,27 +20,36 @@ lint: |
   ansible-lint
   flake8
 platforms:
-  - name: ca-arch
+  - name: arch-ca
     box: "archlinux/archlinux"
-  - name: ca-centos8
+  - name: centos-ca
     box: "centos/8"
-  - name: ca-debian10
-    box: "debian/buster64"
-  - name: ca-fedora31
-    box: "fedora/31-cloud-base"
-  - name: ca-ubuntu1804
-    box: "generic/ubuntu1804"
+  - name: debian-ca
+    box: "debian/bullseye64"
+  - name: fedora-ca
+    box: "fedora/33-cloud-base"
+  - name: opensuse-ca
+    box: "generic/opensuse15"
+  - name: oracle-ca
+    box: "generic/oracle8"
+  - name: ubuntu-ca
+    box: "generic/ubuntu2004"
 provisioner:
   name: ansible
-  log: True
+  log: true
   playbooks:
     prepare: ../resources/playbooks/prepare.yml
     converge: ../resources/playbooks/converge.yml
+    verify: ../resources/playbooks/verify.yml
+  inventory:
+    group_vars:
+      all:
+        ca_role_enabled: true
 verifier:
   name: testinfra
   env:
     PYTHONWARNINGS: "ignore"
   directory: ../resources/tests
   options:
-    v: True
-    sudo: True
+    v: true
+    sudo: true

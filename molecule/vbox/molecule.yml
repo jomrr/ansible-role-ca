@@ -4,6 +4,8 @@
 
 dependency:
   name: galaxy
+  options:
+    role-file: requirements.yml
 driver:
   name: vagrant
   provider:
@@ -13,47 +15,53 @@ lint: |
   set -e
   yamllint .
   ansible-lint
-  flake8
 platforms:
-  - name: ca-alpine310
-    box: "generic/alpine310"
+  - name: alpine-ca
+    box: "generic/alpine312"
     cpus: 2
     memory: 1024
-  - name: ca-arch
+  - name: amazon-ca
+    box: "bento/amazonlinux-2"
+    cpus: 2
+    memory: 1024
+  - name: arch-ca
     box: "archlinux/archlinux"
     cpus: 2
     memory: 1024
-  - name: ca-centos8
+  - name: centos-ca
     box: "centos/8"
     cpus: 2
     memory: 1024
-  - name: ca-debian10
-    box: "debian/buster64"
+  - name: debian-ca
+    box: "debian/bullseye64"
     cpus: 2
     memory: 1024
-  - name: ca-fedora31
-    box: "fedora/31-cloud-base"
+  - name: fedora-ca
+    box: "fedora/33-cloud-base"
     cpus: 2
     memory: 1024
-  - name: ca-ubuntu1804
-    box: "ubuntu/bionic64"
+  - name: opensuse-ca
+    box: "generic/opensuse15"
     cpus: 2
     memory: 1024
-  - name: ca-ubuntu2004
+  - name: oracle-ca
+    box: "generic/oracle8"
+    cpus: 2
+    memory: 1024
+  - name: ubuntu-ca
     box: "ubuntu/focal64"
     cpus: 2
     memory: 1024
 provisioner:
   name: ansible
-  log: True
+  log: true
   playbooks:
     prepare: ../resources/playbooks/prepare.yml
     converge: ../resources/playbooks/converge.yml
+    verify: ../resources/playbooks/verify.yml
+  inventory:
+    group_vars:
+      all:
+        ca_role_enabled: true
 verifier:
-  name: testinfra
-  env:
-    PYTHONWARNINGS: "ignore"
-  directory: ../resources/tests
-  options:
-    v: True
-    sudo: True
+  name: ansible

@@ -2,6 +2,10 @@
 # role: ansible-role-ca
 # file: tasks/main.yml
 
-- name: Import tasks for role ansible-role-ca
-  import_tasks: tasks.yml
+- name: "Tasks for ansible-role-ca"
+  block:
+    - name: "Install packages for ansible-role-ca"
+      package:
+        name: "{{ ca_packages }}"
+        state: present
   when: ca_role_enabled | bool
