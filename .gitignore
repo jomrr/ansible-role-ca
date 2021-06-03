@@ -1,4 +1,6 @@
 # ---> Ansible
+library/
+module_utils/
 *.retry
 hosts
 hosts.yml

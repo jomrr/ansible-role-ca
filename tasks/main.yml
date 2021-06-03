@@ -8,4 +8,8 @@
       package:
         name: "{{ ca_packages }}"
         state: present
+    - name: "Initialiize CAs"
+      myca_init:
+        cainfo: "{{ ca_info }}"
+        calist: "{{ ca_list }}"
   when: ca_role_enabled | bool

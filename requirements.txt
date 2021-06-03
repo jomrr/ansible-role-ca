@@ -1,4 +1,5 @@
 ansible-lint
+cryptography
 flake8
 molecule-docker
 yamllint

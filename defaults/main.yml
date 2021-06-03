@@ -6,26 +6,6 @@
 # Checked in tasks/main.yml which uses a tasks block if enabled.
 ca_role_enabled: false
 
-ca_country: 'DE'
-
-ca_state: 'Bayern'
-
-ca_locality: 'Erlangen'
-
-ca_organization: 'Yourdomain SE'
-
-ca_organizational_unit: 'Yourdomain Certificate Authority'
-
-ca_name: 'Yourdomain'  # display name
-
-ca_dir: 'your'  # small letter, e.g. ca_path = /etc/ssl/{{ ca_dir }}
-
-ca_base_url: 'http://pki.yourdomain.tld'
-
-ca_email: "ca@localhost"
-
-ca_digest_default_algorithm: "sha512"
-
 # The hierarchy of CA(s), used to create the CA certificate(s).
 # Can be one CA certificate for all activities or multi tier CA structure.
 # The example here creates a 3-tier CA, with:
@@ -38,55 +18,60 @@ ca_digest_default_algorithm: "sha512"
 #   - ansible.community.crypto.openssl_csr
 #   - ansible.community.crypto.x509_certificate
 # CUSTOM ATTRIBUTES:
+#   - name:     self selected name
 #   - parent:   path of parent CA.
 #   - pathlen:  path length for hierarchy, for signing CA this is 0.
 #               Could also be called 'depth' of hierarchy,
 #               or distance beetween top level CA and certificates.
 # for the rest see:
 # https://docs.ansible.com/ansible/latest/collections/community/crypto/openssl_csr_module.html
-ca_hierarchy:
-  - name: "{{ ca_name }} Root CA 2020"
+ca_info:
+  country: "DE"
+  state: "Bayern"
+  locality: "Erlangen"
+  organization: "Homebase"
+  organizational_unit: ""
+  url: "https://pki.samdom.localdomain"
+  email: "pki@samdom.localdomain"
+  path: "/opt/ca"
+  default_md: "sha512"
+  default_algorithm: "rsa"
+  default_key_length: 4096
+
+ca_list:
+  - id: 0
+    name: "Homebase Root CA 2021"
+    path: "root"
+    password: "Sup3rSecr3t0+"
     parent: 0
-    pathlen: 2
-    provider: "selfsign"
-    authority_cert_issuer:
-      - "URI:{{ ca_base_url }}/{{ ca_dir }}.crl"
-    authority_cert_serial_number: "{{ ansible_date_time.iso8601_micro | to_uuid }}"
-    basic_constraints:
-      - "CA:true"
-    basic_constraints_critical: true
-    common_name: "{{ ca_name }}"
-    country_name: "{{ ca_country }}"
-    crl_distribution_points:
-      - crl_issuer:
-          - "URI:{{ ca_base_url }}"
-        relative_name:
-          - "/{{ ca_name }}.crl"
-        full_name:
-          - "URI:{{ ca_base_url }}/{{ ca_name }}.crl"
-        reasons:
-          - key_compromise
-          - ca_compromise
-          - affiliation_changed
-          - superseded
-          - cessation_of_operation
-          - certificate_hold
-          - privilege_withdrawn
-          - aa_compromise
-    digest: "{{ ca_digest_default_algorithm }}"
-    email_address: "{{ ca_email }}"
-    key_usage:
-      - "keyCertSign"
-      - "cRLSign"
-    key_usage_critical: true
-    locality_name: "{{ ca_locality }}"
-    organization_name: "{{ ca_organization }}"
-    organizational_unit_name: "{{ ca_organizational_unit }}"
-    csr_path: "{{ ca_path }}/csr/{{ ca_dir }}-root-ca.csr"
-    cert_path: "{{ ca_path }}/certs/{{ ca_dir }}-root-ca.pem"
-    privatekey_passphrase: "Ro0tMe!"
-    privatekey_path: "{{ ca_path }}/private/{{ ca_dir }}-root-ca.key.pem"
-    state_or_province_name: "{{ ca_state }}"
-    subject:
-    subject_alt_name:
-    subject_alt_name_critical:
+    method: "selfsign"
+    state: "present"
+    parameters:
+      pathlen: 2
+  - id: 1
+    name: "Homebase Intermediate CA 2021"
+    password: "Sup3rSecr3t0+"
+    path: "intermediate"
+    parent: 0
+    method: "sign"
+    state: "present"
+    parameters:
+      pathlen: 1
+  - id: 2
+    name: "Homebase Component CA 2021"
+    password: "Sup3rSecr3t0+"
+    path: "component"
+    parent: 1
+    method: "sign"
+    state: "present"
+    parameters:
+      pathlen: 0
+  - id: 3
+    name: "Homebase User CA 2021"
+    password: "Sup3rSecr3t0+"
+    path: "user"
+    parent: 1
+    method: "sign"
+    state: "present"
+    parameters:
+      pathlen: 0
