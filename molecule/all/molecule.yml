@@ -13,7 +13,7 @@ lint: |
   flake8
 platforms:
   - name: ca-arch
-    image: "jam82/molecule-archlinux:latest"
+    image: "jomrr/molecule-archlinux:latest"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -23,7 +23,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-centos7
-    image: "jam82/molecule-centos:7"
+    image: "jomrr/molecule-centos:7"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -33,7 +33,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-centos8
-    image: "jam82/molecule-centos:8"
+    image: "jomrr/molecule-centos:8"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -43,7 +43,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-debian9
-    image: "jam82/molecule-debian:9"
+    image: "jomrr/molecule-debian:9"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -53,7 +53,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-debian10
-    image: "jam82/molecule-debian:10"
+    image: "jomrr/molecule-debian:10"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -63,7 +63,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-opensuse15
-    image: "jam82/molecule-opensuse:15"
+    image: "jomrr/molecule-opensuse:15"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -73,7 +73,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-tumbleweed
-    image: "jam82/molecule-opensuse:tumbleweed"
+    image: "jomrr/molecule-opensuse:tumbleweed"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -83,7 +83,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-ubuntu1804
-    image: "jam82/molecule-ubuntu:18.04"
+    image: "jomrr/molecule-ubuntu:18.04"
     override_command: False
     pre_build_image: True
     privileged: True
@@ -93,7 +93,7 @@ platforms:
     volumes:
       - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
   - name: ca-ubuntu2004
-    image: "jam82/molecule-ubuntu:20.04"
+    image: "jomrr/molecule-ubuntu:20.04"
     override_command: False
     pre_build_image: True
     privileged: True

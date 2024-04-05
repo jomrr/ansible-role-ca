@@ -1,6 +1,6 @@
 # ansible-role-ca
 
-![GitHub](https://img.shields.io/github/license/jam82/ansible-role-ca) [![Build Status](https://travis-ci.org/jam82/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jam82/ansible-role-ca)
+![GitHub](https://img.shields.io/github/license/jomrr/ansible-role-ca) [![Build Status](https://travis-ci.org/jomrr/ansible-role-ca.svg?branch=master)](https://travis-ci.org/jomrr/ansible-role-ca)
 
 **Ansible role for setting up a Certificate Authority with openssl.**
 
@@ -18,7 +18,7 @@ or a 3 CA with openssl consisting of
     * Software CA
 
 You could go further, but you would have to add additional config files in `templates/etc/`. Just have a look on the `ca_init_names` list of
-dictionaries in the [defaults/main.yml](https://github.com/jam82/ansible-role-ca/blob/master/defaults/main.yml) file.
+dictionaries in the [defaults/main.yml](https://github.com/jomrr/ansible-role-ca/blob/master/defaults/main.yml) file.
 
 The default is to set up a 3-tier CA like mentioned above.
 
@@ -253,11 +253,11 @@ dictionary lists will be renewed.
 
 ## License and Author
 
-* Author:: [jam82](https://github.com/jam82/)
-* Copyright:: 2020, [jam82](https://github.com/jam82/)
+* Author:: [jomrr](https://github.com/jomrr/)
+* Copyright:: 2020, [jomrr](https://github.com/jomrr/)
 
 Licensed under [MIT License](https://opensource.org/licenses/MIT).
-See [LICENSE](https://github.com/jam82/ansible-role-ca/blob/master/LICENSE) file in repository.
+See [LICENSE](https://github.com/jomrr/ansible-role-ca/blob/master/LICENSE) file in repository.
 
 ## References
 
