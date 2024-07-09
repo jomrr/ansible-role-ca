@@ -1,12 +1,9 @@
----
-# role: ansible-role-ca
+# role: jomrr.ca
 # file: molecule/resources/playbooks/converge.yml
 
-- name: Converge
+- name: "PLAYBOOK | Converge | ca"
   hosts: all
-  become: True
-  pre_tasks:
-    - name: "Include variables to converge playbook"
-      include_vars: vars.yml
+  become: true
+  gather_facts: true
   roles:
-    - role: ansible-role-ca
+    - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

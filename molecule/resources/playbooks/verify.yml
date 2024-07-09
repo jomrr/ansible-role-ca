@@ -1,0 +1,11 @@
+# role: jomrr.ca
+# file: molecule/resources/playbooks/verify.yml
+
+- name: "PLAYBOOK | Verify | ca"
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: "Assert true"
+      ansible.builtin.assert:
+        that: "true"
+        fail_msg: "This should never fail"

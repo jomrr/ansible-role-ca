@@ -1,38 +1,33 @@
 ---
-# role: ansible-role-ca
+# role: jomrr.ansible-role-ca
 # file: molecule/default/molecule.yml
 
+scenario:
+  name: default
 dependency:
   name: galaxy
+  requirements-file: meta/requirements.yml
 driver:
-  name: docker
-lint: |
-  set -e
-  yamllint .
-  ansible-lint
-  flake8
-platforms:
-  - name: ca-default
-    image: ${MOLECULE_DIST:-"jomrr/molecule-ubuntu:20.04"}
-    command: ${MOLECULE_DOCKER_CMD:-""}
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  name: podman
+lint: set -e; ansible-lint
 provisioner:
   name: ansible
-  log: True
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callback_whitelist: profile_tasks, timer, yaml
+    ssh_connection:
+      pipelining: true
+  log: true
   playbooks:
-    prepare: ../resources/playbooks/prepare.yml
     converge: ../resources/playbooks/converge.yml
+    verify: ../resources/playbooks/verify.yml
 verifier:
-  name: testinfra
-  env:
-    PYTHONWARNINGS: "ignore"
-  directory: ../resources/tests
-  options:
-    v: True
-    sudo: True
+  name: ansible
+platforms:
+  - name: ca
+    image: docker.io/${uns:-jomrr}/molecule-${img:-fedora}:${tag:-latest}
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true

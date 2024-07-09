@@ -1,171 +1,117 @@
 ---
-# role: ansible-role-ca
+# role: jomrr.ansible-role-ca
 # file: molecule/all/molecule.yml
 
+scenario:
+  name: all
 dependency:
   name: galaxy
+  requirements-file: meta/requirements.yml
 driver:
-  name: docker
-lint: |
-  set -e
-  yamllint .
-  ansible-lint
-  flake8
-platforms:
-  - name: ca-arch
-    image: "jomrr/molecule-archlinux:latest"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-centos7
-    image: "jomrr/molecule-centos:7"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-centos8
-    image: "jomrr/molecule-centos:8"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-debian9
-    image: "jomrr/molecule-debian:9"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-debian10
-    image: "jomrr/molecule-debian:10"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-opensuse15
-    image: "jomrr/molecule-opensuse:15"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-tumbleweed
-    image: "jomrr/molecule-opensuse:tumbleweed"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-ubuntu1804
-    image: "jomrr/molecule-ubuntu:18.04"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
-  - name: ca-ubuntu2004
-    image: "jomrr/molecule-ubuntu:20.04"
-    override_command: False
-    pre_build_image: True
-    privileged: True
-    tmpfs:
-      - /tmp
-      - /run
-    volumes:
-      - "/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  name: podman
+lint: set -e; ansible-lint
 provisioner:
   name: ansible
-  log: True
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callback_whitelist: profile_tasks, timer, yaml
+    ssh_connection:
+      pipelining: true
+  log: true
   playbooks:
-    prepare: ../resources/playbooks/prepare.yml
     converge: ../resources/playbooks/converge.yml
-  inventory:
-    group_vars:
-      all:
-        ca_country: 'DE'
-        ca_state: 'Bayern'
-        ca_locality: 'Erlangen'
-        ca_organization: 'Homebase'
-        ca_organizational_unit: 'Homebase Certificate Authority'
-        ca_name: 'Homebase'
-        ca_dir: 'home'
-        ca_base_url: 'http://pki.yourdomain.tld'
-        ca_certs:
-          component:
-          client:
-            - cn: 'My Mobile'
-            - cn: 'My Tablet'
-          mskdc:
-            - cn: 'dc.yourdomain.tld'
-              san:
-                - 'DNS = dc'
-                - 'DNS = ad.yourdomain.tld'
-                - 'IP = 192.168.10.10'
-                - 'otherName = 1.3.6.1.5.2.2;UTF8:dc.yourdomain.tld'
-                - 'otherName = 1.3.6.1.4.1.311.25.1;FORMAT:HEX,OCTETSTRING:2BEA00D953125447A22BCF28508DFED3'
-          server:
-            - cn: 'server.yourdomain.tld'
-              san:
-                - 'DNS = server.yourdomain.tld'
-                - 'DNS = mail.yourdomain.tld'
-                - 'IP = 192.168.10.11'
-          timestamp:
-            - cn: 'My Software Timestamp'
-          ocsp:
-            - cn: 'My OCSP Signature'
-          identity:
-            email:
-              - cn: 'Jonas Mauer (Mail)'
-                email: 'jonas@yourdomain.tld'
-                san:
-                  - 'email:move'
-                  - 'email:jam@yourdomain.tld'
-                protect_key: True
-            identity:
-              - cn: 'Jonas Mauer (ID)'
-                email: 'jonas@yourdomain.tld'
-                san:
-                  - 'email:move'
-                  - 'otherName:1.3.6.1.4.1.311.20.2.3;UTF8:jonas@dc.yourdomain.tld'
-                protect_key: True
-          software:
-            codesign:
-              - cn: 'My Software'
-                protect_key: True
+    verify: ../resources/playbooks/verify.yml
 verifier:
-  name: testinfra
-  env:
-    PYTHONWARNINGS: "ignore"
-  directory: ../resources/tests
-  options:
-    v: True
-    sudo: True
+  name: ansible
+platforms:
+  - name: almalinux-8-ca
+    image: "docker.io/jomrr/molecule-almalinux:8"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: almalinux-9-ca
+    image: "docker.io/jomrr/molecule-almalinux:9"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: alpine-3.18-ca
+    image: "docker.io/jomrr/molecule-alpine:3.18"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: alpine-3.19-ca
+    image: "docker.io/jomrr/molecule-alpine:3.19"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: archlinux-latest-ca
+    image: "docker.io/jomrr/molecule-archlinux:latest"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: debian-11-ca
+    image: "docker.io/jomrr/molecule-debian:11"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: debian-12-ca
+    image: "docker.io/jomrr/molecule-debian:12"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: debian-13-ca
+    image: "docker.io/jomrr/molecule-debian:13"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: fedora-39-ca
+    image: "docker.io/jomrr/molecule-fedora:39"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: fedora-40-ca
+    image: "docker.io/jomrr/molecule-fedora:40"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: fedora-rawhide-ca
+    image: "docker.io/jomrr/molecule-fedora:rawhide"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: opensuse-leap-15-ca
+    image: "docker.io/jomrr/molecule-opensuse-leap:15"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: ubuntu-20.04-ca
+    image: "docker.io/jomrr/molecule-ubuntu:20.04"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: ubuntu-22.04-ca
+    image: "docker.io/jomrr/molecule-ubuntu:22.04"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
+  - name: ubuntu-24.04-ca
+    image: "docker.io/jomrr/molecule-ubuntu:24.04"
+    pre_build_image: true
+    entrypoint: null
+    command: null
+    systemd: true
