@@ -62,7 +62,7 @@ err() {
 
 create_csr() {
   local csr_command
-  csr_command="openssl req -batch -new 
+  csr_command="openssl req -batch -new
     -config {{ ca_base_dir }}/etc/${filename}.conf \
     -out ${TMP_FILE_PREFIX}.${filename}.csr \
     -keyout ${TMP_FILE_PREFIX}.${filename}.key"
@@ -95,7 +95,7 @@ create_crt() {
     -out ${TMP_FILE_PREFIX}.${filename}.crt \
     -extensions ${extensions}_ext \
     -passin file:{{ ca_base_dir }}/ca/${signing_ca}-ca/pwd/${signing_ca}-ca.pwd"
-  
+
   if ! ${crt_command} ; then
     err "Issuing Certificate (${filename}) has failed."
     cleanup; exit 1
@@ -132,7 +132,7 @@ export_der() {
   der_command="openssl x509 \
     -in {{ ca_base_dir }}/certs/${filename}.crt \
     -out {{ ca_base_dir }}/certs/${filename}.der -outform DER"
-  
+
   if ! ${der_command} ; then
     err "Error exporting certificate ${filename} to DER Format."
     cleanup; exit 1
@@ -147,7 +147,7 @@ export_pem() {
   pem_command="openssl x509 \
     -in {{ ca_base_dir }}/certs/${filename}.crt \
     -out {{ ca_base_dir }}/certs/${filename}.pem -outform PEM"
-  
+
   if ! ${pem_command} ; then
     err "Error exporting certificate ${filename} to PEM Format."
     cleanup; exit 1
@@ -162,7 +162,7 @@ export_p12() {
     -in {{ ca_base_dir }}/certs/${filename}.crt \
     -certfile {{ ca_base_dir }}/ca/${signing_ca}-ca-chain.pem \
     -out {{ ca_base_dir }}/certs/${filename}.p12"
-  
+
   # for some keys we have password protection (i.e. identities, codesigning)
   # pkcs12 in and out passwords must differ
   if [[ -n ${opt_p:-} ]]; then
@@ -192,7 +192,7 @@ revoke_cert() {
     -revoke {{ ca_base_dir }}/certs/${filename}.crt \
     -crl_reason superseded \
     -passin file:{{ ca_base_dir }}/ca/${signing_ca}-ca/pwd/${signing_ca}-ca.pwd"
-  
+
   if ! ${revoke_command} ; then
     err "Error revoking certificate ${filename} with ${signing_ca} CA."
     cleanup
@@ -262,7 +262,7 @@ usage() {
 main() {
 
   cd {{ ca_base_dir }}
-  # the optional parameters string starting with ':' 
+  # the optional parameters string starting with ':'
   # for silent errors and h for help usage
   local -r OPTS=':hc:e:f:gi:n:pr:s:t:u:w:x:'
 
@@ -287,7 +287,7 @@ main() {
       *)  err "Unimplemented option: -${OPTARG:-}"; exit 1;;
     esac
   done
-  
+
   # create csr
   if [[ -n ${opt_r:-} ]]; then
     create_csr
