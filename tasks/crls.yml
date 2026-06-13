@@ -1,0 +1,10 @@
+---
+# role: ansible-role-ca
+# file: tasks/crls.yml
+
+- name: "CA | Manage authority CRLs"
+  ansible.builtin.include_tasks: crl.yml
+  loop: "{{ ca_authority_order }}"
+  loop_control:
+    loop_var: ca_authority_name
+    label: "{{ ca_authority_name }}"

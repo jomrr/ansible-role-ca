@@ -4,10 +4,7 @@
 
 ca_packages:
   - ca-certificates
-  - cron
   - openssl
-  - pwgen
-  - tar
+  - python3-cryptography
 
-ca_trusted_path: '/usr/share/pki/trust/anchors'
-ca_trusted_update: 'update-ca-certificates'
+ca_fhs_dir: /etc/ssl

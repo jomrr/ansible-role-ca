@@ -1,0 +1,100 @@
+---
+# role: ca
+# file: .github/workflows/main-full-gate.yml
+
+name: main full gate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  molecule-full:
+    env:
+      TERM: xterm-256color
+      FORCE_COLOR: "1"
+      CLICOLOR_FORCE: "1"
+      PY_COLORS: "1"
+      ANSIBLE_FORCE_COLOR: "true"
+    name: Molecule full ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - name: ca-almalinux-latest
+            uns: jomrr
+            img: almalinux
+            tag: latest
+          - name: ca-debian-latest
+            uns: jomrr
+            img: debian
+            tag: latest
+          - name: ca-fedora-latest
+            uns: jomrr
+            img: fedora
+            tag: latest
+          - name: ca-opensuse-leap-latest
+            uns: jomrr
+            img: opensuse-leap
+            tag: latest
+          - name: ca-opensuse-tumbleweed-latest
+            uns: jomrr
+            img: opensuse-tumbleweed
+            tag: latest
+          - name: ca-ubuntu-latest
+            uns: jomrr
+            img: ubuntu
+            tag: latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install required Ansible Collections
+        run: |
+          set -euo pipefail
+          if [ -f collections.yml ]; then
+            uvx --from ansible-core ansible-galaxy install -fr collections.yml
+          fi
+
+      - name: Show Podman environment
+        run: |
+          set -euo pipefail
+          podman --version
+          podman info
+
+      - name: Run Molecule default scenario
+        run: |
+          set -euo pipefail
+          export uns="${{ matrix.uns }}"
+          export img="${{ matrix.img }}"
+          export tag="${{ matrix.tag }}"
+          uvx \
+            --from molecule \
+            --with ansible-core \
+            --with ansible-lint \
+            --with "molecule-plugins[podman]" \
+            molecule test -s "default"

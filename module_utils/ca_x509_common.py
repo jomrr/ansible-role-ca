@@ -1,0 +1,782 @@
+"""Shared X.509 helpers for the CA role modules."""
+
+from __future__ import annotations
+
+import datetime as _dt
+import grp
+import ipaddress
+import os
+import pwd
+import re
+from pathlib import Path
+
+try:
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import (
+        AuthorityInformationAccessOID,
+        ExtendedKeyUsageOID,
+        NameOID,
+    )
+except Exception as exc:  # pragma: no cover - handled at runtime by Ansible
+    CRYPTOGRAPHY_IMPORT_ERROR = exc
+else:
+    CRYPTOGRAPHY_IMPORT_ERROR = None
+
+
+NAME_OIDS = {
+    "C": NameOID.COUNTRY_NAME,
+    "countryName": NameOID.COUNTRY_NAME,
+    "ST": NameOID.STATE_OR_PROVINCE_NAME,
+    "stateOrProvinceName": NameOID.STATE_OR_PROVINCE_NAME,
+    "L": NameOID.LOCALITY_NAME,
+    "localityName": NameOID.LOCALITY_NAME,
+    "O": NameOID.ORGANIZATION_NAME,
+    "organizationName": NameOID.ORGANIZATION_NAME,
+    "OU": NameOID.ORGANIZATIONAL_UNIT_NAME,
+    "organizationalUnitName": NameOID.ORGANIZATIONAL_UNIT_NAME,
+    "CN": NameOID.COMMON_NAME,
+    "commonName": NameOID.COMMON_NAME,
+    "emailAddress": NameOID.EMAIL_ADDRESS,
+}
+
+EXTENDED_KEY_USAGE_OIDS = {
+    "serverAuth": ExtendedKeyUsageOID.SERVER_AUTH,
+    "clientAuth": ExtendedKeyUsageOID.CLIENT_AUTH,
+    "codeSigning": ExtendedKeyUsageOID.CODE_SIGNING,
+    "emailProtection": ExtendedKeyUsageOID.EMAIL_PROTECTION,
+    "timeStamping": ExtendedKeyUsageOID.TIME_STAMPING,
+    "OCSPSigning": ExtendedKeyUsageOID.OCSP_SIGNING,
+    "smartcardLogon": x509.ObjectIdentifier("1.3.6.1.4.1.311.20.2.2"),
+}
+
+
+def _der_len(length: int) -> bytes:
+    if length < 128:
+        return bytes([length])
+    raw = length.to_bytes((length.bit_length() + 7) // 8, "big")
+    return bytes([0x80 | len(raw)]) + raw
+
+
+def _der(tag: int, value: bytes) -> bytes:
+    return bytes([tag]) + _der_len(len(value)) + value
+
+
+def _der_sequence(*values: bytes) -> bytes:
+    return _der(0x30, b"".join(values))
+
+
+def _der_context(number: int, value: bytes) -> bytes:
+    return _der(0xA0 + number, value)
+
+
+def _der_integer(value: int) -> bytes:
+    raw = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
+    if raw[0] & 0x80:
+        raw = b"\x00" + raw
+    return _der(0x02, raw)
+
+
+def _der_general_string(value: str) -> bytes:
+    return _der(0x1B, value.encode("ascii"))
+
+
+def _der_utf8_string(value: str) -> bytes:
+    return _der(0x0C, value.encode("utf-8"))
+
+
+def _der_bmp_string(value: str) -> bytes:
+    return _der(0x1E, value.encode("utf-16-be"))
+
+
+def _der_octet_string(value: bytes) -> bytes:
+    return _der(0x04, value)
+
+
+def _der_pkinit_principal(realm: str) -> bytes:
+    name_string = _der_sequence(_der_general_string("krbtgt"), _der_general_string(realm))
+    principal_name = _der_sequence(
+        _der_context(0, _der_integer(2)),
+        _der_context(1, name_string),
+    )
+    return _der_sequence(
+        _der_context(0, _der_general_string(realm)),
+        _der_context(1, principal_name),
+    )
+
+
+def _digest(name: str):
+    normalized = name.replace("-", "").lower()
+    digests = {
+        "sha1": hashes.SHA1,
+        "sha224": hashes.SHA224,
+        "sha256": hashes.SHA256,
+        "sha384": hashes.SHA384,
+        "sha512": hashes.SHA512,
+    }
+    if normalized not in digests:
+        raise ValueError(f"Unsupported digest {name}")
+    return digests[normalized]()
+
+
+def _uid(owner):
+    if owner is None:
+        return -1
+    value = str(owner)
+    if value.isdigit():
+        return int(value)
+    return pwd.getpwnam(value).pw_uid
+
+
+def _gid(group):
+    if group is None:
+        return -1
+    value = str(group)
+    if value.isdigit():
+        return int(value)
+    return grp.getgrnam(value).gr_gid
+
+
+def _ensure_parent(path: str) -> None:
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+
+def _ensure_directory(path: str | None, owner, group, mode) -> bool:
+    if not path:
+        return False
+    Path(path).mkdir(parents=True, exist_ok=True)
+    return _set_attrs(path, owner, group, mode)
+
+
+def _set_attrs(path: str, owner, group, mode) -> bool:
+    changed = False
+    stat = os.stat(path)
+    uid = _uid(owner)
+    gid = _gid(group)
+    if (uid != -1 and stat.st_uid != uid) or (gid != -1 and stat.st_gid != gid):
+        os.chown(path, uid, gid)
+        changed = True
+    if mode is not None:
+        desired = int(str(mode), 8)
+        if (stat.st_mode & 0o7777) != desired:
+            os.chmod(path, desired)
+            changed = True
+    return changed
+
+
+def _write_file(path: str, content: bytes, owner, group, mode) -> bool:
+    _ensure_parent(path)
+    changed = True
+    if os.path.exists(path):
+        with open(path, "rb") as handle:
+            changed = handle.read() != content
+    if changed:
+        tmp_path = f"{path}.ansible_tmp"
+        with open(tmp_path, "wb") as handle:
+            handle.write(content)
+        os.replace(tmp_path, path)
+    return changed | _set_attrs(path, owner, group, mode)
+
+
+def _load_private_key(path: str, passphrase: str | None):
+    with open(path, "rb") as handle:
+        return serialization.load_pem_private_key(
+            handle.read(),
+            password=passphrase.encode() if passphrase else None,
+        )
+
+
+def _private_key_pem(key, passphrase: str | None) -> bytes:
+    encryption = (
+        serialization.BestAvailableEncryption(passphrase.encode())
+        if passphrase
+        else serialization.NoEncryption()
+    )
+    return key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        encryption,
+    )
+
+
+def _public_key_bytes(key) -> bytes:
+    return key.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+
+def _cert_public_key_bytes(cert) -> bytes:
+    return cert.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+
+def _csr_public_key_bytes(csr) -> bytes:
+    return csr.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+
+def _load_csr(path: str):
+    with open(path, "rb") as handle:
+        return x509.load_pem_x509_csr(handle.read())
+
+
+def _load_certificate(path: str):
+    with open(path, "rb") as handle:
+        data = handle.read()
+    try:
+        return x509.load_pem_x509_certificate(data)
+    except ValueError:
+        return x509.load_der_x509_certificate(data)
+
+
+def _not_valid_after_utc(cert):
+    value = getattr(cert, "not_valid_after_utc", None)
+    if value is not None:
+        return value
+    value = cert.not_valid_after
+    if value.tzinfo is None:
+        return value.replace(tzinfo=_dt.timezone.utc)
+    return value.astimezone(_dt.timezone.utc)
+
+
+def _subject(subject_ordered) -> x509.Name:
+    attributes = []
+    for item in subject_ordered or []:
+        if len(item) != 1:
+            raise ValueError("subject_ordered entries must contain exactly one item")
+        key, value = next(iter(item.items()))
+        if value is None or str(value) == "":
+            continue
+        oid = NAME_OIDS.get(str(key))
+        if oid is None:
+            raise ValueError(f"Unsupported subject attribute {key}")
+        attributes.append(x509.NameAttribute(oid, str(value)))
+    return x509.Name(attributes)
+
+
+def _basic_constraints(values):
+    ca = False
+    path_length = None
+    for value in values or []:
+        text = str(value)
+        if text.upper() == "CA:TRUE":
+            ca = True
+        elif text.upper() == "CA:FALSE":
+            ca = False
+        elif text.lower().startswith("pathlen:"):
+            path_length = int(text.split(":", 1)[1])
+    if not ca:
+        path_length = None
+    return x509.BasicConstraints(ca=ca, path_length=path_length)
+
+
+def _key_usage(values):
+    names = {str(value) for value in values or []}
+    key_agreement = "keyAgreement" in names
+    return x509.KeyUsage(
+        digital_signature="digitalSignature" in names,
+        content_commitment=bool({"nonRepudiation", "contentCommitment"} & names),
+        key_encipherment="keyEncipherment" in names,
+        data_encipherment="dataEncipherment" in names,
+        key_agreement=key_agreement,
+        key_cert_sign="keyCertSign" in names,
+        crl_sign="cRLSign" in names,
+        encipher_only=("encipherOnly" in names) if key_agreement else None,
+        decipher_only=("decipherOnly" in names) if key_agreement else None,
+    )
+
+
+def _extended_key_usage(values):
+    oids = []
+    for value in values or []:
+        text = str(value)
+        if text in EXTENDED_KEY_USAGE_OIDS:
+            oids.append(EXTENDED_KEY_USAGE_OIDS[text])
+        else:
+            oids.append(x509.ObjectIdentifier(text))
+    return x509.ExtendedKeyUsage(oids)
+
+
+def _other_name_value(value: str, pkinit_realm: str | None) -> bytes:
+    if value.startswith("UTF8:"):
+        return _der_utf8_string(value.split(":", 1)[1])
+    if value.startswith("SEQUENCE:"):
+        if not pkinit_realm:
+            raise ValueError("SEQUENCE otherName requires pkinit.realm")
+        return _der_pkinit_principal(pkinit_realm)
+    raise ValueError(f"Unsupported otherName value {value}")
+
+
+def _subject_alt_name(values, pkinit_realm: str | None):
+    names = []
+    for value in values or []:
+        kind, payload = str(value).split(":", 1)
+        kind_lower = kind.lower()
+        if kind_lower == "dns":
+            names.append(x509.DNSName(payload))
+        elif kind_lower == "ip":
+            names.append(x509.IPAddress(ipaddress.ip_address(payload)))
+        elif kind_lower in {"email", "rfc822"}:
+            names.append(x509.RFC822Name(payload))
+        elif kind_lower == "uri":
+            names.append(x509.UniformResourceIdentifier(payload))
+        elif kind_lower == "rid":
+            names.append(x509.RegisteredID(x509.ObjectIdentifier(payload)))
+        elif kind_lower == "othername":
+            oid, other_value = payload.split(";", 1)
+            names.append(
+                x509.OtherName(
+                    x509.ObjectIdentifier(oid),
+                    _other_name_value(other_value, pkinit_realm),
+                )
+            )
+        else:
+            raise ValueError(f"Unsupported SAN type {kind}")
+    return x509.SubjectAlternativeName(names)
+
+
+def _raw_extension_value(value: str) -> bytes:
+    if value.startswith("ASN1:BMPSTRING:"):
+        return _der_bmp_string(value.split(":", 2)[2])
+    if value.startswith("ASN1:UTF8String:"):
+        return _der_utf8_string(value.split(":", 2)[2])
+    if value.startswith("ASN1:FORMAT:HEX,OCTETSTRING:"):
+        raw = value.rsplit(":", 1)[1]
+        return _der_octet_string(bytes.fromhex(re.sub(r"[^0-9A-Fa-f]", "", raw)))
+    if value.startswith("DER:"):
+        return bytes.fromhex(re.sub(r"[^0-9A-Fa-f]", "", value.split(":", 1)[1]))
+    raise ValueError(f"Unsupported raw extension value {value}")
+
+
+def _desired_extensions(params, public_key, signer_public_key):
+    extensions = [
+        (
+            x509.ExtensionOID.BASIC_CONSTRAINTS,
+            True,
+            _basic_constraints(params["basic_constraints"]),
+        ),
+        (
+            x509.ExtensionOID.KEY_USAGE,
+            bool(params["key_usage_critical"]),
+            _key_usage(params["key_usage"]),
+        ),
+    ]
+    if params["extended_key_usage"]:
+        extensions.append(
+            (
+                x509.ExtensionOID.EXTENDED_KEY_USAGE,
+                bool(params["extended_key_usage_critical"]),
+                _extended_key_usage(params["extended_key_usage"]),
+            )
+        )
+    if params["san"]:
+        realm = (params["pkinit"] or {}).get("realm") or None
+        extensions.append(
+            (
+                x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME,
+                bool(params["san_critical"]),
+                _subject_alt_name(params["san"], realm),
+            )
+        )
+    if params["aia_url"]:
+        extensions.append(
+            (
+                x509.ExtensionOID.AUTHORITY_INFORMATION_ACCESS,
+                False,
+                x509.AuthorityInformationAccess(
+                    [
+                        x509.AccessDescription(
+                            AuthorityInformationAccessOID.CA_ISSUERS,
+                            x509.UniformResourceIdentifier(params["aia_url"]),
+                        )
+                    ]
+                ),
+            )
+        )
+    if params["cdp_url"]:
+        extensions.append(
+            (
+                x509.ExtensionOID.CRL_DISTRIBUTION_POINTS,
+                False,
+                x509.CRLDistributionPoints(
+                    [
+                        x509.DistributionPoint(
+                            full_name=[x509.UniformResourceIdentifier(params["cdp_url"])],
+                            relative_name=None,
+                            reasons=None,
+                            crl_issuer=None,
+                        )
+                    ]
+                ),
+            )
+        )
+    for extension in params["raw_extensions"] or []:
+        oid = x509.ObjectIdentifier(str(extension["oid"]))
+        extensions.append(
+            (
+                oid,
+                bool(extension.get("critical", False)),
+                x509.UnrecognizedExtension(
+                    oid,
+                    _raw_extension_value(str(extension["value"])),
+                ),
+            )
+        )
+    if params["include_identifiers"]:
+        extensions.append(
+            (
+                x509.ExtensionOID.SUBJECT_KEY_IDENTIFIER,
+                False,
+                x509.SubjectKeyIdentifier.from_public_key(public_key),
+            )
+        )
+        extensions.append(
+            (
+                x509.ExtensionOID.AUTHORITY_KEY_IDENTIFIER,
+                False,
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(signer_public_key),
+            )
+        )
+    return extensions
+
+
+def _add_extensions(builder, extensions):
+    seen = set()
+    for oid, critical, value in extensions:
+        if oid in seen:
+            raise ValueError(f"Duplicate extension OID {oid.dotted_string}")
+        seen.add(oid)
+        builder = builder.add_extension(value, critical=critical)
+    return builder
+
+
+def _extension_maps(extensions):
+    return {ext.oid.dotted_string: ext for ext in extensions}
+
+
+def _name_token(name):
+    if isinstance(name, x509.DNSName):
+        return ("DNS", name.value)
+    if isinstance(name, x509.RFC822Name):
+        return ("email", name.value)
+    if isinstance(name, x509.UniformResourceIdentifier):
+        return ("URI", name.value)
+    if isinstance(name, x509.IPAddress):
+        return ("IP", str(name.value))
+    if isinstance(name, x509.RegisteredID):
+        return ("RID", name.value.dotted_string)
+    if isinstance(name, x509.OtherName):
+        return ("otherName", name.type_id.dotted_string, name.value)
+    if isinstance(name, x509.DirectoryName):
+        return ("dirName", name.value.rfc4514_string())
+    return (name.__class__.__name__, repr(name))
+
+
+def _distribution_point_token(point):
+    full_name = tuple(_name_token(name) for name in point.full_name or [])
+    crl_issuer = tuple(_name_token(name) for name in point.crl_issuer or [])
+    reasons = tuple(sorted(reason.name for reason in point.reasons or []))
+    relative_name = point.relative_name.rfc4514_string() if point.relative_name else None
+    return (full_name, relative_name, reasons, crl_issuer)
+
+
+def _extension_token(extension):
+    value = extension.value
+    if isinstance(value, x509.BasicConstraints):
+        return ("basic_constraints", value.ca, value.path_length)
+    if isinstance(value, x509.KeyUsage):
+        return (
+            "key_usage",
+            value.digital_signature,
+            value.content_commitment,
+            value.key_encipherment,
+            value.data_encipherment,
+            value.key_agreement,
+            value.key_cert_sign,
+            value.crl_sign,
+            value.encipher_only if value.key_agreement else None,
+            value.decipher_only if value.key_agreement else None,
+        )
+    if isinstance(value, x509.ExtendedKeyUsage):
+        return ("extended_key_usage", tuple(oid.dotted_string for oid in value))
+    if isinstance(value, x509.SubjectAlternativeName):
+        return ("subject_alt_name", tuple(_name_token(name) for name in value))
+    if isinstance(value, x509.AuthorityInformationAccess):
+        return (
+            "authority_information_access",
+            tuple(
+                (description.access_method.dotted_string, _name_token(description.access_location))
+                for description in value
+            ),
+        )
+    if isinstance(value, x509.CRLDistributionPoints):
+        return ("crl_distribution_points", tuple(_distribution_point_token(point) for point in value))
+    if isinstance(value, x509.SubjectKeyIdentifier):
+        return ("subject_key_identifier", value.digest)
+    if isinstance(value, x509.AuthorityKeyIdentifier):
+        issuers = tuple(_name_token(name) for name in value.authority_cert_issuer or [])
+        return ("authority_key_identifier", value.key_identifier, issuers, value.authority_cert_serial_number)
+    if isinstance(value, x509.UnrecognizedExtension):
+        return ("unrecognized", value.oid.dotted_string, value.value)
+    return (value.__class__.__name__, repr(value))
+
+
+def _extensions_equal(existing, desired) -> bool:
+    existing_map = _extension_maps(existing)
+    desired_map = {
+        oid.dotted_string: x509.Extension(oid, critical, value)
+        for oid, critical, value in desired
+    }
+    if set(existing_map) != set(desired_map):
+        return False
+    for oid, ext in desired_map.items():
+        if existing_map[oid].critical != ext.critical:
+            return False
+        if _extension_token(existing_map[oid]) != _extension_token(ext):
+            return False
+    return True
+
+
+def _ensure_key(params):
+    key = None
+    changed = False
+    if params["key_type"].upper() != "RSA":
+        raise ValueError("CA X.509 modules currently support RSA private keys")
+    if os.path.exists(params["key_path"]) and not params["force"]:
+        try:
+            key = _load_private_key(params["key_path"], params["key_passphrase"])
+        except Exception:
+            key = None
+        if key is not None and not isinstance(key, rsa.RSAPrivateKey):
+            key = None
+        if key is not None and key.key_size != params["key_size"]:
+            key = None
+    if key is None:
+        key = rsa.generate_private_key(public_exponent=65537, key_size=params["key_size"])
+        changed = True
+        content = _private_key_pem(key, params["key_passphrase"])
+        changed = _write_file(
+            params["key_path"],
+            content,
+            params["owner"],
+            params["group"],
+            params["key_mode"],
+        ) or changed
+    else:
+        changed = _set_attrs(
+            params["key_path"],
+            params["owner"],
+            params["group"],
+            params["key_mode"],
+        ) or changed
+    return key, changed
+
+
+def _ensure_csr(params, key, subject, csr_extensions):
+    builder = x509.CertificateSigningRequestBuilder().subject_name(subject)
+    builder = _add_extensions(builder, csr_extensions)
+    csr = builder.sign(key, _digest(params["digest"]))
+    changed = params["force"] or not os.path.exists(params["csr_path"])
+    if not changed:
+        try:
+            existing = _load_csr(params["csr_path"])
+            changed = (
+                existing.subject != subject
+                or _csr_public_key_bytes(existing) != _public_key_bytes(key)
+                or not _extensions_equal(existing.extensions, csr_extensions)
+            )
+        except Exception:
+            changed = True
+    content = csr.public_bytes(serialization.Encoding.PEM) if changed else Path(params["csr_path"]).read_bytes()
+    changed = _write_file(
+        params["csr_path"],
+        content,
+        params["owner"],
+        params["group"],
+        params["public_mode"],
+    ) or changed
+    return csr, changed
+
+
+def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signer_cert):
+    issuer = signer_cert.subject if signer_cert is not None else subject
+    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - _dt.timedelta(minutes=1))
+        .not_valid_after(now + _dt.timedelta(days=int(params["days"])))
+    )
+    builder = _add_extensions(builder, cert_extensions)
+    cert = builder.sign(private_key=signer_key, algorithm=_digest(params["digest"]))
+
+    changed = params["force"] or not os.path.exists(params["cert_path"])
+    if not changed:
+        try:
+            existing = _load_certificate(params["cert_path"])
+            current_time = _dt.datetime.now(_dt.timezone.utc)
+            if _not_valid_after_utc(existing) <= current_time:
+                changed = True
+            else:
+                changed = (
+                    existing.subject != subject
+                    or existing.issuer != issuer
+                    or _cert_public_key_bytes(existing) != _public_key_bytes(key)
+                    or not _extensions_equal(existing.extensions, cert_extensions)
+                )
+        except Exception:
+            changed = True
+
+    if changed:
+        content = cert.public_bytes(serialization.Encoding.PEM)
+    else:
+        content = Path(params["cert_path"]).read_bytes()
+        cert = _load_certificate(params["cert_path"])
+
+    changed = _write_file(
+        params["cert_path"],
+        content,
+        params["owner"],
+        params["group"],
+        params["public_mode"],
+    ) or changed
+    return cert, changed
+
+
+def _ensure_der(params, cert):
+    if not params["der_path"]:
+        return False
+    return _write_file(
+        params["der_path"],
+        cert.public_bytes(serialization.Encoding.DER),
+        params["owner"],
+        params["group"],
+        params["public_mode"],
+    )
+
+
+def _ensure_chain(params):
+    if not params["chain_src_path"] or not params["chain_path"]:
+        return False
+    with open(params["chain_src_path"], "rb") as handle:
+        content = handle.read()
+    return _write_file(
+        params["chain_path"],
+        content,
+        params["owner"],
+        params["group"],
+        params["public_mode"],
+    )
+
+
+def x509_argument_spec(
+    *,
+    directory: bool = False,
+    signer: bool = False,
+    chain: bool = False,
+    defaults: dict | None = None,
+):
+    spec = {
+        "key_path": {"type": "path", "required": True},
+        "csr_path": {"type": "path", "required": True},
+        "cert_path": {"type": "path", "required": True},
+        "der_path": {"type": "path"},
+        "key_type": {"type": "str", "default": "RSA"},
+        "key_size": {"type": "int", "default": 4096},
+        "key_passphrase": {"type": "str", "no_log": True},
+        "subject_ordered": {"type": "list", "elements": "dict", "required": True},
+        "basic_constraints": {"type": "list", "elements": "str", "default": ["CA:FALSE"]},
+        "key_usage": {"type": "list", "elements": "str", "default": []},
+        "key_usage_critical": {"type": "bool", "default": True},
+        "extended_key_usage": {"type": "list", "elements": "str", "default": []},
+        "extended_key_usage_critical": {"type": "bool", "default": False},
+        "san": {"type": "list", "elements": "str", "default": []},
+        "san_critical": {"type": "bool", "default": False},
+        "aia_url": {"type": "str", "default": ""},
+        "cdp_url": {"type": "str", "default": ""},
+        "raw_extensions": {"type": "list", "elements": "dict", "default": []},
+        "pkinit": {"type": "dict", "default": {}},
+        "days": {"type": "int", "required": True},
+        "digest": {"type": "str", "default": "sha256"},
+        "include_identifiers": {"type": "bool", "default": True},
+        "owner": {"type": "str"},
+        "group": {"type": "str"},
+        "key_mode": {"type": "str", "default": "0600"},
+        "public_mode": {"type": "str", "default": "0644"},
+        "force": {"type": "bool", "default": False},
+    }
+    if directory:
+        spec.update(
+            {
+                "directory_path": {"type": "path"},
+                "directory_mode": {"type": "str", "default": "0755"},
+            }
+        )
+    if signer:
+        spec.update(
+            {
+                "signer_cert_path": {"type": "path", "required": True},
+                "signer_key_path": {"type": "path", "required": True},
+                "signer_key_passphrase": {"type": "str", "no_log": True},
+            }
+        )
+    if chain:
+        spec.update(
+            {
+                "chain_src_path": {"type": "path", "required": True},
+                "chain_path": {"type": "path", "required": True},
+            }
+        )
+    for key, value in (defaults or {}).items():
+        if key in spec:
+            spec[key]["default"] = value
+    return spec
+
+
+def ensure_x509(params: dict, *, signed: bool, manage_directory: bool = False, manage_chain: bool = False) -> dict:
+    directory_changed = False
+    chain_changed = False
+    if manage_directory:
+        directory_changed = _ensure_directory(
+            params["directory_path"],
+            params["owner"],
+            params["group"],
+            params["directory_mode"],
+        )
+    key, key_changed = _ensure_key(params)
+    subject = _subject(params["subject_ordered"])
+    signer_key = key
+    signer_cert = None
+    if signed:
+        signer_key = _load_private_key(params["signer_key_path"], params["signer_key_passphrase"])
+        signer_cert = _load_certificate(params["signer_cert_path"])
+
+    signer_public_key = signer_cert.public_key() if signer_cert is not None else key.public_key()
+    csr_extensions = _desired_extensions(params, key.public_key(), signer_public_key)
+    csr, csr_changed = _ensure_csr(params, key, subject, csr_extensions)
+    cert_extensions = _desired_extensions(params, key.public_key(), signer_public_key)
+    cert, cert_changed = _ensure_certificate(params, key, subject, cert_extensions, signer_key, signer_cert)
+    der_changed = _ensure_der(params, cert)
+    if manage_chain:
+        chain_changed = _ensure_chain(params)
+
+    return {
+        "changed": directory_changed or key_changed or csr_changed or cert_changed or der_changed or chain_changed,
+        "directory_changed": directory_changed,
+        "key_changed": key_changed,
+        "csr_changed": csr_changed,
+        "cert_changed": cert_changed,
+        "der_changed": der_changed,
+        "chain_changed": chain_changed,
+        "csr_path": params["csr_path"],
+        "cert_path": params["cert_path"],
+    }

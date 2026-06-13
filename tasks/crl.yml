@@ -1,0 +1,26 @@
+---
+# role: ansible-role-ca
+# file: tasks/crl.yml
+
+- name: "CA | Manage CRLs for {{ ca_authority_name }}"
+  ca_crl:
+    path: "{{ (item == 'der') | ternary(ca_base_dir ~ '/crl/' ~ ca_authority_name ~ '-ca.crl', ca_base_dir ~ '/crl/' ~ ca_authority_name ~ '-ca.crl.pem') }}"
+    format: "{{ item }}"
+    privatekey_path: "{{ ca_base_dir }}/private/{{ ca_authority_name }}-ca.key"
+    privatekey_passphrase: "{{ ca_privatekey_passphrases[ca_authority_name] }}"
+    issuer_ordered:
+      - countryName: "{{ ca_country }}"
+      - stateOrProvinceName: "{{ ca_state }}"
+      - localityName: "{{ ca_locality }}"
+      - organizationName: "{{ ca_organization }}"
+      - organizationalUnitName: "{{ ca_organizational_unit }}"
+      - commonName: "{{ ca_authorities[ca_authority_name].common_name }}"
+    next_update_days: "{{ ca_authorities[ca_authority_name].crl_days }}"
+    revoked_certificates: "{{ ca_revocations[ca_authority_name] | default([]) }}"
+    digest: "{{ ca_authorities[ca_authority_name].digest | default(ca_default_md) }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    mode: "0644"
+    force: "{{ ca_force_reissue | bool }}"
+  loop: "{{ ca_crl.formats | default(['pem', 'der']) | map('lower') | list }}"
+  no_log: "{{ ca_no_log | bool }}"

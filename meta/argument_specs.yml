@@ -1,0 +1,311 @@
+---
+# role: ca
+# file: meta/argument_specs.yml
+
+argument_specs:
+  main:
+    short_description: Manage a two-tier private certificate authority.
+    description:
+      - Creates and manages a Root CA plus Component, Network, and Identity issuing CAs.
+      - Issues declared end-entity certificates, CRLs, embeds AIA/CDP URLs, and optionally
+        manages CRL renewal automation.
+      - Built-in CA topology, certificate profiles, and FritzBox bundle order are role vars;
+        validity periods are the intended override points.
+    options:
+      ca_name:
+        type: str
+        required: false
+        default: Yourdomain
+        description:
+          - CA name used in CA certificate common names and, lowercased, in the default
+            CA working directory.
+      ca_base_dir:
+        type: str
+        required: false
+        description:
+          - CA working directory.
+          - Defaults to `/etc/pki/<ca_name | lower>` on RedHat-family systems and `/etc/ssl/<ca_name
+            | lower>` on Debian and Suse-family systems.
+      ca_base_url:
+        type: str
+        required: false
+        default: https://pki.yourdomain.tld
+        description: Base URL used when deriving default AIA and CDP URLs.
+      ca_kerberos_realm:
+        type: str
+        required: false
+        default: ''
+        description: Optional default Kerberos realm for MSKDC PKINIT SAN encoding.
+      ca_owner:
+        type: str
+        required: false
+        default: root
+        description: Owner for managed CA files.
+      ca_group:
+        type: str
+        required: false
+        default: root
+        description: Group for managed CA files.
+      ca_no_log:
+        type: bool
+        required: false
+        default: true
+        description: Suppress task output that can contain private key passphrases or PFX
+          passphrases.
+      ca_country:
+        type: str
+        required: false
+        default: DE
+        description: Default X.509 subject country.
+      ca_state:
+        type: str
+        required: false
+        default: Bayern
+        description: Default X.509 subject state or province.
+      ca_locality:
+        type: str
+        required: false
+        default: Erlangen
+        description: Default X.509 subject locality.
+      ca_organization:
+        type: str
+        required: false
+        default: Yourdomain SE
+        description: Default X.509 subject organization.
+      ca_organizational_unit:
+        type: str
+        required: false
+        default: Yourdomain Certificate Authority
+        description: Default X.509 subject organizational unit.
+      ca_key_type:
+        type: str
+        required: false
+        default: RSA
+        description: Private key type for CA and end-entity keys.
+      ca_default_bits:
+        type: int
+        required: false
+        default: 4096
+        description: Default key size and optional DH parameter size.
+      ca_default_md:
+        type: str
+        required: false
+        default: sha512
+        description: Default message digest for certificates and CRLs.
+      ca_force_reissue:
+        type: bool
+        required: false
+        default: false
+        description: Force regeneration of keys, certificates, CRLs, and exports where supported.
+      ca_certificate_async_timeout:
+        type: int
+        required: false
+        default: 600
+        description: Async timeout in seconds for end-entity certificate and bundle jobs.
+      ca_certificate_async_retries:
+        type: int
+        required: false
+        default: 600
+        description: Number of async status retries for end-entity certificate and bundle
+          jobs.
+      ca_certificate_async_delay:
+        type: int
+        required: false
+        default: 1
+        description: Delay in seconds between async status checks for end-entity certificate
+          and bundle jobs.
+      ca_privatekey_passphrases:
+        type: dict
+        required: false
+        default: {}
+        description:
+          - Passphrases for Root, Component, Network, and Identity CA private keys.
+          - Store real values in Ansible Vault.
+      ca_authority_days:
+        type: dict
+        required: false
+        default:
+          root: 3652
+          component: 1826
+          network: 1826
+          identity: 1826
+        description: Validity periods for the built-in CA certificates.
+      ca_default_certificate_days:
+        type: int
+        required: false
+        default: 397
+        description: Default validity period for end-entity certificate profiles.
+      ca_certificate_type_days:
+        type: dict
+        required: false
+        default:
+          tls_server: 397
+          tls_client: 397
+          mskdc: 397
+          fritzbox: 397
+          identity_full: 730
+          identity: 730
+          eap_tls_client: 397
+        description: Validity periods for built-in certificate profiles.
+      ca_aia:
+        type: dict
+        required: false
+        description: AIA URL settings.
+        options:
+          enabled:
+            type: bool
+            required: false
+            default: true
+            description: Embed AIA URLs in issued certificates.
+          url:
+            type: str
+            required: false
+            description: Base AIA URL.
+      ca_cdp:
+        type: dict
+        required: false
+        description: CDP URL settings.
+        options:
+          enabled:
+            type: bool
+            required: false
+            default: true
+            description: Embed CRL distribution point URLs in issued certificates.
+          url:
+            type: str
+            required: false
+            description: Base CDP URL.
+      ca_certificates:
+        type: list
+        elements: dict
+        required: false
+        default: []
+        description: End-entity certificates to manage.
+        options:
+          name:
+            type: str
+            required: true
+            description: Certificate identifier and default file stem.
+          type:
+            type: str
+            required: true
+            choices:
+              - tls_server
+              - tls_client
+              - mskdc
+              - fritzbox
+              - identity_full
+              - identity
+              - eap_tls_client
+            description: Built-in certificate profile to use.
+          common_name:
+            type: str
+            required: true
+            description: Certificate common name.
+          email:
+            type: str
+            required: false
+            description: Optional subject email address.
+          san:
+            type: list
+            elements: str
+            required: false
+            default: []
+            description: Subject Alternative Name entries in OpenSSL syntax.
+          krb5_realm:
+            type: str
+            required: false
+            description: Required for `mskdc` unless `ca_kerberos_realm` is set; Kerberos
+              realm encoded as `krbtgt/<REALM>@<REALM>` in the PKINIT SAN.
+          ad_object_guid:
+            type: str
+            required: false
+            description: Required for `mskdc`; AD objectGUID of the domain controller, as
+              canonical GUID or raw 16-byte hex.
+          days:
+            type: int
+            required: false
+            description: Per-certificate validity override.
+          output_dir:
+            type: str
+            required: false
+            description: Optional certificate-specific output directory.
+          privatekey_passphrase:
+            type: str
+            required: false
+            description: Optional private key passphrase for the end-entity key.
+          pfx_passphrase:
+            type: str
+            required: false
+            description: PFX/PKCS#12 export passphrase.
+          friendly_name:
+            type: str
+            required: false
+            description: Friendly name for PFX/PKCS#12 export.
+      ca_revocations:
+        type: dict
+        required: false
+        default:
+          root: []
+          component: []
+          network: []
+          identity: []
+        description: Revoked certificate entries grouped by issuing CA.
+      ca_crl:
+        type: dict
+        required: false
+        description: CRL generation settings.
+        options:
+          enabled:
+            type: bool
+            required: false
+            default: true
+            description: Manage CRLs.
+          formats:
+            type: list
+            elements: str
+            required: false
+            default:
+              - pem
+              - der
+            description: CRL output formats.
+          mode:
+            type: str
+            required: false
+            default: generate
+            description: CRL generation mode.
+      ca_crl_automation:
+        type: dict
+        required: false
+        description: Optional systemd CRL renewal automation.
+        options:
+          enabled:
+            type: bool
+            required: false
+            default: false
+            description: Manage and enable the CRL renewal timer.
+          ansible_playbook:
+            type: str
+            required: false
+            default: ansible-playbook
+            description: Command used by the CRL renewal service.
+          on_calendar:
+            type: str
+            required: false
+            default: daily
+            description: systemd timer OnCalendar value.
+          randomized_delay_sec:
+            type: str
+            required: false
+            default: 15m
+            description: systemd timer randomized delay.
+          persistent:
+            type: bool
+            required: false
+            default: true
+            description: systemd timer Persistent value.
+      ca_create_dhparams:
+        type: bool
+        required: false
+        default: false
+        description: Generate Diffie-Hellman parameters under the platform PKI base directory.

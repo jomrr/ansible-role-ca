@@ -1,9 +1,9 @@
-# role: jomrr.ca
+---
+# role: ca
 # file: molecule/resources/playbooks/converge.yml
 
-- name: "PLAYBOOK | Converge | ca"
+- name: "Molecule | converge | ca"
   hosts: all
-  become: true
   gather_facts: true
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

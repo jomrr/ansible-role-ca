@@ -1,14 +1,18 @@
 ---
-# role: jomrr.ca
+# role: ca
 # file: meta/main.yml
 
 galaxy_info:
+  author: Jonas Mauer
+  description: Ansible role for managing a two-tier private CA with certificate issuance, CRLs, AIA, and CDP URLs.
+  galaxy_tags:
+    - ca
+    - pki
+    - certificates
+    - crl
+    - tls
+  issue_tracker_url: https://github.com/jomrr/ansible-role-ca/issues
+  license: MIT
+  min_ansible_version: "2.20"
   namespace: jomrr
   role_name: ca
-  author: Jonas Mauer
-  company: none
-  description: Ansible role for setting up ca.
-  license: MIT
-  issue_tracker_url: https://github.com/jomrr/ansible-role-ca/issues
-  min_ansible_version: "2.17"
-galaxy_tags: []

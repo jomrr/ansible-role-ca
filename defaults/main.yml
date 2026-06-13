@@ -2,85 +2,82 @@
 # role: ansible-role-ca
 # file: defaults/main.yml
 
-# The role is disabled by default, so you do not get in trouble.
-# Checked in tasks/main.yml which includes tasks.yml if enabled.
-ca_enabled: False
+# General CA settings.
+ca_name: Yourdomain
+ca_base_dir: "{{ ca_fhs_dir | default('/etc/ssl') }}/{{ ca_name | lower }}"
+ca_base_url: "https://pki.yourdomain.tld"
+ca_kerberos_realm: ""
+ca_owner: root
+ca_group: root
+ca_no_log: true
 
-# ca configuration
-ca_init_names:
-  - name: '{{ ca_name }} Root CA'
-    path: 'root'
-    param: '-selfsign'
-    sign: 'root'
-    ext: 'root_ca_ext'
-  - name: '{{ ca_name }} Intermediate CA'
-    path: 'intermediate'
-    param: ''
-    sign: "root"
-    ext: 'intermediate_ca_ext'
-  - name: '{{ ca_name }} Component CA'
-    path: 'component'
-    param: ''
-    sign: 'intermediate'
-    ext: 'signing_ca_ext'
-  - name: '{{ ca_name }} Identity CA'
-    path: 'identity'
-    param: ''
-    sign: 'intermediate'
-    ext: 'signing_ca_ext'
-  - name: '{{ ca_name }} Software CA'
-    path: 'software'
-    param: ''
-    sign: 'intermediate'
-    ext: 'signing_ca_ext'
+ca_country: DE
+ca_state: Bayern
+ca_locality: Erlangen
+ca_organization: Yourdomain SE
+ca_organizational_unit: Yourdomain Certificate Authority
 
-# general settings
-ca_country: 'DE'
-ca_state: 'Bayern'
-ca_locality: 'Erlangen'
-ca_organization: 'Yourdomain SE'
-ca_organizational_unit: 'Yourdomain Certificate Authority'
-ca_name: 'Yourdomain'  # display name
-ca_dir: 'your'  # small letter, i.e. ca_base_dir = /etc/ssl/{{ ca_dir }}
-ca_base_url: 'http://pki.yourdomain.tld'
-ca_oscp_enable: False
-ca_oscp_openssl_responder: False
-ca_oscp_url: 'http://oscp.yourdomain.tld'
+ca_key_type: RSA
 ca_default_bits: 4096
-ca_default_md: 'sha512'
-ca_unique_subject: 'yes'
-ca_link_crls_to_webdir: ''
-ca_create_dhparams: False
-ca_cron_jobs:
-  - name: "Generate CRLs for {{ ca_name }} CA"
-    day: '*'
-    hour: '0'
-    minute: '1'
-    job: "/usr/local/bin/{{ ca_dir }}-ca -g"
-    state: present
+ca_default_md: sha512
+ca_force_reissue: false
+ca_certificate_async_timeout: 600
+ca_certificate_async_retries: 600
+ca_certificate_async_delay: 1
 
-# root-ca specific settings
-ca_root_default_days: 3652
-ca_root_default_crl_days: 30
+# CA private key passphrases are mandatory. Store real values in vaulted
+# inventory variables.
+ca_privatekey_passphrases: {}
 
-# intermediate-ca specific tower_settings
-ca_intermediate_default_days: 3652
-ca_intermediate_default_crl_days: 30
+# Publication endpoints. The URL values are embedded into issued certificates.
+ca_aia:
+  enabled: true
+  url: "{{ ca_base_url }}/aia"
 
-# identity-ca specific settings
-ca_identity_default_days: 1095
-ca_identity_default_crl_days: 30
+ca_cdp:
+  enabled: true
+  url: "{{ ca_base_url }}/crl"
 
-# component-ca specific settings
-ca_component_default_days: 730
-ca_component_default_crl_days: 30
+# Validity periods are intentionally the only overridable part of the built-in
+# CA topology and certificate profiles.
+ca_authority_days:
+  root: 3652
+  component: 1826
+  network: 1826
+  identity: 1826
 
-# software-ca specific settings
-ca_software_default_days: 1826
-ca_software_default_crl_days: 30
+ca_default_certificate_days: 397
+ca_certificate_type_days:
+  tls_server: "{{ ca_default_certificate_days }}"
+  tls_client: "{{ ca_default_certificate_days }}"
+  mskdc: "{{ ca_default_certificate_days }}"
+  fritzbox: "{{ ca_default_certificate_days }}"
+  identity_full: 730
+  identity: 730
+  eap_tls_client: "{{ ca_default_certificate_days }}"
 
-# dictionary for certificate management
-ca_certs: {}
+# List of managed end-entity certificates.
+ca_certificates: []
 
-# list of dicts of certs to revoke
-ca_revoke: []
+# Revocations are grouped by issuing CA and passed to the role-local ca_crl module.
+ca_revocations:
+  root: []
+  component: []
+  network: []
+  identity: []
+
+ca_crl:
+  enabled: true
+  formats:
+    - pem
+    - der
+  mode: generate
+
+ca_crl_automation:
+  enabled: false
+  ansible_playbook: ansible-playbook
+  on_calendar: daily
+  randomized_delay_sec: 15m
+  persistent: true
+
+ca_create_dhparams: false

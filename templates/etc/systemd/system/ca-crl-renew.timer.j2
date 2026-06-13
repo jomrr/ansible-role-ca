@@ -1,0 +1,10 @@
+[Unit]
+Description=Renew {{ ca_name }} CA CRLs
+
+[Timer]
+OnCalendar={{ ca_crl_automation.on_calendar }}
+RandomizedDelaySec={{ ca_crl_automation.randomized_delay_sec }}
+Persistent={{ ca_crl_automation.persistent | ternary('true', 'false') }}
+
+[Install]
+WantedBy=timers.target

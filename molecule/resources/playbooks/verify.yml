@@ -1,11 +1,113 @@
-# role: jomrr.ca
+---
+# role: ca
 # file: molecule/resources/playbooks/verify.yml
 
-- name: "PLAYBOOK | Verify | ca"
+- name: "Molecule | verify | ca"
   hosts: all
-  gather_facts: false
+  gather_facts: true
+  vars:
+    ca_molecule_base: "{{ (ansible_facts.os_family == 'RedHat') | ternary('/etc/pki', '/etc/ssl') }}/{{ ca_name | lower }}"
   tasks:
-    - name: "Assert true"
+    - name: "CA | Check managed CA, CRL, and certificate files"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: __ca_molecule_files
+      loop:
+        - "{{ ca_molecule_base }}/ca/root-ca.pem"
+        - "{{ ca_molecule_base }}/ca/root-ca.der"
+        - "{{ ca_molecule_base }}/ca/component-ca.pem"
+        - "{{ ca_molecule_base }}/ca/network-ca.pem"
+        - "{{ ca_molecule_base }}/ca/identity-ca.pem"
+        - "{{ ca_molecule_base }}/crl/component-ca.crl"
+        - "{{ ca_molecule_base }}/crl/component-ca.crl.pem"
+        - "{{ ca_molecule_base }}/certs/web01/web01.pem"
+        - "{{ ca_molecule_base }}/certs/web01/web01.der"
+        - "{{ ca_molecule_base }}/certs/client01/client01.pem"
+        - "{{ ca_molecule_base }}/certs/dc01/dc01.pem"
+        - "{{ ca_molecule_base }}/certs/fritzbox01/fritzbox01-fritzbox.pem"
+        - "{{ ca_molecule_base }}/certs/user-full/user-full.pfx"
+        - "{{ ca_molecule_base }}/certs/user-smime/user-smime.pem"
+        - "{{ ca_molecule_base }}/certs/wifi-user/wifi-user.pem"
+
+    - name: "CA | Assert managed files exist"
       ansible.builtin.assert:
-        that: "true"
-        fail_msg: "This should never fail"
+        that:
+          - __ca_molecule_files.results | map(attribute='stat.exists') | min
+
+    - name: "CA | Verify Component CA issued certificates"
+      ansible.builtin.command:
+        cmd: "openssl verify -CAfile {{ ca_molecule_base }}/chains/component-ca-chain.pem {{ item }}"
+      loop:
+        - "{{ ca_molecule_base }}/certs/web01/web01.pem"
+        - "{{ ca_molecule_base }}/certs/client01/client01.pem"
+        - "{{ ca_molecule_base }}/certs/dc01/dc01.pem"
+        - "{{ ca_molecule_base }}/certs/fritzbox01/fritzbox01.pem"
+      changed_when: false
+
+    - name: "CA | Verify Identity CA issued certificates"
+      ansible.builtin.command:
+        cmd: "openssl verify -CAfile {{ ca_molecule_base }}/chains/identity-ca-chain.pem {{ item }}"
+      loop:
+        - "{{ ca_molecule_base }}/certs/user-full/user-full.pem"
+        - "{{ ca_molecule_base }}/certs/user-smime/user-smime.pem"
+      changed_when: false
+
+    - name: "CA | Verify Network CA issued certificates"
+      ansible.builtin.command:
+        cmd: "openssl verify -CAfile {{ ca_molecule_base }}/chains/network-ca-chain.pem {{ ca_molecule_base }}/certs/wifi-user/wifi-user.pem"
+      changed_when: false
+
+    - name: "CA | Read MSKDC certificate text"
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ ca_molecule_base }}/certs/dc01/dc01.pem -noout -text -certopt ext_dump"
+      register: __ca_molecule_mskdc_text
+      changed_when: false
+
+    - name: "CA | Assert MSKDC EKUs and extension OIDs"
+      ansible.builtin.assert:
+        that:
+          - "'TLS Web Server Authentication' in __ca_molecule_mskdc_text.stdout"
+          - "'TLS Web Client Authentication' in __ca_molecule_mskdc_text.stdout"
+          - "'othername: 1.3.6.1.5.2.2' in __ca_molecule_mskdc_text.stdout"
+          - >-
+            'KDC Authentication' in __ca_molecule_mskdc_text.stdout
+            or 'Signing KDC Response' in __ca_molecule_mskdc_text.stdout
+            or 'PKINIT' in __ca_molecule_mskdc_text.stdout
+            or 'id-pkinit' in __ca_molecule_mskdc_text.stdout
+            or '1.3.6.1.5.2.3.5' in __ca_molecule_mskdc_text.stdout
+          - "'1.3.6.1.4.1.311.20.2' in __ca_molecule_mskdc_text.stdout"
+          - "'1.3.6.1.4.1.311.25.1' in __ca_molecule_mskdc_text.stdout"
+
+    - name: "CA | Check FritzBox bundle starts with private key"
+      ansible.builtin.command:
+        cmd: "head -n 1 {{ ca_molecule_base }}/certs/fritzbox01/fritzbox01-fritzbox.pem"
+      register: __ca_molecule_fritzbox_head
+      changed_when: false
+
+    - name: "CA | Assert FritzBox bundle order"
+      ansible.builtin.assert:
+        that:
+          - "'PRIVATE KEY' in __ca_molecule_fritzbox_head.stdout"
+
+    - name: "CA | Read FritzBox certificate text"
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ ca_molecule_base }}/certs/fritzbox01/fritzbox01.pem -noout -text"
+      register: __ca_molecule_fritzbox_text
+      changed_when: false
+
+    - name: "CA | Assert FritzBox certificate profile"
+      ansible.builtin.assert:
+        that:
+          - "'Signature Algorithm: sha384WithRSAEncryption' in __ca_molecule_fritzbox_text.stdout"
+          - "'CA:FALSE' in __ca_molecule_fritzbox_text.stdout"
+          - "'pathlen' not in (__ca_molecule_fritzbox_text.stdout | lower)"
+
+    - name: "CA | Parse Identity PFX"
+      ansible.builtin.command:
+        cmd: "openssl pkcs12 -in {{ ca_molecule_base }}/certs/user-full/user-full.pfx -passin pass:molecule-pfx-passphrase -noout -info"
+      changed_when: false
+
+    - name: "CA | Parse DER CRL"
+      ansible.builtin.command:
+        cmd: "openssl crl -in {{ ca_molecule_base }}/crl/component-ca.crl -inform DER -noout -text"
+      changed_when: false

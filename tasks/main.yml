@@ -2,6 +2,76 @@
 # role: ansible-role-ca
 # file: tasks/main.yml
 
-- name: Import tasks for role ansible-role-ca
-  import_tasks: tasks.yml
-  when: ca_role_enabled | bool
+- name: "CA | Load platform variables"
+  ansible.builtin.include_vars: "{{ ansible_facts.os_family }}.yml"
+  tags: always
+
+- name: "CA | Assert supported platform family"
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ['Debian', 'RedHat', 'Suse']
+    fail_msg: "The ca role supports Debian, RedHat, and Suse platform families."
+
+- name: "CA | Install required packages"
+  ansible.builtin.package:
+    name: "{{ ca_packages }}"
+    state: present
+  tags: install
+
+- name: "CA | Assert authority definitions are complete"
+  ansible.builtin.assert:
+    that:
+      - item in ca_authorities
+      - item in ca_privatekey_passphrases
+      - ca_privatekey_passphrases[item] | string | length > 0
+    fail_msg: "Every managed CA needs a vaulted ca_privatekey_passphrases entry."
+  loop: "{{ ca_authority_order }}"
+  loop_control:
+    label: "{{ item }}"
+  no_log: "{{ ca_no_log | bool }}"
+
+- name: "CA | Assert managed certificate types are known"
+  ansible.builtin.assert:
+    that:
+      - ca_certificate.name is defined
+      - ca_certificate.type is defined
+      - ca_certificate.type in ca_certificate_types
+      - ca_certificate.common_name is defined
+    fail_msg: "Each entry in ca_certificates needs name, type, and common_name."
+  loop: "{{ ca_certificates }}"
+  loop_control:
+    loop_var: ca_certificate
+    label: "{{ ca_certificate.name | default('unnamed') }}"
+
+- name: "CA | Initialize filesystem layout"
+  ansible.builtin.import_tasks: init.yml
+  tags: init
+
+- name: "CA | Manage CA authorities"
+  ansible.builtin.import_tasks: authorities.yml
+  tags: authorities
+
+- name: "CA | Manage end-entity certificates"
+  ansible.builtin.import_tasks: certificates.yml
+  when: ca_certificates | length > 0
+  tags: create
+
+- name: "CA | Manage CRLs"
+  ansible.builtin.import_tasks: crls.yml
+  when: ca_crl.enabled | bool
+  tags: crl
+
+- name: "CA | Configure CRL renewal automation"
+  ansible.builtin.import_tasks: automation.yml
+  tags: automation
+
+- name: "CA | Generate Diffie-Hellman parameters"
+  ca_dhparam:
+    path: "{{ ca_fhs_dir }}/dhparams.pem"
+    size: "{{ ca_default_bits }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    mode: "0644"
+    force: "{{ ca_force_reissue | bool }}"
+  when: ca_create_dhparams | bool
+  tags: dhparams

@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew {{ ca_name }} CA CRLs
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=ANSIBLE_LIBRARY={{ ca_base_dir }}/automation/library
+ExecStart={{ ca_crl_automation.ansible_playbook }} {{ ca_base_dir }}/automation/crl-renew.yml

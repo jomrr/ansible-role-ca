@@ -1,10 +1,10 @@
 ---
-# role: ca
+# role: jomrr.ca
 # file: .pre-commit-config.yaml
 
 repos:
   - repo: https://github.com/ansible-community/ansible-lint
-    rev: v25.5.0
+    rev: v26.4.0
     hooks:
       - id: ansible-lint
         always_run: false
@@ -12,12 +12,12 @@ repos:
         language: python
         pass_filenames: false
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.8.2
+    rev: v4.16.3
     hooks:
       - id: commitizen
         stages: [commit-msg]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: detect-private-key
       - id: end-of-file-fixer

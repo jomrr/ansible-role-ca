@@ -2,45 +2,184 @@
 # role: ansible-role-ca
 # file: vars/main.yml
 
-ca_init_dirs:
-  - { dir: "{{ ca_base_dir }}", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/etc", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/crl", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/csr", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/certs", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/pwd", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/csr", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca/etc", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca/root-ca/db", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca/root-ca/private", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/root-ca/pwd", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/intermediate-ca/db", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca/intermediate-ca/private", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/intermediate-ca/pwd", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/identity-ca/db", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca/identity-ca/private", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/identity-ca/pwd", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/component-ca/db", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca/component-ca/private", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/component-ca/pwd", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/software-ca/db", mode: '755' }
-  - { dir: "{{ ca_base_dir }}/ca/software-ca/private", mode: '700' }
-  - { dir: "{{ ca_base_dir }}/ca/software-ca/pwd", mode: '700' }
+ca_base_directories:
+  - { path: "{{ ca_base_dir }}", mode: "0755" }
+  - { path: "{{ ca_base_dir }}/automation", mode: "0750" }
+  - { path: "{{ ca_base_dir }}/ca", mode: "0755" }
+  - { path: "{{ ca_base_dir }}/certs", mode: "0755" }
+  - { path: "{{ ca_base_dir }}/chains", mode: "0755" }
+  - { path: "{{ ca_base_dir }}/crl", mode: "0755" }
+  - { path: "{{ ca_base_dir }}/csr", mode: "0755" }
+  - { path: "{{ ca_base_dir }}/ext", mode: "0755" }
+  - { path: "{{ ca_base_dir }}/private", mode: "0700" }
+  - { path: "{{ ca_base_dir }}/tmp", mode: "0700" }
 
-ca_init_files:
-  - { file: "{{ ca_base_dir }}/ca/root-ca/db/root-ca.db", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/root-ca/db/root-ca.db.attr", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/root-ca/db/root-ca.crl.srl", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/intermediate-ca/db/intermediate-ca.db", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/intermediate-ca/db/intermediate-ca.db.attr", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/intermediate-ca/db/intermediate-ca.crl.srl", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/identity-ca/db/identity-ca.db", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/identity-ca/db/identity-ca.db.attr", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/identity-ca/db/identity-ca.crl.srl", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/component-ca/db/component-ca.db", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/component-ca/db/component-ca.db.attr", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/component-ca/db/component-ca.crl.srl", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/software-ca/db/software-ca.db", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/software-ca/db/software-ca.db.attr", mode: '644' }
-  - { file: "{{ ca_base_dir }}/ca/software-ca/db/software-ca.crl.srl", mode: '644' }
+ca_authority_order:
+  - root
+  - component
+  - network
+  - identity
+
+ca_authorities:
+  root:
+    common_name: "{{ ca_name }} Root CA"
+    parent: ""
+    days: "{{ ca_authority_days.root | default(3652) }}"
+    crl_days: 30
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    basic_constraints:
+      - "CA:TRUE"
+      - "pathlen:1"
+  component:
+    common_name: "{{ ca_name }} Component CA"
+    parent: root
+    days: "{{ ca_authority_days.component | default(1826) }}"
+    crl_days: 30
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    basic_constraints:
+      - "CA:TRUE"
+      - "pathlen:0"
+  network:
+    common_name: "{{ ca_name }} Network CA"
+    parent: root
+    days: "{{ ca_authority_days.network | default(1826) }}"
+    crl_days: 30
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    basic_constraints:
+      - "CA:TRUE"
+      - "pathlen:0"
+  identity:
+    common_name: "{{ ca_name }} Identity CA"
+    parent: root
+    days: "{{ ca_authority_days.identity | default(1826) }}"
+    crl_days: 30
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    basic_constraints:
+      - "CA:TRUE"
+      - "pathlen:0"
+
+ca_default_certificate_formats:
+  - pem
+  - der
+
+ca_fritzbox_bundle_order:
+  - private_key
+  - certificate
+  - chain
+
+ca_certificate_types:
+  tls_server:
+    issuer: component
+    days: "{{ ca_certificate_type_days.tls_server | default(ca_default_certificate_days) }}"
+    default_dns_san: true
+    required_fields: []
+    dynamic_extensions: []
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    extended_key_usage:
+      - serverAuth
+    formats: "{{ ca_default_certificate_formats }}"
+  tls_client:
+    issuer: component
+    days: "{{ ca_certificate_type_days.tls_client | default(ca_default_certificate_days) }}"
+    default_dns_san: false
+    required_fields: []
+    dynamic_extensions: []
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    extended_key_usage:
+      - clientAuth
+    formats: "{{ ca_default_certificate_formats }}"
+  mskdc:
+    issuer: component
+    days: "{{ ca_certificate_type_days.mskdc | default(ca_default_certificate_days) }}"
+    default_dns_san: true
+    required_fields:
+      - ad_object_guid
+    dynamic_extensions:
+      - ntds_object_guid
+      - krb5_principal_name
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    extended_key_usage:
+      - serverAuth
+      - clientAuth
+      - "1.3.6.1.5.2.3.5"
+    raw_extensions:
+      - oid: "1.3.6.1.4.1.311.20.2"
+        value: "ASN1:BMPSTRING:DomainController"
+    formats: "{{ ca_default_certificate_formats }}"
+  fritzbox:
+    issuer: component
+    days: "{{ ca_certificate_type_days.fritzbox | default(ca_default_certificate_days) }}"
+    digest: sha384
+    default_dns_san: true
+    required_fields: []
+    dynamic_extensions: []
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    extended_key_usage:
+      - serverAuth
+      - clientAuth
+    formats:
+      - pem
+      - der
+      - fritzbox
+  identity_full:
+    issuer: identity
+    days: "{{ ca_certificate_type_days.identity_full | default(730) }}"
+    default_dns_san: false
+    required_fields: []
+    dynamic_extensions: []
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+      - nonRepudiation
+    extended_key_usage:
+      - clientAuth
+      - emailProtection
+      - codeSigning
+      - "1.3.6.1.4.1.311.20.2.2"
+    formats:
+      - pem
+      - der
+      - pfx
+  identity:
+    issuer: identity
+    days: "{{ ca_certificate_type_days.identity | default(730) }}"
+    default_dns_san: false
+    required_fields: []
+    dynamic_extensions: []
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+      - nonRepudiation
+    extended_key_usage:
+      - clientAuth
+      - emailProtection
+      - "1.3.6.1.4.1.311.20.2.2"
+    formats: "{{ ca_default_certificate_formats }}"
+  eap_tls_client:
+    issuer: network
+    days: "{{ ca_certificate_type_days.eap_tls_client | default(ca_default_certificate_days) }}"
+    default_dns_san: false
+    required_fields: []
+    dynamic_extensions: []
+    key_usage:
+      - digitalSignature
+      - keyEncipherment
+    extended_key_usage:
+      - clientAuth
+    formats: "{{ ca_default_certificate_formats }}"
