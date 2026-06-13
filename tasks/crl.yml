@@ -2,22 +2,22 @@
 # role: ansible-role-ca
 # file: tasks/crl.yml
 
-- name: "CA | Manage CRLs for {{ ca_authority_name }}"
+- name: "CA | Manage CRLs for {{ ca_authority.name }}"
   ca_crl:
     base_dir: "{{ ca_base_dir }}"
-    name: "{{ ca_authority_name }}"
+    name: "{{ ca_authority.name }}"
     format: "{{ item }}"
-    ca_passphrases: "{{ ca_privatekey_passphrases }}"
+    key_passphrase: "{{ ca_authority.key_passphrase }}"
     issuer_ordered:
       - countryName: "{{ ca_country }}"
       - stateOrProvinceName: "{{ ca_state }}"
       - localityName: "{{ ca_locality }}"
       - organizationName: "{{ ca_organization }}"
       - organizationalUnitName: "{{ ca_organizational_unit }}"
-      - commonName: "{{ ca_authorities[ca_authority_name].common_name }}"
-    next_update_days: "{{ ca_authorities[ca_authority_name].crl_days }}"
-    revoked_certificates: "{{ ca_revocations[ca_authority_name] | default([]) }}"
-    digest: "{{ ca_authorities[ca_authority_name].digest | default(ca_default_md) }}"
+      - commonName: "{{ ca_authority.common_name }}"
+    next_update_days: "{{ ca_authority.crl_days }}"
+    revoked_certificates: "{{ ca_authority.revocations | default([]) }}"
+    digest: "{{ ca_authority.crl_digest | default(ca_default_md) }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"

@@ -260,6 +260,34 @@ def _subject(subject_ordered) -> x509.Name:
     return x509.Name(attributes)
 
 
+def _subject_from_params(params: dict) -> x509.Name:
+    if params.get("subject_ordered"):
+        return _subject(params["subject_ordered"])
+
+    common_name = str(params.get("common_name") or "").strip()
+    if not common_name:
+        raise ValueError("subject_ordered or common_name is required")
+
+    defaults = params.get("subject_defaults") or {}
+    subject = [
+        {"C": defaults.get("country", defaults.get("C", ""))},
+        {"ST": defaults.get("state", defaults.get("ST", ""))},
+        {"L": defaults.get("locality", defaults.get("L", ""))},
+        {"O": defaults.get("organization", defaults.get("O", ""))},
+        {
+            "OU": defaults.get(
+                "organizational_unit",
+                defaults.get("OU", ""),
+            )
+        },
+        {"CN": common_name},
+    ]
+    email = str(params.get("email") or "").strip()
+    if email:
+        subject.append({"emailAddress": email})
+    return _subject(subject)
+
+
 def _basic_constraints(values):
     ca = False
     path_length = None
@@ -682,17 +710,47 @@ def _formats(params) -> list[str]:
     return [str(item).lower() for item in params.get("formats", [])]
 
 
+def _merge_raw_extensions(defaults, overrides):
+    overrides = list(overrides or [])
+    override_oids = {str(item.get("oid")) for item in overrides}
+    merged = [
+        dict(item)
+        for item in (defaults or [])
+        if str(item.get("oid")) not in override_oids
+    ]
+    merged.extend(overrides)
+    return merged
+
+
+def apply_profile_defaults(params: dict, defaults: dict) -> dict:
+    result = dict(params)
+    for key in ("key_usage", "extended_key_usage"):
+        value = defaults.get(key)
+        if value is not None and not result.get(key):
+            result[key] = list(value)
+
+    if defaults.get("raw_extensions"):
+        result["raw_extensions"] = _merge_raw_extensions(
+            defaults["raw_extensions"],
+            result.get("raw_extensions"),
+        )
+
+    if defaults.get("digest") and not result.get("digest"):
+        result["digest"] = defaults["digest"]
+
+    if defaults.get("default_dns_san"):
+        common_name = str(result.get("common_name") or "").strip()
+        san = list(result.get("san") or [])
+        if common_name and not any(str(item).startswith("DNS:") for item in san):
+            san.append(f"DNS:{common_name}")
+        result["san"] = san
+
+    return result
+
+
 def _base_url(params: dict, name: str, key: str) -> str:
     value = str(params.get(key) or "").rstrip("/")
     return f"{value}/{name}" if value else ""
-
-
-def _ca_passphrase(params: dict, name: str) -> str:
-    passphrases = params.get("ca_passphrases") or {}
-    value = passphrases.get(name)
-    if value is None or str(value) == "":
-        raise ValueError(f"Missing CA passphrase for {name}")
-    return str(value)
 
 
 def _with_derived_paths(
@@ -715,13 +773,11 @@ def _with_derived_paths(
         result["csr_path"] = f"{base_dir}/csr/{ca_file}.csr"
         result["cert_path"] = f"{base_dir}/ca/{ca_file}.pem"
         result["der_path"] = f"{base_dir}/ca/{ca_file}.der" if "der" in formats else ""
-        result["key_passphrase"] = _ca_passphrase(result, name)
         if signed:
             parent = str(result["parent"])
             parent_file = f"{parent}-ca"
             result["signer_cert_path"] = f"{base_dir}/ca/{parent_file}.pem"
             result["signer_key_path"] = f"{base_dir}/private/{parent_file}.key"
-            result["signer_key_passphrase"] = _ca_passphrase(result, parent)
         authority_file = f"{ca_file}"
         result["aia_url"] = _base_url(result, f"{authority_file}.der", "aia_base_url")
         result["cdp_url"] = _base_url(result, f"{authority_file}.crl", "cdp_base_url")
@@ -742,7 +798,6 @@ def _with_derived_paths(
     if signed:
         result["signer_cert_path"] = f"{base_dir}/ca/{issuer_file}.pem"
         result["signer_key_path"] = f"{base_dir}/private/{issuer_file}.key"
-        result["signer_key_passphrase"] = _ca_passphrase(result, issuer)
     result["chain_src_path"] = f"{base_dir}/chains/{issuer_file}-chain.pem" if manage_chain else ""
     result["chain_path"] = f"{output_dir}/{name}-chain.pem" if manage_chain else ""
     result["aia_url"] = _base_url(result, f"{issuer_file}.der", "aia_base_url")
@@ -763,7 +818,10 @@ def x509_argument_spec(
         "formats": {"type": "list", "elements": "str", "default": ["pem", "der"]},
         "key_type": {"type": "str", "default": "RSA"},
         "key_size": {"type": "int", "default": 4096},
-        "subject_ordered": {"type": "list", "elements": "dict", "required": True},
+        "subject_ordered": {"type": "list", "elements": "dict", "default": []},
+        "common_name": {"type": "str"},
+        "email": {"type": "str"},
+        "subject_defaults": {"type": "dict", "default": {}},
         "basic_constraints": {"type": "list", "elements": "str", "default": ["CA:FALSE"]},
         "key_usage": {"type": "list", "elements": "str", "default": []},
         "key_usage_critical": {"type": "bool", "default": True},
@@ -784,10 +842,11 @@ def x509_argument_spec(
         "public_mode": {"type": "str", "default": "0644"},
         "force": {"type": "bool", "default": False},
     }
-    if authority or signer:
-        spec["ca_passphrases"] = {"type": "dict", "default": {}, "no_log": True}
-    if not authority:
-        spec["key_passphrase"] = {"type": "str", "no_log": True}
+    spec["key_passphrase"] = {
+        "type": "str",
+        "required": authority,
+        "no_log": True,
+    }
     if directory:
         spec.update(
             {
@@ -797,6 +856,11 @@ def x509_argument_spec(
         )
     if signer:
         spec["parent" if authority else "issuer"] = {"type": "str", "required": True}
+        spec["signer_key_passphrase"] = {
+            "type": "str",
+            "required": True,
+            "no_log": True,
+        }
     for key, value in (defaults or {}).items():
         if key in spec:
             spec[key]["default"] = value
@@ -828,7 +892,7 @@ def ensure_x509(
             params["directory_mode"],
         )
     key, key_changed = _ensure_key(params)
-    subject = _subject(params["subject_ordered"])
+    subject = _subject_from_params(params)
     signer_key = key
     signer_cert = None
     if signed:

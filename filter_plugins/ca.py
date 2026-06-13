@@ -63,32 +63,35 @@ def _ad_guid_hex(value: Any) -> str:
     )
 
 
-def _certificate_subject(
-    certificate: dict[str, Any], subject_defaults: dict[str, Any]
-) -> list[dict[str, Any]]:
-    subject = [
-        {"C": certificate.get("country", subject_defaults["country"])},
-        {"ST": certificate.get("state", subject_defaults["state"])},
-        {"L": certificate.get("locality", subject_defaults["locality"])},
-        {"O": certificate.get("organization", subject_defaults["organization"])},
-        {
-            "OU": certificate.get(
-                "organizational_unit", subject_defaults["organizational_unit"]
+def ca_authority_map(authorities: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Return authorities keyed by name and validate the public list shape."""
+
+    result = {}
+    for authority in _as_list(authorities):
+        if not isinstance(authority, dict):
+            raise AnsibleFilterError("Each ca_authorities item must be a dictionary")
+        name = _string(_required(authority, "name", "Authority")).strip()
+        if not SAFE_NAME_RE.match(name):
+            raise AnsibleFilterError(
+                f"Authority {name} has an unsafe name; use only letters, digits, dots, underscores, and hyphens"
             )
-        },
-        {"CN": certificate["common_name"]},
-    ]
+        if name in result:
+            raise AnsibleFilterError(f"Duplicate authority name {name}")
+        result[name] = authority
 
-    if _string(certificate.get("email")):
-        subject.append({"emailAddress": certificate["email"]})
-
-    return subject
+    for name, authority in result.items():
+        parent = _string(_required(authority, "parent", f"Authority {name}")).strip()
+        if parent not in result:
+            raise AnsibleFilterError(
+                f"Authority {name} references unknown parent {parent}"
+            )
+    return result
 
 
 def ca_certificate_model(
     certificate: dict[str, Any],
     certificate_types: dict[str, dict[str, Any]],
-    authorities: dict[str, Any],
+    authorities: list[dict[str, Any]],
     _base_dir: str,
     default_certificate_days: int,
     kerberos_realm: str,
@@ -113,9 +116,10 @@ def ca_certificate_model(
     if cert_type not in certificate_types:
         raise AnsibleFilterError(f"Certificate {name} uses unknown type {cert_type}")
 
+    authority_map = ca_authority_map(authorities)
     profile = deepcopy(certificate_types[cert_type])
     issuer = _string(_required(profile, "issuer", f"Certificate type {cert_type}"))
-    if issuer not in authorities:
+    if issuer not in authority_map:
         raise AnsibleFilterError(
             f"Certificate type {cert_type} references unknown issuer {issuer}"
         )
@@ -139,47 +143,32 @@ def ca_certificate_model(
             f"Certificate {name} uses PFX/PKCS#12 output and requires pfx_passphrase"
         )
 
-    san = [str(item) for item in _as_list(profile.get("san"))]
-    san.extend(str(item) for item in _as_list(certificate.get("san")))
-
-    if profile.get("default_dns_san", False) and not any(
-        item.startswith("DNS:") for item in san
-    ):
-        san.append(f"DNS:{common_name}")
-
-    raw_extensions = deepcopy(_as_list(profile.get("raw_extensions")))
-    dynamic_extensions = {
-        str(item) for item in _as_list(profile.get("dynamic_extensions"))
-    }
+    san = [str(item) for item in _as_list(certificate.get("san"))]
+    raw_extensions = deepcopy(_as_list(certificate.get("raw_extensions")))
     pkinit = {"prefix": "", "realm": ""}
 
-    if cert_type == "mskdc" or dynamic_extensions.intersection(
-        {"ntds_object_guid", "krb5_principal_name"}
-    ):
-        if "ntds_object_guid" in dynamic_extensions or cert_type == "mskdc":
-            raw_extensions.append(
-                {
-                    "oid": "1.3.6.1.4.1.311.25.1",
-                    "value": (
-                        "ASN1:FORMAT:HEX,OCTETSTRING:"
-                        + _ad_guid_hex(certificate.get("ad_object_guid"))
-                    ),
-                }
+    if cert_type == "mskdc":
+        raw_extensions.append(
+            {
+                "oid": "1.3.6.1.4.1.311.25.1",
+                "value": (
+                    "ASN1:FORMAT:HEX,OCTETSTRING:"
+                    + _ad_guid_hex(certificate.get("ad_object_guid"))
+                ),
+            }
+        )
+        realm = (
+            _string(certificate.get("krb5_realm") or kerberos_realm)
+            .strip()
+            .upper()
+        )
+        if not KRB5_REALM_RE.match(realm):
+            raise AnsibleFilterError(
+                f"Certificate {name} requires a valid krb5_realm for PKINIT"
             )
-
-        if "krb5_principal_name" in dynamic_extensions or cert_type == "mskdc":
-            realm = (
-                _string(certificate.get("krb5_realm") or kerberos_realm)
-                .strip()
-                .upper()
-            )
-            if not KRB5_REALM_RE.match(realm):
-                raise AnsibleFilterError(
-                    f"Certificate {name} requires a valid krb5_realm for PKINIT"
-                )
-            prefix = re.sub(r"[^A-Za-z0-9_]", "_", f"pkinit_{name}")
-            san.append(f"otherName:1.3.6.1.5.2.2;SEQUENCE:{prefix}_principal")
-            pkinit = {"prefix": prefix, "realm": realm}
+        prefix = re.sub(r"[^A-Za-z0-9_]", "_", f"pkinit_{name}")
+        san.append(f"otherName:1.3.6.1.5.2.2;SEQUENCE:{prefix}_principal")
+        pkinit = {"prefix": prefix, "realm": realm}
 
     model = deepcopy(certificate)
     model.update(
@@ -193,23 +182,35 @@ def ca_certificate_model(
                 "days", profile.get("days", default_certificate_days)
             ),
             "digest": certificate.get("digest", profile.get("digest", "")),
-            "key_usage": _as_list(profile.get("key_usage")),
-            "extended_key_usage": _as_list(profile.get("extended_key_usage")),
-            "raw_extensions": raw_extensions,
             "san": san,
             "csr_san": [
                 item
                 for item in san
                 if ";FORMAT:" not in item and ";SEQUENCE:" not in item
             ],
-            "subject": _certificate_subject(certificate, subject_defaults),
             "privatekey_passphrase": _string(
                 certificate.get("privatekey_passphrase")
             ),
             "pfx_passphrase": _string(certificate.get("pfx_passphrase")),
             "pkinit": pkinit,
+            "subject_defaults": {
+                "country": certificate.get("country", subject_defaults["country"]),
+                "state": certificate.get("state", subject_defaults["state"]),
+                "locality": certificate.get("locality", subject_defaults["locality"]),
+                "organization": certificate.get(
+                    "organization",
+                    subject_defaults["organization"],
+                ),
+                "organizational_unit": certificate.get(
+                    "organizational_unit",
+                    subject_defaults["organizational_unit"],
+                ),
+            },
         }
     )
+
+    if raw_extensions:
+        model["raw_extensions"] = raw_extensions
 
     output_dir = _string(certificate.get("output_dir")).strip()
     if output_dir:
@@ -221,7 +222,7 @@ def ca_certificate_model(
 def ca_certificate_models(
     certificates: list[dict[str, Any]],
     certificate_types: dict[str, dict[str, Any]],
-    authorities: dict[str, Any],
+    authorities: list[dict[str, Any]],
     base_dir: str,
     default_certificate_days: int,
     kerberos_realm: str,
@@ -248,6 +249,7 @@ class FilterModule:
 
     def filters(self) -> dict[str, Any]:
         return {
+            "ca_authority_map": ca_authority_map,
             "ca_certificate_model": ca_certificate_model,
             "ca_certificate_models": ca_certificate_models,
         }

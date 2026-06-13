@@ -36,7 +36,7 @@ It creates CA keys, CSRs, certificates, chains, DER exports, CRLs, and managed e
 ## Requirements
 
 - Target hosts need OpenSSL and Python cryptography bindings.
-- CA private key passphrases are required in `ca_privatekey_passphrases`; store real values in Ansible Vault.
+- CA private key passphrases are required as `key_passphrase` values in `ca_authorities`; store real values in Ansible Vault.
 - PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus `ad_object_guid`.
 
@@ -58,21 +58,18 @@ The following variables are part of the public role interface.
 | `ca_locality` | `str` | `false` | `Erlangen` | Default X.509 subject locality. |
 | `ca_organization` | `str` | `false` | `Yourdomain SE` | Default X.509 subject organization. |
 | `ca_organizational_unit` | `str` | `false` | `Yourdomain Certificate Authority` | Default X.509 subject organizational unit. |
-| `ca_key_type` | `str` | `false` | `RSA` | Private key type for CA and end-entity keys. |
-| `ca_default_bits` | `int` | `false` | `4096` | Default key size and optional DH parameter size. |
-| `ca_default_md` | `str` | `false` | `sha512` | Default message digest for certificates and CRLs. |
+| `ca_default_bits` | `int` | `false` | `4096` | DH parameter size when `ca_create_dhparams=true`. |
+| `ca_default_md` | `str` | `false` | `sha512` | Default message digest for CRLs. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
 | `ca_certificate_async_timeout` | `int` | `false` | `600` | Async timeout in seconds for end-entity certificate and bundle jobs. |
 | `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for end-entity certificate and bundle jobs. |
 | `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for end-entity certificate and bundle jobs. |
-| `ca_privatekey_passphrases` | `dict` | `false` | {} | Passphrases for Root, Component, Network, and Identity CA private keys.<br>Store real values in Ansible Vault. |
-| `ca_authority_days` | `dict` | `false` | root: 3652<br />component: 1826<br />network: 1826<br />identity: 1826 | Validity periods for the built-in CA certificates. |
+| `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_default_certificate_days` | `int` | `false` | `397` | Default validity period for end-entity certificate profiles. |
 | `ca_certificate_type_days` | `dict` | `false` | tls_server: 397<br />tls_client: 397<br />mskdc: 397<br />fritzbox: 397<br />identity_full: 730<br />identity: 730<br />eap_tls_client: 397 | Validity periods for built-in certificate profiles. |
 | `ca_aia` | `dict` | `false` |  | AIA URL settings. |
 | `ca_cdp` | `dict` | `false` |  | CDP URL settings. |
 | `ca_certificates` | `list` | `false` | [] | End-entity certificates to manage. |
-| `ca_revocations` | `dict` | `false` | root: []<br />component: []<br />network: []<br />identity: [] | Revoked certificate entries grouped by issuing CA. |
 | `ca_crl` | `dict` | `false` |  | CRL generation settings. |
 | `ca_crl_automation` | `dict` | `false` |  | Optional systemd CRL renewal automation. |
 | `ca_create_dhparams` | `bool` | `false` | `False` | Generate Diffie-Hellman parameters under the platform PKI base directory. |
@@ -111,7 +108,8 @@ The following variables are part of the public role interface.
 - AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
 - AIA/CDP publication is outside this role because URLs do not describe an Ansible transport target.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
-- The built-in CA topology, certificate profiles, and FritzBox bundle order are role vars; override validity periods through `ca_authority_days`, `ca_certificate_type_days`, or a per-certificate `days` value.
+- The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
+- Override certificate profile validity periods through `ca_certificate_type_days` or a per-certificate `days` value.
 - FritzBox bundles are assembled in the default order `private_key`, `certificate`, `chain`.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
@@ -142,11 +140,31 @@ Creates the Root CA and the three issuing CAs without end-entity certificates.
       vars:
         ca_name: Example
         ca_base_url: https://pki.example.org
-        ca_privatekey_passphrases:
-          root: vaulted-root-passphrase
-          component: vaulted-component-passphrase
-          network: vaulted-network-passphrase
-          identity: vaulted-identity-passphrase
+        ca_authorities:
+          - name: root
+            common_name: Example Root CA
+            parent: root
+            days: 3652
+            crl_days: 30
+            key_passphrase: vaulted-root-passphrase
+          - name: component
+            common_name: Example Component CA
+            parent: root
+            days: 1826
+            crl_days: 30
+            key_passphrase: vaulted-component-passphrase
+          - name: network
+            common_name: Example Network CA
+            parent: root
+            days: 1826
+            crl_days: 30
+            key_passphrase: vaulted-network-passphrase
+          - name: identity
+            common_name: Example Identity CA
+            parent: root
+            days: 1826
+            crl_days: 30
+            key_passphrase: vaulted-identity-passphrase
 ```
 ### Managed certificate examples
 
@@ -162,11 +180,31 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
       vars:
         ca_name: Example
         ca_base_url: https://pki.example.org
-        ca_privatekey_passphrases:
-          root: vaulted-root-passphrase
-          component: vaulted-component-passphrase
-          network: vaulted-network-passphrase
-          identity: vaulted-identity-passphrase
+        ca_authorities:
+          - name: root
+            common_name: Example Root CA
+            parent: root
+            days: 3652
+            crl_days: 30
+            key_passphrase: vaulted-root-passphrase
+          - name: component
+            common_name: Example Component CA
+            parent: root
+            days: 1826
+            crl_days: 30
+            key_passphrase: vaulted-component-passphrase
+          - name: network
+            common_name: Example Network CA
+            parent: root
+            days: 1826
+            crl_days: 30
+            key_passphrase: vaulted-network-passphrase
+          - name: identity
+            common_name: Example Identity CA
+            parent: root
+            days: 1826
+            crl_days: 30
+            key_passphrase: vaulted-identity-passphrase
         ca_aia:
           enabled: true
           url: https://pki.example.org/aia

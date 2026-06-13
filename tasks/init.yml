@@ -16,13 +16,14 @@
 
 - name: "CA | Store CA private key passphrase files"
   ansible.builtin.copy:
-    content: "{{ ca_privatekey_passphrases[item] }}\n"
-    dest: "{{ ca_base_dir }}/private/{{ item }}-ca.pass"
+    content: "{{ ca_authority.key_passphrase }}\n"
+    dest: "{{ ca_base_dir }}/private/{{ ca_authority.name }}-ca.pass"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     mode: "0600"
-  loop: "{{ ca_authority_order }}"
+  loop: "{{ ca_authorities }}"
   loop_control:
-    label: "{{ item }}"
+    loop_var: ca_authority
+    label: "{{ ca_authority.name }}"
   no_log: "{{ ca_no_log | bool }}"
   tags: init-passphrases

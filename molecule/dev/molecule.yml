@@ -28,11 +28,35 @@ provisioner:
         ca_no_log: false
         ca_name: "Example"
         ca_base_url: "http://pki.molecule.test"
-        ca_privatekey_passphrases:
-          root: "molecule-root-passphrase"
-          component: "molecule-component-passphrase"
-          network: "molecule-network-passphrase"
-          identity: "molecule-identity-passphrase"
+        ca_authorities:
+          - name: "root"
+            common_name: "Example Root CA"
+            parent: "root"
+            days: 3652
+            crl_days: 30
+            key_passphrase: "molecule-root-passphrase"
+            revocations: []
+          - name: "component"
+            common_name: "Example Component CA"
+            parent: "root"
+            days: 1826
+            crl_days: 30
+            key_passphrase: "molecule-component-passphrase"
+            revocations: []
+          - name: "network"
+            common_name: "Example Network CA"
+            parent: "root"
+            days: 1826
+            crl_days: 30
+            key_passphrase: "molecule-network-passphrase"
+            revocations: []
+          - name: "identity"
+            common_name: "Example Identity CA"
+            parent: "root"
+            days: 1826
+            crl_days: 30
+            key_passphrase: "molecule-identity-passphrase"
+            revocations: []
         ca_aia:
           enabled: true
           url: "http://pki.molecule.test/aia"

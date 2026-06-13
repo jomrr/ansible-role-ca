@@ -21,13 +21,19 @@
 - name: "CA | Assert authority definitions are complete"
   ansible.builtin.assert:
     that:
-      - item in ca_authorities
-      - item in ca_privatekey_passphrases
-      - ca_privatekey_passphrases[item] | string | length > 0
-    fail_msg: "Every managed CA needs a vaulted ca_privatekey_passphrases entry."
-  loop: "{{ ca_authority_order }}"
+      - (ca_authorities | ca_authority_map | length) == (ca_authorities | length)
+      - ca_authority.name is defined
+      - ca_authority.parent is defined
+      - ca_authority.common_name is defined
+      - ca_authority.days is defined
+      - ca_authority.crl_days is defined
+      - ca_authority.key_passphrase is defined
+      - ca_authority.key_passphrase | string | length > 0
+    fail_msg: "Every managed CA needs name, parent, common_name, days, crl_days, and key_passphrase."
+  loop: "{{ ca_authorities }}"
   loop_control:
-    label: "{{ item }}"
+    loop_var: ca_authority
+    label: "{{ ca_authority.name | default('unnamed') }}"
   no_log: "{{ ca_no_log | bool }}"
 
 - name: "CA | Assert managed certificate types are known"

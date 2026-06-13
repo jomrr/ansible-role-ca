@@ -10,10 +10,16 @@ from ansible.module_utils.x509_common import (
     x509_argument_spec,
 )
 
+ROOT_CA_DEFAULTS = {
+    "basic_constraints": ["CA:TRUE", "pathlen:1"],
+    "key_usage": ["keyCertSign", "cRLSign"],
+    "digest": "sha512",
+}
+
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=x509_argument_spec(authority=True),
+        argument_spec=x509_argument_spec(authority=True, defaults=ROOT_CA_DEFAULTS),
         supports_check_mode=False,
     )
 

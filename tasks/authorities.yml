@@ -4,7 +4,7 @@
 
 - name: "CA | Manage authority"
   ansible.builtin.include_tasks: authority.yml
-  loop: "{{ ca_authority_order }}"
+  loop: "{{ ca_authorities }}"
   loop_control:
-    loop_var: ca_authority_name
-    label: "{{ ca_authority_name }}"
+    loop_var: ca_authority
+    label: "{{ ca_authority.name }}"

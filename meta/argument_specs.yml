@@ -77,21 +77,16 @@ argument_specs:
         required: false
         default: Yourdomain Certificate Authority
         description: Default X.509 subject organizational unit.
-      ca_key_type:
-        type: str
-        required: false
-        default: RSA
-        description: Private key type for CA and end-entity keys.
       ca_default_bits:
         type: int
         required: false
         default: 4096
-        description: Default key size and optional DH parameter size.
+        description: DH parameter size when `ca_create_dhparams=true`.
       ca_default_md:
         type: str
         required: false
         default: sha512
-        description: Default message digest for certificates and CRLs.
+        description: Default message digest for CRLs.
       ca_force_reissue:
         type: bool
         required: false
@@ -114,22 +109,48 @@ argument_specs:
         default: 1
         description: Delay in seconds between async status checks for end-entity certificate
           and bundle jobs.
-      ca_privatekey_passphrases:
-        type: dict
+      ca_authorities:
+        type: list
+        elements: dict
         required: false
-        default: {}
-        description:
-          - Passphrases for Root, Component, Network, and Identity CA private keys.
-          - Store real values in Ansible Vault.
-      ca_authority_days:
-        type: dict
-        required: false
-        default:
-          root: 3652
-          component: 1826
-          network: 1826
-          identity: 1826
-        description: Validity periods for the built-in CA certificates.
+        description: Managed CA topology. Store real `key_passphrase` values in Ansible
+          Vault.
+        options:
+          name:
+            type: str
+            required: true
+            description: Authority identifier and CA file stem.
+          common_name:
+            type: str
+            required: true
+            description: Authority certificate common name.
+          parent:
+            type: str
+            required: true
+            description: Parent authority name. Set this to the same value as `name` for
+              a self-signed authority.
+          days:
+            type: int
+            required: true
+            description: Authority certificate validity in days.
+          crl_days:
+            type: int
+            required: true
+            description: CRL validity in days.
+          key_passphrase:
+            type: str
+            required: true
+            description: Authority private key passphrase.
+          revocations:
+            type: list
+            elements: dict
+            required: false
+            default: []
+            description: Revoked certificate entries for this authority.
+          crl_digest:
+            type: str
+            required: false
+            description: Optional CRL message digest override.
       ca_default_certificate_days:
         type: int
         required: false
@@ -242,15 +263,6 @@ argument_specs:
             type: str
             required: false
             description: Friendly name for PFX/PKCS#12 export.
-      ca_revocations:
-        type: dict
-        required: false
-        default:
-          root: []
-          component: []
-          network: []
-          identity: []
-        description: Revoked certificate entries grouped by issuing CA.
       ca_crl:
         type: dict
         required: false

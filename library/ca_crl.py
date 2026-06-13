@@ -203,14 +203,6 @@ def _build_crl(params):
     return builder.sign(private_key=_load_key(params["privatekey_path"], params["privatekey_passphrase"]), algorithm=_digest(params["digest"]))
 
 
-def _ca_passphrase(params: dict, name: str) -> str:
-    passphrases = params.get("ca_passphrases") or {}
-    value = passphrases.get(name)
-    if value is None or str(value) == "":
-        raise ValueError(f"Missing CA passphrase for {name}")
-    return str(value)
-
-
 def _with_derived_paths(params: dict) -> dict:
     result = dict(params)
     base_dir = str(result["base_dir"]).rstrip("/")
@@ -221,7 +213,6 @@ def _with_derived_paths(params: dict) -> dict:
         else f"{base_dir}/crl/{name}-ca.crl.pem"
     )
     result["privatekey_path"] = f"{base_dir}/private/{name}-ca.key"
-    result["privatekey_passphrase"] = _ca_passphrase(result, name)
     return result
 
 
@@ -231,7 +222,7 @@ def run_module():
             "base_dir": {"type": "path", "required": True},
             "name": {"type": "str", "required": True},
             "format": {"type": "str", "choices": ["pem", "der"], "default": "pem"},
-            "ca_passphrases": {"type": "dict", "default": {}, "no_log": True},
+            "key_passphrase": {"type": "str", "required": True, "no_log": True},
             "issuer_ordered": {"type": "list", "elements": "dict", "required": True},
             "next_update_days": {"type": "int", "required": True},
             "revoked_certificates": {"type": "list", "elements": "dict", "default": []},
@@ -249,6 +240,7 @@ def run_module():
 
     params = _with_derived_paths(module.params)
     try:
+        params["privatekey_passphrase"] = params["key_passphrase"]
         crl = _build_crl(params)
         changed = params["force"] or not os.path.exists(params["path"])
         if not changed:

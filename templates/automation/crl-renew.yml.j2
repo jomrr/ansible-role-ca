@@ -6,16 +6,14 @@
   gather_facts: false
 
   tasks:
-{% for ca_authority_name in ca_authority_order %}
-{% set ca_authority = ca_authorities[ca_authority_name] %}
+{% for ca_authority in ca_authorities %}
 {% for ca_crl_format in ca_crl.formats | default(['pem', 'der']) | map('lower') | list %}
-    - name: "CA | Renew {{ ca_authority_name }} {{ ca_crl_format }} CRL"
+    - name: "CA | Renew {{ ca_authority.name }} {{ ca_crl_format }} CRL"
       ca_crl:
         base_dir: "{{ ca_base_dir }}"
-        name: "{{ ca_authority_name }}"
+        name: "{{ ca_authority.name }}"
         format: "{{ ca_crl_format }}"
-        ca_passphrases:
-          {{ ca_authority_name }}: "{{ "{{" }} lookup('ansible.builtin.file', '{{ ca_base_dir }}/private/{{ ca_authority_name }}-ca.pass') {{ "}}" }}"
+        key_passphrase: "{{ "{{" }} lookup('ansible.builtin.file', '{{ ca_base_dir }}/private/{{ ca_authority.name }}-ca.pass') {{ "}}" }}"
         issuer_ordered:
           - countryName: {{ ca_country | to_json }}
           - stateOrProvinceName: {{ ca_state | to_json }}
@@ -24,8 +22,8 @@
           - organizationalUnitName: {{ ca_organizational_unit | to_json }}
           - commonName: {{ ca_authority.common_name | to_json }}
         next_update_days: "{{ ca_authority.crl_days }}"
-        revoked_certificates: {{ ca_revocations[ca_authority_name] | default([]) | to_json }}
-        digest: "{{ ca_authority.digest | default(ca_default_md) }}"
+        revoked_certificates: {{ ca_authority.revocations | default([]) | to_json }}
+        digest: "{{ ca_authority.crl_digest | default(ca_default_md) }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
 {% endfor %}

@@ -2,73 +2,56 @@
 # role: ansible-role-ca
 # file: tasks/authority.yml
 
-- name: "CA | Manage authority {{ ca_authority_name }}"
+- name: "CA | Manage authority {{ ca_authority.name }}"
   vars:
-    __ca_authority: "{{ ca_authorities[ca_authority_name] }}"
-    __ca_authority_parent: "{{ ca_authorities[ca_authority_name].parent | default('') }}"
-    __ca_authority_subject: >-
-      {{
-        [
-          {'C': ca_country},
-          {'ST': ca_state},
-          {'L': ca_locality},
-          {'O': ca_organization},
-          {'OU': ca_organizational_unit},
-          {'CN': __ca_authority.common_name}
-        ]
-      }}
+    __ca_authority: "{{ ca_authority }}"
+    __ca_authority_parent: "{{ ca_authority.parent }}"
+    __ca_authorities_by_name: "{{ ca_authorities | ca_authority_map }}"
+    __ca_subject_defaults:
+      country: "{{ ca_country }}"
+      state: "{{ ca_state }}"
+      locality: "{{ ca_locality }}"
+      organization: "{{ ca_organization }}"
+      organizational_unit: "{{ ca_organizational_unit }}"
   block:
-    - name: "CA | Manage root authority material for {{ ca_authority_name }}"
+    - name: "CA | Manage root authority material for {{ ca_authority.name }}"
       ca_root:
         base_dir: "{{ ca_base_dir }}"
-        name: "{{ ca_authority_name }}"
-        ca_passphrases: "{{ ca_privatekey_passphrases }}"
-        key_type: "{{ __ca_authority.key_type | default(ca_key_type) }}"
-        key_size: "{{ __ca_authority.bits | default(ca_default_bits) }}"
-        subject_ordered: "{{ __ca_authority_subject }}"
-        basic_constraints: "{{ __ca_authority.basic_constraints }}"
-        key_usage: "{{ __ca_authority.key_usage }}"
-        extended_key_usage: "{{ __ca_authority.extended_key_usage | default([]) }}"
-        san: "{{ __ca_authority.san | default([]) }}"
+        name: "{{ ca_authority.name }}"
+        key_passphrase: "{{ ca_authority.key_passphrase }}"
+        common_name: "{{ __ca_authority.common_name }}"
+        subject_defaults: "{{ __ca_subject_defaults | combine(__ca_authority.subject_defaults | default({})) }}"
         aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
         cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
-        raw_extensions: "{{ __ca_authority.raw_extensions | default([]) }}"
         days: "{{ __ca_authority.days }}"
-        digest: "{{ __ca_authority.digest | default(ca_default_md) }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
         force: "{{ ca_force_reissue | bool }}"
-      when: __ca_authority_parent | length == 0
+      when: __ca_authority_parent == ca_authority.name
       no_log: "{{ ca_no_log | bool }}"
 
-    - name: "CA | Manage issuing authority material for {{ ca_authority_name }}"
+    - name: "CA | Manage issuing authority material for {{ ca_authority.name }}"
       ca_issuing:
         base_dir: "{{ ca_base_dir }}"
-        name: "{{ ca_authority_name }}"
+        name: "{{ ca_authority.name }}"
         parent: "{{ __ca_authority_parent }}"
-        ca_passphrases: "{{ ca_privatekey_passphrases }}"
-        key_type: "{{ __ca_authority.key_type | default(ca_key_type) }}"
-        key_size: "{{ __ca_authority.bits | default(ca_default_bits) }}"
-        subject_ordered: "{{ __ca_authority_subject }}"
-        basic_constraints: "{{ __ca_authority.basic_constraints }}"
-        key_usage: "{{ __ca_authority.key_usage }}"
-        extended_key_usage: "{{ __ca_authority.extended_key_usage | default([]) }}"
-        san: "{{ __ca_authority.san | default([]) }}"
+        key_passphrase: "{{ ca_authority.key_passphrase }}"
+        parent_key_passphrase: "{{ __ca_authorities_by_name[__ca_authority_parent].key_passphrase }}"
+        common_name: "{{ __ca_authority.common_name }}"
+        subject_defaults: "{{ __ca_subject_defaults | combine(__ca_authority.subject_defaults | default({})) }}"
         aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
         cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
-        raw_extensions: "{{ __ca_authority.raw_extensions | default([]) }}"
         days: "{{ __ca_authority.days }}"
-        digest: "{{ __ca_authority.digest | default(ca_default_md) }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
         force: "{{ ca_force_reissue | bool }}"
-      when: __ca_authority_parent | length > 0
+      when: __ca_authority_parent != ca_authority.name
       no_log: "{{ ca_no_log | bool }}"
 
-    - name: "CA | Manage authority chain for {{ ca_authority_name }}"
+    - name: "CA | Manage authority chain for {{ ca_authority.name }}"
       x509_chain:
         base_dir: "{{ ca_base_dir }}"
-        name: "{{ ca_authority_name }}"
+        name: "{{ ca_authority.name }}"
         parent: "{{ __ca_authority_parent }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"

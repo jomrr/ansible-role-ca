@@ -95,7 +95,7 @@ def _write_file(path: str, content: bytes, owner, group, mode, force: bool) -> b
 def _paths(base_dir: str, name: str, parent: str | None) -> tuple[str, list[str]]:
     base = base_dir.rstrip("/")
     certificates = [f"{base}/ca/{name}-ca.pem"]
-    if parent:
+    if parent and parent != name:
         certificates.append(f"{base}/chains/{parent}-ca-chain.pem")
     return f"{base}/chains/{name}-ca-chain.pem", certificates
 

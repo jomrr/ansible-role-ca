@@ -17,7 +17,6 @@ ca_locality: Erlangen
 ca_organization: Yourdomain SE
 ca_organizational_unit: Yourdomain Certificate Authority
 
-ca_key_type: RSA
 ca_default_bits: 4096
 ca_default_md: sha512
 ca_force_reissue: false
@@ -25,9 +24,36 @@ ca_certificate_async_timeout: 600
 ca_certificate_async_retries: 600
 ca_certificate_async_delay: 1
 
-# CA private key passphrases are mandatory. Store real values in vaulted
-# inventory variables.
-ca_privatekey_passphrases: {}
+# Managed CA topology. Store real key_passphrase values in Ansible Vault.
+ca_authorities:
+  - name: root
+    common_name: "{{ ca_name }} Root CA"
+    parent: root
+    days: 3652
+    crl_days: 30
+    key_passphrase: ""
+    revocations: []
+  - name: component
+    common_name: "{{ ca_name }} Component CA"
+    parent: root
+    days: 1826
+    crl_days: 30
+    key_passphrase: ""
+    revocations: []
+  - name: network
+    common_name: "{{ ca_name }} Network CA"
+    parent: root
+    days: 1826
+    crl_days: 30
+    key_passphrase: ""
+    revocations: []
+  - name: identity
+    common_name: "{{ ca_name }} Identity CA"
+    parent: root
+    days: 1826
+    crl_days: 30
+    key_passphrase: ""
+    revocations: []
 
 # Publication endpoints. The URL values are embedded into issued certificates.
 ca_aia:
@@ -37,14 +63,6 @@ ca_aia:
 ca_cdp:
   enabled: true
   url: "{{ ca_base_url }}/crl"
-
-# Validity periods are intentionally the only overridable part of the built-in
-# CA topology and certificate profiles.
-ca_authority_days:
-  root: 3652
-  component: 1826
-  network: 1826
-  identity: 1826
 
 ca_default_certificate_days: 397
 ca_certificate_type_days:
@@ -58,13 +76,6 @@ ca_certificate_type_days:
 
 # List of managed end-entity certificates.
 ca_certificates: []
-
-# Revocations are grouped by issuing CA and passed to the role-local ca_crl module.
-ca_revocations:
-  root: []
-  component: []
-  network: []
-  identity: []
 
 ca_crl:
   enabled: true
