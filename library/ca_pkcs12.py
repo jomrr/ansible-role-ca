@@ -114,15 +114,25 @@ def _existing_matches(path, passphrase, key, cert, extra_certs):
     return existing_fingerprints == desired_fingerprints
 
 
+def _paths(base_dir: str, name: str, output_dir: str | None, bundle_format: str) -> dict[str, str]:
+    directory = (output_dir or f"{base_dir.rstrip('/')}/certs/{name}").rstrip("/")
+    return {
+        "path": f"{directory}/{name}.{bundle_format}",
+        "key": f"{directory}/{name}.key",
+        "cert": f"{directory}/{name}.pem",
+        "chain": f"{directory}/{name}-chain.pem",
+    }
+
+
 def run_module():
     module = AnsibleModule(
         argument_spec={
-            "path": {"type": "path", "required": True},
+            "base_dir": {"type": "path", "required": True},
+            "name": {"type": "str", "required": True},
+            "output_dir": {"type": "path"},
+            "format": {"type": "str", "choices": ["pfx", "p12"], "required": True},
             "friendly_name": {"type": "str", "required": True},
-            "privatekey_path": {"type": "path", "required": True},
-            "privatekey_passphrase": {"type": "str", "no_log": True},
-            "certificate_path": {"type": "path", "required": True},
-            "other_certificates": {"type": "list", "elements": "path", "default": []},
+            "key_passphrase": {"type": "str", "no_log": True},
             "passphrase": {"type": "str", "required": True, "no_log": True},
             "owner": {"type": "str"},
             "group": {"type": "str"},
@@ -137,14 +147,13 @@ def run_module():
 
     params = module.params
     try:
-        key = _load_key(params["privatekey_path"], params["privatekey_passphrase"])
-        cert = _load_certificates(params["certificate_path"])[0]
-        extra_certs = []
-        for path in params["other_certificates"]:
-            extra_certs.extend(_load_certificates(path))
-        changed = params["force"] or not os.path.exists(params["path"])
+        paths = _paths(params["base_dir"], params["name"], params["output_dir"], params["format"])
+        key = _load_key(paths["key"], params["key_passphrase"])
+        cert = _load_certificates(paths["cert"])[0]
+        extra_certs = _load_certificates(paths["chain"])
+        changed = params["force"] or not os.path.exists(paths["path"])
         if not changed:
-            changed = not _existing_matches(params["path"], params["passphrase"], key, cert, extra_certs)
+            changed = not _existing_matches(paths["path"], params["passphrase"], key, cert, extra_certs)
         if changed:
             content = pkcs12.serialize_key_and_certificates(
                 name=params["friendly_name"].encode(),
@@ -153,12 +162,12 @@ def run_module():
                 cas=extra_certs,
                 encryption_algorithm=serialization.BestAvailableEncryption(params["passphrase"].encode()),
             )
-            changed = _write_file(params["path"], content, params["owner"], params["group"], params["mode"])
+            changed = _write_file(paths["path"], content, params["owner"], params["group"], params["mode"])
         else:
-            changed = _set_attrs(params["path"], params["owner"], params["group"], params["mode"])
+            changed = _set_attrs(paths["path"], params["owner"], params["group"], params["mode"])
     except Exception as exc:
         module.fail_json(msg=str(exc))
-    module.exit_json(changed=changed)
+    module.exit_json(changed=changed, path=paths["path"])
 
 
 def main():

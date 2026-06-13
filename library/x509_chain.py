@@ -1,14 +1,29 @@
 #!/usr/bin/python
-"""Assemble an idempotent PEM bundle from files on the managed host."""
+"""Manage an ordered PEM certificate chain on the managed host."""
 
 from __future__ import annotations
 
 import grp
 import os
 import pwd
+import re
 from pathlib import Path
 
 from ansible.module_utils.basic import AnsibleModule
+
+try:
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization
+except Exception as exc:  # pragma: no cover - handled at runtime by Ansible
+    CRYPTOGRAPHY_IMPORT_ERROR = exc
+else:
+    CRYPTOGRAPHY_IMPORT_ERROR = None
+
+
+PEM_CERT_RE = re.compile(
+    rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----\s*",
+    re.DOTALL,
+)
 
 
 def _uid(owner):
@@ -45,37 +60,44 @@ def _set_attrs(path: str, owner, group, mode) -> bool:
     return changed
 
 
-def _read_sources(sources: list[str]) -> bytes:
-    parts = []
-    for source in sources:
-        with open(source, "rb") as handle:
-            content = handle.read().rstrip() + b"\n"
-        parts.append(content)
-    return b"".join(parts)
+def _load_certificates(path: str):
+    data = Path(path).read_bytes()
+    pem_blocks = PEM_CERT_RE.findall(data)
+    if pem_blocks:
+        return [x509.load_pem_x509_certificate(block) for block in pem_blocks]
+    return [x509.load_der_x509_certificate(data)]
+
+
+def _chain_content(paths: list[str]) -> bytes:
+    certificates = []
+    for path in paths:
+        certificates.extend(_load_certificates(path))
+    if not certificates:
+        raise ValueError("certificate chain needs at least one certificate")
+    return b"".join(
+        cert.public_bytes(serialization.Encoding.PEM).rstrip() + b"\n"
+        for cert in certificates
+    )
 
 
 def _write_file(path: str, content: bytes, owner, group, mode, force: bool) -> bool:
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     changed = force or not os.path.exists(path)
     if not changed:
-        with open(path, "rb") as handle:
-            changed = handle.read() != content
+        changed = Path(path).read_bytes() != content
     if changed:
         tmp_path = f"{path}.ansible_tmp"
-        with open(tmp_path, "wb") as handle:
-            handle.write(content)
+        Path(tmp_path).write_bytes(content)
         os.replace(tmp_path, path)
     return changed | _set_attrs(path, owner, group, mode)
 
 
-def _bundle_paths(base_dir: str, name: str, output_dir: str | None, order: list[str]) -> tuple[str, list[str]]:
-    directory = (output_dir or f"{base_dir.rstrip('/')}/certs/{name}").rstrip("/")
-    sources = {
-        "private_key": f"{directory}/{name}.key",
-        "certificate": f"{directory}/{name}.pem",
-        "chain": f"{directory}/{name}-chain.pem",
-    }
-    return f"{directory}/{name}-fritzbox.pem", [sources[item] for item in order]
+def _paths(base_dir: str, name: str, parent: str | None) -> tuple[str, list[str]]:
+    base = base_dir.rstrip("/")
+    certificates = [f"{base}/ca/{name}-ca.pem"]
+    if parent:
+        certificates.append(f"{base}/chains/{parent}-ca-chain.pem")
+    return f"{base}/chains/{name}-ca-chain.pem", certificates
 
 
 def run_module():
@@ -83,29 +105,22 @@ def run_module():
         argument_spec={
             "base_dir": {"type": "path", "required": True},
             "name": {"type": "str", "required": True},
-            "output_dir": {"type": "path"},
-            "order": {
-                "type": "list",
-                "elements": "str",
-                "default": ["private_key", "certificate", "chain"],
-            },
+            "parent": {"type": "str", "default": ""},
             "owner": {"type": "str"},
             "group": {"type": "str"},
-            "mode": {"type": "str", "default": "0600"},
+            "mode": {"type": "str", "default": "0644"},
             "force": {"type": "bool", "default": False},
         },
         supports_check_mode=False,
     )
 
+    if CRYPTOGRAPHY_IMPORT_ERROR is not None:
+        module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
+
     params = module.params
     try:
-        path, sources = _bundle_paths(
-            params["base_dir"],
-            params["name"],
-            params["output_dir"],
-            params["order"],
-        )
-        content = _read_sources(sources)
+        path, certificates = _paths(params["base_dir"], params["name"], params["parent"])
+        content = _chain_content(certificates)
         changed = _write_file(
             path,
             content,

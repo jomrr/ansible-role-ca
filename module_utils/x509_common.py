@@ -1,4 +1,4 @@
-"""Shared X.509 helpers for the CA role modules."""
+"""Shared X.509 helpers for role modules."""
 
 from __future__ import annotations
 
@@ -678,21 +678,91 @@ def _ensure_chain(params):
     )
 
 
+def _formats(params) -> list[str]:
+    return [str(item).lower() for item in params.get("formats", [])]
+
+
+def _base_url(params: dict, name: str, key: str) -> str:
+    value = str(params.get(key) or "").rstrip("/")
+    return f"{value}/{name}" if value else ""
+
+
+def _ca_passphrase(params: dict, name: str) -> str:
+    passphrases = params.get("ca_passphrases") or {}
+    value = passphrases.get(name)
+    if value is None or str(value) == "":
+        raise ValueError(f"Missing CA passphrase for {name}")
+    return str(value)
+
+
+def _with_derived_paths(
+    params: dict,
+    *,
+    authority: bool,
+    signed: bool,
+    manage_directory: bool,
+    manage_chain: bool,
+) -> dict:
+    result = dict(params)
+    base_dir = str(result["base_dir"]).rstrip("/")
+    name = str(result["name"])
+    formats = _formats(result)
+    result["formats"] = formats
+
+    if authority:
+        ca_file = f"{name}-ca"
+        result["key_path"] = f"{base_dir}/private/{ca_file}.key"
+        result["csr_path"] = f"{base_dir}/csr/{ca_file}.csr"
+        result["cert_path"] = f"{base_dir}/ca/{ca_file}.pem"
+        result["der_path"] = f"{base_dir}/ca/{ca_file}.der" if "der" in formats else ""
+        result["key_passphrase"] = _ca_passphrase(result, name)
+        if signed:
+            parent = str(result["parent"])
+            parent_file = f"{parent}-ca"
+            result["signer_cert_path"] = f"{base_dir}/ca/{parent_file}.pem"
+            result["signer_key_path"] = f"{base_dir}/private/{parent_file}.key"
+            result["signer_key_passphrase"] = _ca_passphrase(result, parent)
+        authority_file = f"{ca_file}"
+        result["aia_url"] = _base_url(result, f"{authority_file}.der", "aia_base_url")
+        result["cdp_url"] = _base_url(result, f"{authority_file}.crl", "cdp_base_url")
+        result["directory_path"] = None
+        result["chain_src_path"] = ""
+        result["chain_path"] = ""
+        return result
+
+    output_dir = str(result.get("output_dir") or f"{base_dir}/certs/{name}").rstrip("/")
+    issuer = str(result["issuer"])
+    issuer_file = f"{issuer}-ca"
+    result["output_dir"] = output_dir
+    result["key_path"] = f"{output_dir}/{name}.key"
+    result["csr_path"] = f"{base_dir}/csr/{name}.csr"
+    result["cert_path"] = f"{output_dir}/{name}.pem"
+    result["der_path"] = f"{output_dir}/{name}.der" if "der" in formats else ""
+    result["directory_path"] = output_dir if manage_directory else None
+    if signed:
+        result["signer_cert_path"] = f"{base_dir}/ca/{issuer_file}.pem"
+        result["signer_key_path"] = f"{base_dir}/private/{issuer_file}.key"
+        result["signer_key_passphrase"] = _ca_passphrase(result, issuer)
+    result["chain_src_path"] = f"{base_dir}/chains/{issuer_file}-chain.pem" if manage_chain else ""
+    result["chain_path"] = f"{output_dir}/{name}-chain.pem" if manage_chain else ""
+    result["aia_url"] = _base_url(result, f"{issuer_file}.der", "aia_base_url")
+    result["cdp_url"] = _base_url(result, f"{issuer_file}.crl", "cdp_base_url")
+    return result
+
+
 def x509_argument_spec(
     *,
+    authority: bool = False,
     directory: bool = False,
     signer: bool = False,
-    chain: bool = False,
     defaults: dict | None = None,
 ):
     spec = {
-        "key_path": {"type": "path", "required": True},
-        "csr_path": {"type": "path", "required": True},
-        "cert_path": {"type": "path", "required": True},
-        "der_path": {"type": "path"},
+        "base_dir": {"type": "path", "required": True},
+        "name": {"type": "str", "required": True},
+        "formats": {"type": "list", "elements": "str", "default": ["pem", "der"]},
         "key_type": {"type": "str", "default": "RSA"},
         "key_size": {"type": "int", "default": 4096},
-        "key_passphrase": {"type": "str", "no_log": True},
         "subject_ordered": {"type": "list", "elements": "dict", "required": True},
         "basic_constraints": {"type": "list", "elements": "str", "default": ["CA:FALSE"]},
         "key_usage": {"type": "list", "elements": "str", "default": []},
@@ -701,8 +771,8 @@ def x509_argument_spec(
         "extended_key_usage_critical": {"type": "bool", "default": False},
         "san": {"type": "list", "elements": "str", "default": []},
         "san_critical": {"type": "bool", "default": False},
-        "aia_url": {"type": "str", "default": ""},
-        "cdp_url": {"type": "str", "default": ""},
+        "aia_base_url": {"type": "str", "default": ""},
+        "cdp_base_url": {"type": "str", "default": ""},
         "raw_extensions": {"type": "list", "elements": "dict", "default": []},
         "pkinit": {"type": "dict", "default": {}},
         "days": {"type": "int", "required": True},
@@ -714,35 +784,40 @@ def x509_argument_spec(
         "public_mode": {"type": "str", "default": "0644"},
         "force": {"type": "bool", "default": False},
     }
+    if authority or signer:
+        spec["ca_passphrases"] = {"type": "dict", "default": {}, "no_log": True}
+    if not authority:
+        spec["key_passphrase"] = {"type": "str", "no_log": True}
     if directory:
         spec.update(
             {
-                "directory_path": {"type": "path"},
+                "output_dir": {"type": "path"},
                 "directory_mode": {"type": "str", "default": "0755"},
             }
         )
     if signer:
-        spec.update(
-            {
-                "signer_cert_path": {"type": "path", "required": True},
-                "signer_key_path": {"type": "path", "required": True},
-                "signer_key_passphrase": {"type": "str", "no_log": True},
-            }
-        )
-    if chain:
-        spec.update(
-            {
-                "chain_src_path": {"type": "path", "required": True},
-                "chain_path": {"type": "path", "required": True},
-            }
-        )
+        spec["parent" if authority else "issuer"] = {"type": "str", "required": True}
     for key, value in (defaults or {}).items():
         if key in spec:
             spec[key]["default"] = value
     return spec
 
 
-def ensure_x509(params: dict, *, signed: bool, manage_directory: bool = False, manage_chain: bool = False) -> dict:
+def ensure_x509(
+    params: dict,
+    *,
+    signed: bool,
+    authority: bool = False,
+    manage_directory: bool = False,
+    manage_chain: bool = False,
+) -> dict:
+    params = _with_derived_paths(
+        params,
+        authority=authority,
+        signed=signed,
+        manage_directory=manage_directory,
+        manage_chain=manage_chain,
+    )
     directory_changed = False
     chain_changed = False
     if manage_directory:

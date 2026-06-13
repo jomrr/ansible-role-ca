@@ -140,16 +140,6 @@ def ca_certificate_model(
         )
 
     output_dir = _string(certificate.get("output_dir") or f"{base_dir}/certs/{name}")
-    paths = {
-        "key": f"{output_dir}/{name}.key",
-        "csr": f"{base_dir}/csr/{name}.csr",
-        "cert": f"{output_dir}/{name}.pem",
-        "der": f"{output_dir}/{name}.der",
-        "ext": f"{base_dir}/ext/{name}.ext",
-        "chain": f"{output_dir}/{name}-chain.pem",
-        "fritzbox_dir": f"{output_dir}/.{name}-fritzbox",
-        "fritzbox_bundle": f"{output_dir}/{name}-fritzbox.pem",
-    }
 
     san = [str(item) for item in _as_list(profile.get("san"))]
     san.extend(str(item) for item in _as_list(certificate.get("san")))
@@ -216,17 +206,11 @@ def ca_certificate_model(
                 if ";FORMAT:" not in item and ";SEQUENCE:" not in item
             ],
             "subject": _certificate_subject(certificate, subject_defaults),
-            "paths": paths,
             "privatekey_passphrase": _string(
                 certificate.get("privatekey_passphrase")
             ),
             "pfx_passphrase": _string(certificate.get("pfx_passphrase")),
             "pkinit": pkinit,
-            "fritzbox_sources": {
-                "private_key": paths["key"],
-                "certificate": paths["cert"],
-                "chain": paths["chain"],
-            },
         }
     )
 

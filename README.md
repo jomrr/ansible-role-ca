@@ -87,7 +87,6 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/crl/*-ca.crl`
 - `<ca_base_dir>/crl/*-ca.crl.pem`
 - `<ca_base_dir>/csr/*.csr`
-- `<ca_base_dir>/ext/*.ext`
 - `<ca_base_dir>/private/*-ca.key`
 - `<ca_base_dir>/private/*-ca.pass`
 - `<ca_base_dir>/certs/*`
@@ -114,7 +113,7 @@ The following variables are part of the public role interface.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - The built-in CA topology, certificate profiles, and FritzBox bundle order are role vars; override validity periods through `ca_authority_days`, `ca_certificate_type_days`, or a per-certificate `days` value.
 - FritzBox bundles are assembled in the default order `private_key`, `certificate`, `chain`.
-- Existing certificates are reissued when their key, CSR, or extension file changes, or when `ca_force_reissue=true`.
+- Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
 ## Supported Platforms
 
@@ -213,4 +212,4 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
 This project is licensed under the MIT License.
 See [LICENSE](LICENSE) for the full license text.
 
-Copyright (c) 2019 Jonas Mauer.
+Copyright (c) 2019-2026 Jonas Mauer.

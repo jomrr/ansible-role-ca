@@ -24,42 +24,33 @@
       }}
 
 - name: "CA | Start standard end-entity certificate material jobs"
-  ca_end_entity_x509:
-    directory_path: "{{ ca_certificate.output_dir }}"
-    directory_mode: "0755"
-    key_path: "{{ ca_certificate.paths.key }}"
-    csr_path: "{{ ca_certificate.paths.csr }}"
-    cert_path: "{{ ca_certificate.paths.cert }}"
-    der_path: "{{ ('der' in ca_certificate.formats) | ternary(ca_certificate.paths.der, omit) }}"
-    chain_src_path: "{{ ca_base_dir }}/chains/{{ ca_certificate.issuer }}-ca-chain.pem"
-    chain_path: "{{ ca_certificate.paths.chain }}"
+  x509_cert:
+    base_dir: "{{ ca_base_dir }}"
+    name: "{{ ca_certificate.name }}"
+    issuer: "{{ ca_certificate.issuer }}"
+    output_dir: "{{ ca_certificate.output_dir }}"
+    formats: "{{ ca_certificate.formats }}"
+    ca_passphrases: "{{ ca_privatekey_passphrases }}"
     key_type: "{{ ca_certificate.key_type | default(ca_key_type) }}"
     key_size: "{{ ca_certificate.bits | default(ca_default_bits) }}"
     key_passphrase: "{{ (ca_certificate.privatekey_passphrase | string | length > 0) | ternary(ca_certificate.privatekey_passphrase, omit) }}"
     subject_ordered: "{{ ca_certificate.subject }}"
-    basic_constraints:
-      - "CA:FALSE"
     key_usage: "{{ ca_certificate.key_usage }}"
-    key_usage_critical: true
     extended_key_usage: "{{ ca_certificate.extended_key_usage }}"
     san: "{{ ca_certificate.san }}"
-    aia_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url ~ '/' ~ ca_certificate.issuer ~ '-ca.der', '') }}"
-    cdp_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url ~ '/' ~ ca_certificate.issuer ~ '-ca.crl', '') }}"
+    aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
+    cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
     raw_extensions: "{{ ca_certificate.raw_extensions }}"
-    pkinit: "{{ ca_certificate.pkinit }}"
-    signer_cert_path: "{{ ca_base_dir }}/ca/{{ ca_certificate.issuer }}-ca.pem"
-    signer_key_path: "{{ ca_base_dir }}/private/{{ ca_certificate.issuer }}-ca.key"
-    signer_key_passphrase: "{{ ca_privatekey_passphrases[ca_certificate.issuer] }}"
     days: "{{ ca_certificate.days }}"
     digest: "{{ ca_certificate.digest | default(ca_default_md, true) }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
-    key_mode: "0600"
-    public_mode: "0644"
     force: "{{ ca_force_reissue | bool }}"
   loop: >-
     {{
       __ca_certificate_models
+      | rejectattr('type', 'equalto', 'identity')
+      | rejectattr('type', 'equalto', 'identity_full')
       | rejectattr('type', 'equalto', 'mskdc')
       | rejectattr('type', 'equalto', 'fritzbox')
       | list
@@ -73,39 +64,66 @@
   register: __ca_certificate_standard_jobs
   no_log: "{{ ca_no_log | bool }}"
 
-- name: "CA | Start MSKDC certificate material jobs"
-  ca_mskdc_x509:
-    directory_path: "{{ ca_certificate.output_dir }}"
-    directory_mode: "0755"
-    key_path: "{{ ca_certificate.paths.key }}"
-    csr_path: "{{ ca_certificate.paths.csr }}"
-    cert_path: "{{ ca_certificate.paths.cert }}"
-    der_path: "{{ ('der' in ca_certificate.formats) | ternary(ca_certificate.paths.der, omit) }}"
-    chain_src_path: "{{ ca_base_dir }}/chains/{{ ca_certificate.issuer }}-ca-chain.pem"
-    chain_path: "{{ ca_certificate.paths.chain }}"
+- name: "CA | Start identity certificate material jobs"
+  x509_identity:
+    base_dir: "{{ ca_base_dir }}"
+    name: "{{ ca_certificate.name }}"
+    issuer: "{{ ca_certificate.issuer }}"
+    output_dir: "{{ ca_certificate.output_dir }}"
+    formats: "{{ ca_certificate.formats }}"
+    ca_passphrases: "{{ ca_privatekey_passphrases }}"
     key_type: "{{ ca_certificate.key_type | default(ca_key_type) }}"
     key_size: "{{ ca_certificate.bits | default(ca_default_bits) }}"
     key_passphrase: "{{ (ca_certificate.privatekey_passphrase | string | length > 0) | ternary(ca_certificate.privatekey_passphrase, omit) }}"
     subject_ordered: "{{ ca_certificate.subject }}"
-    basic_constraints:
-      - "CA:FALSE"
     key_usage: "{{ ca_certificate.key_usage }}"
-    key_usage_critical: true
     extended_key_usage: "{{ ca_certificate.extended_key_usage }}"
     san: "{{ ca_certificate.san }}"
-    aia_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url ~ '/' ~ ca_certificate.issuer ~ '-ca.der', '') }}"
-    cdp_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url ~ '/' ~ ca_certificate.issuer ~ '-ca.crl', '') }}"
+    aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
+    cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
     raw_extensions: "{{ ca_certificate.raw_extensions }}"
-    pkinit: "{{ ca_certificate.pkinit }}"
-    signer_cert_path: "{{ ca_base_dir }}/ca/{{ ca_certificate.issuer }}-ca.pem"
-    signer_key_path: "{{ ca_base_dir }}/private/{{ ca_certificate.issuer }}-ca.key"
-    signer_key_passphrase: "{{ ca_privatekey_passphrases[ca_certificate.issuer] }}"
     days: "{{ ca_certificate.days }}"
     digest: "{{ ca_certificate.digest | default(ca_default_md, true) }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
-    key_mode: "0600"
-    public_mode: "0644"
+    force: "{{ ca_force_reissue | bool }}"
+  loop: >-
+    {{
+      (__ca_certificate_models | selectattr('type', 'equalto', 'identity') | list)
+      + (__ca_certificate_models | selectattr('type', 'equalto', 'identity_full') | list)
+    }}
+  loop_control:
+    loop_var: ca_certificate
+    label: "{{ ca_certificate.name }}"
+  async: "{{ ca_certificate_async_timeout }}"
+  poll: 0
+  changed_when: false
+  register: __ca_certificate_identity_jobs
+  no_log: "{{ ca_no_log | bool }}"
+
+- name: "CA | Start MSKDC certificate material jobs"
+  x509_mskdc:
+    base_dir: "{{ ca_base_dir }}"
+    name: "{{ ca_certificate.name }}"
+    issuer: "{{ ca_certificate.issuer }}"
+    output_dir: "{{ ca_certificate.output_dir }}"
+    formats: "{{ ca_certificate.formats }}"
+    ca_passphrases: "{{ ca_privatekey_passphrases }}"
+    key_type: "{{ ca_certificate.key_type | default(ca_key_type) }}"
+    key_size: "{{ ca_certificate.bits | default(ca_default_bits) }}"
+    key_passphrase: "{{ (ca_certificate.privatekey_passphrase | string | length > 0) | ternary(ca_certificate.privatekey_passphrase, omit) }}"
+    subject_ordered: "{{ ca_certificate.subject }}"
+    key_usage: "{{ ca_certificate.key_usage }}"
+    extended_key_usage: "{{ ca_certificate.extended_key_usage }}"
+    san: "{{ ca_certificate.san }}"
+    aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
+    cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
+    raw_extensions: "{{ ca_certificate.raw_extensions }}"
+    pkinit: "{{ ca_certificate.pkinit }}"
+    days: "{{ ca_certificate.days }}"
+    digest: "{{ ca_certificate.digest | default(ca_default_md, true) }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
   loop: "{{ __ca_certificate_models | selectattr('type', 'equalto', 'mskdc') | list }}"
   loop_control:
@@ -118,36 +136,27 @@
   no_log: "{{ ca_no_log | bool }}"
 
 - name: "CA | Start FritzBox certificate material jobs"
-  ca_fritzbox_x509:
-    directory_path: "{{ ca_certificate.output_dir }}"
-    directory_mode: "0755"
-    key_path: "{{ ca_certificate.paths.key }}"
-    csr_path: "{{ ca_certificate.paths.csr }}"
-    cert_path: "{{ ca_certificate.paths.cert }}"
-    der_path: "{{ ('der' in ca_certificate.formats) | ternary(ca_certificate.paths.der, omit) }}"
-    chain_src_path: "{{ ca_base_dir }}/chains/{{ ca_certificate.issuer }}-ca-chain.pem"
-    chain_path: "{{ ca_certificate.paths.chain }}"
+  x509_fritzbox:
+    base_dir: "{{ ca_base_dir }}"
+    name: "{{ ca_certificate.name }}"
+    issuer: "{{ ca_certificate.issuer }}"
+    output_dir: "{{ ca_certificate.output_dir }}"
+    formats: "{{ ca_certificate.formats }}"
+    ca_passphrases: "{{ ca_privatekey_passphrases }}"
     key_type: "{{ ca_certificate.key_type | default(ca_key_type) }}"
     key_size: "{{ ca_certificate.bits | default(ca_default_bits) }}"
     key_passphrase: "{{ (ca_certificate.privatekey_passphrase | string | length > 0) | ternary(ca_certificate.privatekey_passphrase, omit) }}"
     subject_ordered: "{{ ca_certificate.subject }}"
     key_usage: "{{ ca_certificate.key_usage }}"
-    key_usage_critical: true
     extended_key_usage: "{{ ca_certificate.extended_key_usage }}"
     san: "{{ ca_certificate.san }}"
-    aia_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url ~ '/' ~ ca_certificate.issuer ~ '-ca.der', '') }}"
-    cdp_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url ~ '/' ~ ca_certificate.issuer ~ '-ca.crl', '') }}"
+    aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
+    cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
     raw_extensions: "{{ ca_certificate.raw_extensions }}"
-    pkinit: "{{ ca_certificate.pkinit }}"
-    signer_cert_path: "{{ ca_base_dir }}/ca/{{ ca_certificate.issuer }}-ca.pem"
-    signer_key_path: "{{ ca_base_dir }}/private/{{ ca_certificate.issuer }}-ca.key"
-    signer_key_passphrase: "{{ ca_privatekey_passphrases[ca_certificate.issuer] }}"
     days: "{{ ca_certificate.days }}"
     digest: "{{ ca_certificate.digest | default(ca_default_md, true) }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
-    key_mode: "0600"
-    public_mode: "0644"
     force: "{{ ca_force_reissue | bool }}"
   loop: "{{ __ca_certificate_models | selectattr('type', 'equalto', 'fritzbox') | list }}"
   loop_control:
@@ -166,6 +175,7 @@
     {{
       (
         (__ca_certificate_standard_jobs.results | default([]))
+        + (__ca_certificate_identity_jobs.results | default([]))
         + (__ca_certificate_mskdc_jobs.results | default([]))
         + (__ca_certificate_fritzbox_cert_jobs.results | default([]))
       )
@@ -185,21 +195,19 @@
 
 - name: "CA | Start PKCS#12 bundle jobs"
   ca_pkcs12:
-    path: "{{ ca_certificate_export.0.output_dir }}/{{ ca_certificate_export.0.name }}.{{ ca_certificate_export.1 }}"
+    base_dir: "{{ ca_base_dir }}"
+    name: "{{ ca_certificate_export.0.name }}"
+    output_dir: "{{ ca_certificate_export.0.output_dir }}"
+    format: "{{ ca_certificate_export.1 }}"
     friendly_name: "{{ ca_certificate_export.0.friendly_name | default(ca_certificate_export.0.common_name) }}"
-    privatekey_path: "{{ ca_certificate_export.0.paths.key }}"
-    privatekey_passphrase: >-
+    key_passphrase: >-
       {{
         (ca_certificate_export.0.privatekey_passphrase | string | length > 0)
         | ternary(ca_certificate_export.0.privatekey_passphrase, omit)
       }}
-    certificate_path: "{{ ca_certificate_export.0.paths.cert }}"
-    other_certificates:
-      - "{{ ca_certificate_export.0.paths.chain }}"
     passphrase: "{{ ca_certificate_export.0.pfx_passphrase }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
-    mode: "0600"
     force: "{{ ca_force_reissue | bool }}"
   loop: "{{ __ca_certificate_models | subelements('formats') }}"
   loop_control:
@@ -214,11 +222,12 @@
 
 - name: "CA | Start FritzBox bundle jobs"
   ca_pem_bundle:
-    path: "{{ ca_certificate.paths.fritzbox_bundle }}"
-    sources: "{{ ca_fritzbox_bundle_order | map('extract', ca_certificate.fritzbox_sources) | list }}"
+    base_dir: "{{ ca_base_dir }}"
+    name: "{{ ca_certificate.name }}"
+    output_dir: "{{ ca_certificate.output_dir }}"
+    order: "{{ ca_fritzbox_bundle_order }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
-    mode: "0600"
     force: "{{ ca_force_reissue | bool }}"
   loop: "{{ __ca_certificate_models }}"
   loop_control:

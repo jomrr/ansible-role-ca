@@ -1,10 +1,10 @@
 #!/usr/bin/python
-"""Manage an MSKDC/Samba AD domain controller certificate."""
+"""Manage an identity certificate signed by an issuing CA."""
 
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.ca_x509_common import (
+from ansible.module_utils.x509_common import (
     CRYPTOGRAPHY_IMPORT_ERROR,
     ensure_x509,
     x509_argument_spec,
@@ -13,7 +13,7 @@ from ansible.module_utils.ca_x509_common import (
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=x509_argument_spec(directory=True, signer=True, chain=True),
+        argument_spec=x509_argument_spec(directory=True, signer=True),
         supports_check_mode=False,
     )
 

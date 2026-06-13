@@ -1,10 +1,10 @@
 #!/usr/bin/python
-"""Manage an issuing CA certificate signed by a parent CA."""
+"""Manage a self-signed Root CA certificate."""
 
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.ca_x509_common import (
+from ansible.module_utils.x509_common import (
     CRYPTOGRAPHY_IMPORT_ERROR,
     ensure_x509,
     x509_argument_spec,
@@ -13,7 +13,7 @@ from ansible.module_utils.ca_x509_common import (
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=x509_argument_spec(signer=True),
+        argument_spec=x509_argument_spec(authority=True),
         supports_check_mode=False,
     )
 
@@ -21,7 +21,7 @@ def run_module():
         module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
 
     try:
-        result = ensure_x509(module.params, signed=True)
+        result = ensure_x509(module.params, signed=False, authority=True)
     except Exception as exc:
         module.fail_json(msg=str(exc))
 

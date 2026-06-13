@@ -10,9 +10,7 @@ ca_base_directories:
   - { path: "{{ ca_base_dir }}/chains", mode: "0755" }
   - { path: "{{ ca_base_dir }}/crl", mode: "0755" }
   - { path: "{{ ca_base_dir }}/csr", mode: "0755" }
-  - { path: "{{ ca_base_dir }}/ext", mode: "0755" }
   - { path: "{{ ca_base_dir }}/private", mode: "0700" }
-  - { path: "{{ ca_base_dir }}/tmp", mode: "0700" }
 
 ca_authority_order:
   - root
