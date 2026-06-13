@@ -11,11 +11,12 @@ ca_owner: root
 ca_group: root
 ca_no_log: true
 
-ca_country: DE
-ca_state: Bayern
-ca_locality: Erlangen
-ca_organization: Yourdomain SE
-ca_organizational_unit: Yourdomain Certificate Authority
+ca_subject:
+  country: DE
+  state: Bayern
+  locality: Erlangen
+  organization: Yourdomain SE
+  organizational_unit: Yourdomain Certificate Authority
 
 ca_default_bits: 4096
 ca_default_md: sha512

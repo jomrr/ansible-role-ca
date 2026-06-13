@@ -52,31 +52,38 @@ argument_specs:
         default: true
         description: Suppress task output that can contain private key passphrases or PFX
           passphrases.
-      ca_country:
-        type: str
+      ca_subject:
+        type: dict
         required: false
-        default: DE
-        description: Default X.509 subject country.
-      ca_state:
-        type: str
-        required: false
-        default: Bayern
-        description: Default X.509 subject state or province.
-      ca_locality:
-        type: str
-        required: false
-        default: Erlangen
-        description: Default X.509 subject locality.
-      ca_organization:
-        type: str
-        required: false
-        default: Yourdomain SE
-        description: Default X.509 subject organization.
-      ca_organizational_unit:
-        type: str
-        required: false
-        default: Yourdomain Certificate Authority
-        description: Default X.509 subject organizational unit.
+        default:
+          country: DE
+          state: Bayern
+          locality: Erlangen
+          organization: Yourdomain SE
+          organizational_unit: Yourdomain Certificate Authority
+        description: Default X.509 subject attributes added before the certificate common
+          name.
+        options:
+          country:
+            type: str
+            required: false
+            description: X.509 subject country.
+          state:
+            type: str
+            required: false
+            description: X.509 subject state or province.
+          locality:
+            type: str
+            required: false
+            description: X.509 subject locality.
+          organization:
+            type: str
+            required: false
+            description: X.509 subject organization.
+          organizational_unit:
+            type: str
+            required: false
+            description: X.509 subject organizational unit.
       ca_default_bits:
         type: int
         required: false
@@ -124,6 +131,10 @@ argument_specs:
             type: str
             required: true
             description: Authority certificate common name.
+          subject:
+            type: dict
+            required: false
+            description: Optional authority subject attribute overrides merged with `ca_subject`.
           parent:
             type: str
             required: true
@@ -223,6 +234,10 @@ argument_specs:
             type: str
             required: true
             description: Certificate common name.
+          subject:
+            type: dict
+            required: false
+            description: Optional certificate subject attribute overrides merged with `ca_subject`.
           email:
             type: str
             required: false

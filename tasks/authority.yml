@@ -7,12 +7,6 @@
     __ca_authority: "{{ ca_authority }}"
     __ca_authority_parent: "{{ ca_authority.parent }}"
     __ca_authorities_by_name: "{{ ca_authorities | ca_authority_map }}"
-    __ca_subject_defaults:
-      country: "{{ ca_country }}"
-      state: "{{ ca_state }}"
-      locality: "{{ ca_locality }}"
-      organization: "{{ ca_organization }}"
-      organizational_unit: "{{ ca_organizational_unit }}"
   block:
     - name: "CA | Manage root authority material for {{ ca_authority.name }}"
       ca_root:
@@ -20,7 +14,7 @@
         name: "{{ ca_authority.name }}"
         key_passphrase: "{{ ca_authority.key_passphrase }}"
         common_name: "{{ __ca_authority.common_name }}"
-        subject_defaults: "{{ __ca_subject_defaults | combine(__ca_authority.subject_defaults | default({})) }}"
+        subject: "{{ ca_subject | combine(__ca_authority.subject | default({})) }}"
         aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
         cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
         days: "{{ __ca_authority.days }}"
@@ -38,7 +32,7 @@
         key_passphrase: "{{ ca_authority.key_passphrase }}"
         parent_key_passphrase: "{{ __ca_authorities_by_name[__ca_authority_parent].key_passphrase }}"
         common_name: "{{ __ca_authority.common_name }}"
-        subject_defaults: "{{ __ca_subject_defaults | combine(__ca_authority.subject_defaults | default({})) }}"
+        subject: "{{ ca_subject | combine(__ca_authority.subject | default({})) }}"
         aia_base_url: "{{ (ca_aia.enabled | bool) | ternary(ca_aia.url, '') }}"
         cdp_base_url: "{{ (ca_cdp.enabled | bool) | ternary(ca_cdp.url, '') }}"
         days: "{{ __ca_authority.days }}"

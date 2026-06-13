@@ -1,0 +1,7 @@
+---
+# role: ca
+# file: collections.yml
+
+collections:
+  - name: community.general
+    version: '>=12.0.0'

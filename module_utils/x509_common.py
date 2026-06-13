@@ -268,16 +268,16 @@ def _subject_from_params(params: dict) -> x509.Name:
     if not common_name:
         raise ValueError("subject_ordered or common_name is required")
 
-    defaults = params.get("subject_defaults") or {}
+    subject_values = params.get("subject") or {}
     subject = [
-        {"C": defaults.get("country", defaults.get("C", ""))},
-        {"ST": defaults.get("state", defaults.get("ST", ""))},
-        {"L": defaults.get("locality", defaults.get("L", ""))},
-        {"O": defaults.get("organization", defaults.get("O", ""))},
+        {"C": subject_values.get("country", subject_values.get("C", ""))},
+        {"ST": subject_values.get("state", subject_values.get("ST", ""))},
+        {"L": subject_values.get("locality", subject_values.get("L", ""))},
+        {"O": subject_values.get("organization", subject_values.get("O", ""))},
         {
-            "OU": defaults.get(
+            "OU": subject_values.get(
                 "organizational_unit",
-                defaults.get("OU", ""),
+                subject_values.get("OU", ""),
             )
         },
         {"CN": common_name},
@@ -821,7 +821,7 @@ def x509_argument_spec(
         "subject_ordered": {"type": "list", "elements": "dict", "default": []},
         "common_name": {"type": "str"},
         "email": {"type": "str"},
-        "subject_defaults": {"type": "dict", "default": {}},
+        "subject": {"type": "dict", "default": {}},
         "basic_constraints": {"type": "list", "elements": "str", "default": ["CA:FALSE"]},
         "key_usage": {"type": "list", "elements": "str", "default": []},
         "key_usage_critical": {"type": "bool", "default": True},

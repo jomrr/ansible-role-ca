@@ -25,6 +25,14 @@ def _as_list(value: Any) -> list[Any]:
     raise AnsibleFilterError(f"Expected a list, got {type(value).__name__}")
 
 
+def _as_dict(value: Any, context: str) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    raise AnsibleFilterError(f"{context} must be a dictionary")
+
+
 def _string(value: Any) -> str:
     if value is None:
         return ""
@@ -95,7 +103,7 @@ def ca_certificate_model(
     _base_dir: str,
     default_certificate_days: int,
     kerberos_realm: str,
-    subject_defaults: dict[str, Any],
+    subject: dict[str, Any],
 ) -> dict[str, Any]:
     """Resolve one declarative certificate into the model used by tasks."""
 
@@ -170,6 +178,9 @@ def ca_certificate_model(
         san.append(f"otherName:1.3.6.1.5.2.2;SEQUENCE:{prefix}_principal")
         pkinit = {"prefix": prefix, "realm": realm}
 
+    subject_values = deepcopy(_as_dict(subject, "ca_subject"))
+    subject_values.update(_as_dict(certificate.get("subject"), f"Certificate {name} subject"))
+
     model = deepcopy(certificate)
     model.update(
         {
@@ -193,19 +204,7 @@ def ca_certificate_model(
             ),
             "pfx_passphrase": _string(certificate.get("pfx_passphrase")),
             "pkinit": pkinit,
-            "subject_defaults": {
-                "country": certificate.get("country", subject_defaults["country"]),
-                "state": certificate.get("state", subject_defaults["state"]),
-                "locality": certificate.get("locality", subject_defaults["locality"]),
-                "organization": certificate.get(
-                    "organization",
-                    subject_defaults["organization"],
-                ),
-                "organizational_unit": certificate.get(
-                    "organizational_unit",
-                    subject_defaults["organizational_unit"],
-                ),
-            },
+            "subject": subject_values,
         }
     )
 
@@ -226,7 +225,7 @@ def ca_certificate_models(
     base_dir: str,
     default_certificate_days: int,
     kerberos_realm: str,
-    subject_defaults: dict[str, Any],
+    subject: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Resolve all declarative certificates into task-ready models."""
 
@@ -238,7 +237,7 @@ def ca_certificate_models(
             base_dir,
             default_certificate_days,
             kerberos_realm,
-            subject_defaults,
+            subject,
         )
         for certificate in _as_list(certificates)
     ]

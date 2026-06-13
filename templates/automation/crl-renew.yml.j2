@@ -14,13 +14,8 @@
         name: "{{ ca_authority.name }}"
         format: "{{ ca_crl_format }}"
         key_passphrase: "{{ "{{" }} lookup('ansible.builtin.file', '{{ ca_base_dir }}/private/{{ ca_authority.name }}-ca.pass') {{ "}}" }}"
-        issuer_ordered:
-          - countryName: {{ ca_country | to_json }}
-          - stateOrProvinceName: {{ ca_state | to_json }}
-          - localityName: {{ ca_locality | to_json }}
-          - organizationName: {{ ca_organization | to_json }}
-          - organizationalUnitName: {{ ca_organizational_unit | to_json }}
-          - commonName: {{ ca_authority.common_name | to_json }}
+        common_name: {{ ca_authority.common_name | to_json }}
+        subject: {{ (ca_subject | combine(ca_authority.subject | default({}))) | to_json }}
         next_update_days: "{{ ca_authority.crl_days }}"
         revoked_certificates: {{ ca_authority.revocations | default([]) | to_json }}
         digest: "{{ ca_authority.crl_digest | default(ca_default_md) }}"

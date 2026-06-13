@@ -40,6 +40,14 @@ It creates CA keys, CSRs, certificates, chains, DER exports, CRLs, and managed e
 - PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus `ad_object_guid`.
 
+## Dependencies
+
+```yaml
+collections:
+  - name: community.general
+    version: '>=12.0.0'
+```
+
 ## Role Variables
 
 The following variables are part of the public role interface.
@@ -53,11 +61,7 @@ The following variables are part of the public role interface.
 | `ca_owner` | `str` | `false` | `root` | Owner for managed CA files. |
 | `ca_group` | `str` | `false` | `root` | Group for managed CA files. |
 | `ca_no_log` | `bool` | `false` | `True` | Suppress task output that can contain private key passphrases or PFX passphrases. |
-| `ca_country` | `str` | `false` | `DE` | Default X.509 subject country. |
-| `ca_state` | `str` | `false` | `Bayern` | Default X.509 subject state or province. |
-| `ca_locality` | `str` | `false` | `Erlangen` | Default X.509 subject locality. |
-| `ca_organization` | `str` | `false` | `Yourdomain SE` | Default X.509 subject organization. |
-| `ca_organizational_unit` | `str` | `false` | `Yourdomain Certificate Authority` | Default X.509 subject organizational unit. |
+| `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: Yourdomain SE<br />organizational_unit: Yourdomain Certificate Authority | Default X.509 subject attributes added before the certificate common name. |
 | `ca_default_bits` | `int` | `false` | `4096` | DH parameter size when `ca_create_dhparams=true`. |
 | `ca_default_md` | `str` | `false` | `sha512` | Default message digest for CRLs. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
@@ -108,6 +112,7 @@ The following variables are part of the public role interface.
 - AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
 - AIA/CDP publication is outside this role because URLs do not describe an Ansible transport target.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
+- `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
 - Override certificate profile validity periods through `ca_certificate_type_days` or a per-certificate `days` value.
 - FritzBox bundles are assembled in the default order `private_key`, `certificate`, `chain`.

@@ -114,7 +114,7 @@ def _subject(subject_ordered) -> x509.Name:
     attributes = []
     for item in subject_ordered or []:
         if len(item) != 1:
-            raise ValueError("issuer_ordered entries must contain exactly one item")
+            raise ValueError("subject entries must contain exactly one item")
         key, value = next(iter(item.items()))
         if value is None or str(value) == "":
             continue
@@ -123,6 +123,28 @@ def _subject(subject_ordered) -> x509.Name:
             raise ValueError(f"Unsupported issuer attribute {key}")
         attributes.append(x509.NameAttribute(oid, str(value)))
     return x509.Name(attributes)
+
+
+def _subject_from_params(params: dict) -> x509.Name:
+    common_name = str(params.get("common_name") or "").strip()
+    if not common_name:
+        raise ValueError("common_name is required")
+
+    subject_values = params.get("subject") or {}
+    subject = [
+        {"C": subject_values.get("country", subject_values.get("C", ""))},
+        {"ST": subject_values.get("state", subject_values.get("ST", ""))},
+        {"L": subject_values.get("locality", subject_values.get("L", ""))},
+        {"O": subject_values.get("organization", subject_values.get("O", ""))},
+        {
+            "OU": subject_values.get(
+                "organizational_unit",
+                subject_values.get("OU", ""),
+            )
+        },
+        {"CN": common_name},
+    ]
+    return _subject(subject)
 
 
 def _load_key(path: str, passphrase: str | None):
@@ -186,7 +208,7 @@ def _build_crl(params):
     now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     builder = (
         x509.CertificateRevocationListBuilder()
-        .issuer_name(_subject(params["issuer_ordered"]))
+        .issuer_name(_subject_from_params(params))
         .last_update(now)
         .next_update(now + _dt.timedelta(days=int(params["next_update_days"])))
     )
@@ -200,7 +222,10 @@ def _build_crl(params):
             reason = REASON_FLAGS[str(entry["reason"])]
             revoked = revoked.add_extension(x509.CRLReason(reason), critical=False)
         builder = builder.add_revoked_certificate(revoked.build())
-    return builder.sign(private_key=_load_key(params["privatekey_path"], params["privatekey_passphrase"]), algorithm=_digest(params["digest"]))
+    return builder.sign(
+        private_key=_load_key(params["privatekey_path"], params["privatekey_passphrase"]),
+        algorithm=_digest(params["digest"]),
+    )
 
 
 def _with_derived_paths(params: dict) -> dict:
@@ -223,7 +248,8 @@ def run_module():
             "name": {"type": "str", "required": True},
             "format": {"type": "str", "choices": ["pem", "der"], "default": "pem"},
             "key_passphrase": {"type": "str", "required": True, "no_log": True},
-            "issuer_ordered": {"type": "list", "elements": "dict", "required": True},
+            "common_name": {"type": "str", "required": True},
+            "subject": {"type": "dict", "default": {}},
             "next_update_days": {"type": "int", "required": True},
             "revoked_certificates": {"type": "list", "elements": "dict", "default": []},
             "digest": {"type": "str", "default": "sha256"},
@@ -246,12 +272,25 @@ def run_module():
         if not changed:
             try:
                 existing = _load_crl(params["path"])
-                changed = existing.issuer != _subject(params["issuer_ordered"]) or _revoked_signature(existing) != _desired_revoked(params["revoked_certificates"])
+                changed = (
+                    existing.issuer != _subject_from_params(params)
+                    or _revoked_signature(existing)
+                    != _desired_revoked(params["revoked_certificates"])
+                )
             except Exception:
                 changed = True
         encoding = serialization.Encoding.DER if params["format"] == "der" else serialization.Encoding.PEM
         content = crl.public_bytes(encoding) if changed else Path(params["path"]).read_bytes()
-        changed = _write_file(params["path"], content, params["owner"], params["group"], params["mode"]) or changed
+        changed = (
+            _write_file(
+                params["path"],
+                content,
+                params["owner"],
+                params["group"],
+                params["mode"],
+            )
+            or changed
+        )
     except Exception as exc:
         module.fail_json(msg=str(exc))
     module.exit_json(changed=changed)

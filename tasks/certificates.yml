@@ -13,13 +13,7 @@
           ca_base_dir,
           ca_default_certificate_days,
           ca_kerberos_realm,
-          {
-            'country': ca_country,
-            'state': ca_state,
-            'locality': ca_locality,
-            'organization': ca_organization,
-            'organizational_unit': ca_organizational_unit
-          }
+          ca_subject
         )
       }}
 
@@ -38,7 +32,7 @@
     subject_ordered: "{{ ca_certificate.subject_ordered | default(omit) }}"
     common_name: "{{ ca_certificate.common_name }}"
     email: "{{ ca_certificate.email | default(omit) }}"
-    subject_defaults: "{{ ca_certificate.subject_defaults }}"
+    subject: "{{ ca_certificate.subject }}"
     key_usage: "{{ ca_certificate.key_usage | default(omit) }}"
     extended_key_usage: "{{ ca_certificate.extended_key_usage | default(omit) }}"
     san: "{{ ca_certificate.san | default(omit) }}"
@@ -83,7 +77,7 @@
     subject_ordered: "{{ ca_certificate.subject_ordered | default(omit) }}"
     common_name: "{{ ca_certificate.common_name }}"
     email: "{{ ca_certificate.email | default(omit) }}"
-    subject_defaults: "{{ ca_certificate.subject_defaults }}"
+    subject: "{{ ca_certificate.subject }}"
     key_usage: "{{ ca_certificate.key_usage | default(omit) }}"
     extended_key_usage: "{{ ca_certificate.extended_key_usage | default(omit) }}"
     san: "{{ ca_certificate.san | default(omit) }}"
@@ -123,7 +117,7 @@
     subject_ordered: "{{ ca_certificate.subject_ordered | default(omit) }}"
     common_name: "{{ ca_certificate.common_name }}"
     email: "{{ ca_certificate.email | default(omit) }}"
-    subject_defaults: "{{ ca_certificate.subject_defaults }}"
+    subject: "{{ ca_certificate.subject }}"
     key_usage: "{{ ca_certificate.key_usage | default(omit) }}"
     extended_key_usage: "{{ ca_certificate.extended_key_usage | default(omit) }}"
     san: "{{ ca_certificate.san | default(omit) }}"
@@ -160,7 +154,7 @@
     subject_ordered: "{{ ca_certificate.subject_ordered | default(omit) }}"
     common_name: "{{ ca_certificate.common_name }}"
     email: "{{ ca_certificate.email | default(omit) }}"
-    subject_defaults: "{{ ca_certificate.subject_defaults }}"
+    subject: "{{ ca_certificate.subject }}"
     key_usage: "{{ ca_certificate.key_usage | default(omit) }}"
     extended_key_usage: "{{ ca_certificate.extended_key_usage | default(omit) }}"
     san: "{{ ca_certificate.san | default(omit) }}"
