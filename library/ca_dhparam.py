@@ -64,7 +64,8 @@ def _existing_size(path: str):
 def run_module():
     module = AnsibleModule(
         argument_spec={
-            "path": {"type": "path", "required": True},
+            "base_dir": {"type": "path", "required": True},
+            "path": {"type": "path"},
             "size": {"type": "int", "default": 4096},
             "owner": {"type": "str"},
             "group": {"type": "str"},
@@ -78,22 +79,23 @@ def run_module():
         module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
 
     params = module.params
+    path = params["path"] or f"{params['base_dir'].rstrip('/')}/dhparams.pem"
     try:
-        changed = params["force"] or not os.path.exists(params["path"]) or _existing_size(params["path"]) != params["size"]
+        changed = params["force"] or not os.path.exists(path) or _existing_size(path) != params["size"]
         if changed:
             parameters = dh.generate_parameters(generator=2, key_size=params["size"])
             content = parameters.parameter_bytes(
                 serialization.Encoding.PEM,
                 serialization.ParameterFormat.PKCS3,
             )
-            Path(params["path"]).parent.mkdir(parents=True, exist_ok=True)
-            tmp_path = f"{params['path']}.ansible_tmp"
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = f"{path}.ansible_tmp"
             Path(tmp_path).write_bytes(content)
-            os.replace(tmp_path, params["path"])
-        changed = _set_attrs(params["path"], params["owner"], params["group"], params["mode"]) or changed
+            os.replace(tmp_path, path)
+        changed = _set_attrs(path, params["owner"], params["group"], params["mode"]) or changed
     except Exception as exc:
         module.fail_json(msg=str(exc))
-    module.exit_json(changed=changed)
+    module.exit_json(changed=changed, path=path)
 
 
 def main():

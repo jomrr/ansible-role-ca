@@ -67,7 +67,7 @@
 
 - name: "CA | Generate Diffie-Hellman parameters"
   ca_dhparam:
-    path: "{{ ca_fhs_dir }}/dhparams.pem"
+    base_dir: "{{ ca_fhs_dir }}"
     size: "{{ ca_default_bits }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"

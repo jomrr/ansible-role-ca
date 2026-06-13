@@ -89,7 +89,7 @@ def ca_certificate_model(
     certificate: dict[str, Any],
     certificate_types: dict[str, dict[str, Any]],
     authorities: dict[str, Any],
-    base_dir: str,
+    _base_dir: str,
     default_certificate_days: int,
     kerberos_realm: str,
     subject_defaults: dict[str, Any],
@@ -138,8 +138,6 @@ def ca_certificate_model(
         raise AnsibleFilterError(
             f"Certificate {name} uses PFX/PKCS#12 output and requires pfx_passphrase"
         )
-
-    output_dir = _string(certificate.get("output_dir") or f"{base_dir}/certs/{name}")
 
     san = [str(item) for item in _as_list(profile.get("san"))]
     san.extend(str(item) for item in _as_list(certificate.get("san")))
@@ -190,7 +188,6 @@ def ca_certificate_model(
             "type": cert_type,
             "common_name": common_name,
             "issuer": issuer,
-            "output_dir": output_dir,
             "formats": formats,
             "days": certificate.get(
                 "days", profile.get("days", default_certificate_days)
@@ -213,6 +210,10 @@ def ca_certificate_model(
             "pkinit": pkinit,
         }
     )
+
+    output_dir = _string(certificate.get("output_dir")).strip()
+    if output_dir:
+        model["output_dir"] = output_dir
 
     return model
 

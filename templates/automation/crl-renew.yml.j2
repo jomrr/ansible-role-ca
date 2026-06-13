@@ -11,10 +11,11 @@
 {% for ca_crl_format in ca_crl.formats | default(['pem', 'der']) | map('lower') | list %}
     - name: "CA | Renew {{ ca_authority_name }} {{ ca_crl_format }} CRL"
       ca_crl:
-        path: "{{ (ca_crl_format == 'der') | ternary(ca_base_dir ~ '/crl/' ~ ca_authority_name ~ '-ca.crl', ca_base_dir ~ '/crl/' ~ ca_authority_name ~ '-ca.crl.pem') }}"
+        base_dir: "{{ ca_base_dir }}"
+        name: "{{ ca_authority_name }}"
         format: "{{ ca_crl_format }}"
-        privatekey_path: "{{ ca_base_dir }}/private/{{ ca_authority_name }}-ca.key"
-        privatekey_passphrase: "{{ "{{" }} lookup('ansible.builtin.file', '{{ ca_base_dir }}/private/{{ ca_authority_name }}-ca.pass') {{ "}}" }}"
+        ca_passphrases:
+          {{ ca_authority_name }}: "{{ "{{" }} lookup('ansible.builtin.file', '{{ ca_base_dir }}/private/{{ ca_authority_name }}-ca.pass') {{ "}}" }}"
         issuer_ordered:
           - countryName: {{ ca_country | to_json }}
           - stateOrProvinceName: {{ ca_state | to_json }}
@@ -27,6 +28,5 @@
         digest: "{{ ca_authority.digest | default(ca_default_md) }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
-        mode: "0644"
 {% endfor %}
 {% endfor %}
