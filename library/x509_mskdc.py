@@ -22,7 +22,7 @@ GUID_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
 
 MSKDC_DEFAULTS = {
     "default_dns_san": True,
-    "digest": "sha256",
+    "digest": "sha512",
     "key_usage": ["digitalSignature", "keyEncipherment"],
     "extended_key_usage": [
         "serverAuth",

@@ -886,7 +886,7 @@ def x509_argument_spec(
         "raw_extensions": {"type": "list", "elements": "dict", "default": []},
         "pkinit": {"type": "dict", "default": {}},
         "days": {"type": "int", "required": True},
-        "digest": {"type": "str", "default": "sha256"},
+        "digest": {"type": "str", "default": "sha512"},
         "include_identifiers": {"type": "bool", "default": True},
         "owner": {"type": "str"},
         "group": {"type": "str"},

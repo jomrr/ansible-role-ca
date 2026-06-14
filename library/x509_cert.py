@@ -17,17 +17,17 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
 PROFILE_DEFAULTS = {
     "tls_server": {
         "default_dns_san": True,
-        "digest": "sha256",
+        "digest": "sha512",
         "key_usage": ["digitalSignature", "keyEncipherment"],
         "extended_key_usage": ["serverAuth"],
     },
     "tls_client": {
-        "digest": "sha256",
+        "digest": "sha512",
         "key_usage": ["digitalSignature", "keyEncipherment"],
         "extended_key_usage": ["clientAuth"],
     },
     "eap_tls_client": {
-        "digest": "sha256",
+        "digest": "sha512",
         "key_usage": ["digitalSignature", "keyEncipherment"],
         "extended_key_usage": ["clientAuth"],
     },

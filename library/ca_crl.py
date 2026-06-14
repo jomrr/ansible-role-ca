@@ -223,7 +223,7 @@ def run_module():
             "subject": {"type": "dict", "default": {}},
             "next_update_days": {"type": "int", "required": True},
             "revoked_certificates": {"type": "list", "elements": "dict", "default": []},
-            "digest": {"type": "str", "default": "sha256"},
+            "digest": {"type": "str", "default": "sha512"},
             "owner": {"type": "str"},
             "group": {"type": "str"},
             "mode": {"type": "str", "default": "0644"},

@@ -34,6 +34,33 @@
         that:
           - __ca_molecule_files.results | map(attribute='stat.exists') | min
 
+    - name: "CA | Read default signature certificate text"
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ item }} -noout -text"
+      register: __ca_molecule_sha512_certificate_text
+      loop:
+        - "{{ ca_molecule_base }}/ca/root-ca.pem"
+        - "{{ ca_molecule_base }}/ca/component-ca.pem"
+        - "{{ ca_molecule_base }}/ca/network-ca.pem"
+        - "{{ ca_molecule_base }}/ca/identity-ca.pem"
+        - "{{ ca_molecule_base }}/certs/web01/web01.pem"
+        - "{{ ca_molecule_base }}/certs/client01/client01.pem"
+        - "{{ ca_molecule_base }}/certs/dc01/dc01.pem"
+        - "{{ ca_molecule_base }}/certs/user-full/user-full.pem"
+        - "{{ ca_molecule_base }}/certs/user-smime/user-smime.pem"
+        - "{{ ca_molecule_base }}/certs/wifi-user/wifi-user.pem"
+      changed_when: false
+
+    - name: "CA | Assert default certificate signature digest"
+      ansible.builtin.assert:
+        that:
+          - >-
+            __ca_molecule_sha512_certificate_text.results
+            | map(attribute='stdout')
+            | reject('search', 'Signature Algorithm: sha512WithRSAEncryption')
+            | list
+            | length == 0
+
     - name: "CA | Verify Component CA issued certificates"
       ansible.builtin.command:
         cmd: "openssl verify -CAfile {{ ca_molecule_base }}/chains/component-ca-chain.pem {{ item }}"
@@ -110,4 +137,10 @@
     - name: "CA | Parse DER CRL"
       ansible.builtin.command:
         cmd: "openssl crl -in {{ ca_molecule_base }}/crl/component-ca.crl -inform DER -noout -text"
+      register: __ca_molecule_der_crl_text
       changed_when: false
+
+    - name: "CA | Assert default CRL signature digest"
+      ansible.builtin.assert:
+        that:
+          - "'Signature Algorithm: sha512WithRSAEncryption' in __ca_molecule_der_crl_text.stdout"
