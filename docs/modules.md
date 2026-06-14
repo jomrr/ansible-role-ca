@@ -460,7 +460,7 @@ Behavior:
   unencrypted RSA private key.
 - Reads the current certificate from the FRITZ!Box HTTPS endpoint and compares
   its SHA-256 fingerprint with the desired leaf certificate.
-- Requires an HTTPS `base_url` for the default idempotent comparison.
+- Requires an HTTPS `url` for the default idempotent comparison.
 - Logs in through `login_sid.lua` with the FRITZ!OS challenge-response flow,
   including PBKDF2 challenges and the legacy MD5 response.
 - Uploads the bundle to `/cgi-bin/firmwarecfg` as multipart form data.
@@ -478,11 +478,11 @@ Parameters:
 | `name` | str | yes | none | no | Certificate short name and output file stem. |
 | `output_dir` | path | no | `<base_dir>/certs/<name>` | no | Directory containing the FritzBox bundle. |
 | `bundle_path` | path | no | `<output_dir>/<name>-fritzbox.pem` | no | Explicit FritzBox bundle path. |
-| `base_url` | str | yes | none | no | FRITZ!Box base URL, for example `https://fritz.box`. HTTPS is required unless `force=true`. |
+| `url` | str | no | `https://fritz.box` | no | FRITZ!Box deployment URL. HTTPS is required unless `force=true`. |
 | `username` | str | yes | none | no | FRITZ!OS user name. |
 | `password` | str | yes | none | yes | FRITZ!OS password. |
 | `timeout` | int | no | `30` | no | HTTP request timeout in seconds. |
-| `validate_certs` | bool | no | `true` | no | Validate HTTPS certificates for the FRITZ!Box connection. |
+| `validate_certs` | bool | no | `false` | no | Validate HTTPS certificates for the FRITZ!Box connection. |
 | `force` | bool | no | `false` | no | Upload the bundle without comparing the current FRITZ!Box HTTPS certificate. |
 
 Returns:

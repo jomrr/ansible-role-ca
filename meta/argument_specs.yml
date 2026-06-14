@@ -30,8 +30,11 @@ argument_specs:
       ca_base_url:
         type: str
         required: false
-        default: https://pki.yourdomain.tld
-        description: Base URL used when deriving default AIA and CDP URLs.
+        default: http://pki.yourdomain.tld
+        description:
+          - Base URL used when deriving default AIA and CDP URLs.
+          - The default uses plain HTTP because AIA and CDP endpoints should be reachable
+            without TLS bootstrapping.
       ca_kerberos_realm:
         type: str
         required: false
@@ -276,11 +279,12 @@ argument_specs:
                 required: false
                 default: false
                 description: Enable deployment to a FRITZ!Box.
-              base_url:
+              url:
                 type: str
                 required: false
+                default: https://fritz.box
                 description:
-                  - FRITZ!Box base URL, for example `https://fritz.box`.
+                  - FRITZ!Box deployment URL.
                   - HTTPS is required for the default idempotent certificate comparison;
                     `ca_force_reissue=true` skips that comparison and uploads directly.
               username:
@@ -299,7 +303,7 @@ argument_specs:
               validate_certs:
                 type: bool
                 required: false
-                default: true
+                default: false
                 description: Validate HTTPS certificates for the FRITZ!Box connection.
       ca_crl_automation_enabled:
         type: bool

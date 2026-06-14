@@ -72,26 +72,26 @@ def _challenge_response(challenge: str, password: str) -> str:
     return f"{challenge}-{response_hash}"
 
 
-def _base_url(value: str) -> str:
-    """Return a normalized FRITZ!Box base URL."""
+def _deploy_url(value: str) -> str:
+    """Return a normalized FRITZ!Box deployment URL."""
     url = str(value or "").strip().rstrip("/")
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("base_url must be an absolute http or https URL")
+        raise ValueError("url must be an absolute http or https URL")
     return url
 
 
-def _https_endpoint(base_url: str) -> tuple[str, int]:
+def _https_endpoint(url: str) -> tuple[str, int]:
     """Return the HTTPS endpoint for the FRITZ!Box certificate comparison."""
-    parsed = urllib.parse.urlsplit(base_url)
+    parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != "https":
-        raise ValueError("FritzBox deployment idempotence requires an https base_url")
+        raise ValueError("FritzBox deployment idempotence requires an https url")
     return parsed.hostname or "", parsed.port or 443
 
 
-def _url(base_url: str, path: str, query: dict[str, str] | None = None) -> str:
-    """Build an absolute URL below the FRITZ!Box base URL."""
-    parsed = urllib.parse.urlsplit(base_url)
+def _url(url: str, path: str, query: dict[str, str] | None = None) -> str:
+    """Build an absolute FRITZ!OS URL below the deployment URL."""
+    parsed = urllib.parse.urlsplit(url)
     encoded_query = urllib.parse.urlencode(query or {})
     return urllib.parse.urlunsplit(
         (parsed.scheme, parsed.netloc, path, encoded_query, "")
@@ -117,14 +117,14 @@ class FritzBoxClient:
     def __init__(
         self,
         *,
-        base_url: str,
+        url: str,
         username: str,
         password: str,
         timeout: int,
         validate_certs: bool,
     ) -> None:
         """Initialize the client connection settings."""
-        self.base_url = _base_url(base_url)
+        self.url = _deploy_url(url)
         self.username = username
         self.password = password
         self.timeout = timeout
@@ -141,7 +141,7 @@ class FritzBoxClient:
         headers: dict[str, str] | None = None,
     ) -> str:
         """Execute one FRITZ!OS HTTP request and return decoded text."""
-        url = _url(self.base_url, path, query)
+        url = _url(self.url, path, query)
         request = urllib.request.Request(
             url,
             data=data,
@@ -231,9 +231,9 @@ class FritzBoxClient:
 
     def current_certificate(self) -> x509.Certificate:
         """Return the certificate currently served by the FRITZ!Box HTTPS port."""
-        host, port = _https_endpoint(self.base_url)
+        host, port = _https_endpoint(self.url)
         if not host:
-            raise ValueError("base_url does not contain a host name")
+            raise ValueError("url does not contain a host name")
         try:
             raw_socket = socket.create_connection((host, port), self.timeout)
             with raw_socket:
@@ -264,7 +264,7 @@ def _params(params: dict) -> dict:
     if result.get("output_dir") is None and certificate.get("output_dir") is not None:
         result["output_dir"] = certificate["output_dir"]
     for key in (
-        "base_url",
+        "url",
         "username",
         "password",
         "bundle_path",
@@ -274,10 +274,12 @@ def _params(params: dict) -> dict:
     ):
         if deploy.get(key) is not None:
             result[key] = deploy[key]
+    if not result.get("url"):
+        result["url"] = "https://fritz.box"
     if result.get("timeout") is None:
         result["timeout"] = 30
     if result.get("validate_certs") is None:
-        result["validate_certs"] = True
+        result["validate_certs"] = False
     if not result.get("bundle_path"):
         result["bundle_path"] = _bundle_path(
             result["base_dir"], result["name"], result.get("output_dir")
@@ -374,11 +376,11 @@ def run_module():
             "name": {"type": "str", "required": True},
             "output_dir": {"type": "path"},
             "bundle_path": {"type": "path"},
-            "base_url": {"type": "str"},
+            "url": {"type": "str", "default": "https://fritz.box"},
             "username": {"type": "str"},
             "password": {"type": "str", "no_log": True},
             "timeout": {"type": "int"},
-            "validate_certs": {"type": "bool"},
+            "validate_certs": {"type": "bool", "default": False},
             "force": {"type": "bool", "default": False},
         },
         supports_check_mode=False,
@@ -392,14 +394,14 @@ def run_module():
     client: FritzBoxClient | None = None
     try:
         params = _params(module.params)
-        for key in ("base_url", "username", "password"):
+        for key in ("username", "password"):
             if not params.get(key):
                 raise ValueError(f"FritzBox deployment requires {key}")
         bundle = _load_bundle(params["bundle_path"])
         _validate_bundle(bundle)
         desired_certificate = _leaf_certificate(bundle)
         client = FritzBoxClient(
-            base_url=params["base_url"],
+            url=params["url"],
             username=params["username"],
             password=params["password"],
             timeout=params["timeout"],

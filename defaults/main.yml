@@ -5,7 +5,7 @@
 # General CA settings.
 ca_name: Yourdomain
 ca_base_dir: "{{ ca_fhs_dir | default('/etc/ssl') }}/{{ ca_name | lower }}"
-ca_base_url: "https://pki.yourdomain.tld"
+ca_base_url: "http://pki.yourdomain.tld"
 ca_kerberos_realm: ""
 ca_owner: root
 ca_group: root

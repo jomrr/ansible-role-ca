@@ -61,7 +61,7 @@ The following variables are part of the public role interface.
 | ---- | ---- | -------- | ------- | ----------- |
 | `ca_name` | `str` | `false` | `Yourdomain` | CA name used in CA certificate common names and, lowercased, in the default CA working directory. |
 | `ca_base_dir` | `str` | `false` |  | CA working directory.<br>Defaults to `/etc/pki/<ca_name \| lower>` on RedHat-family systems and `/etc/ssl/<ca_name \| lower>` on Debian and Suse-family systems. |
-| `ca_base_url` | `str` | `false` | `https://pki.yourdomain.tld` | Base URL used when deriving default AIA and CDP URLs. |
+| `ca_base_url` | `str` | `false` | `http://pki.yourdomain.tld` | Base URL used when deriving default AIA and CDP URLs.<br>The default uses plain HTTP because AIA and CDP endpoints should be reachable without TLS bootstrapping. |
 | `ca_kerberos_realm` | `str` | `false` | `` | Optional default Kerberos realm for MSKDC PKINIT SAN encoding. |
 | `ca_owner` | `str` | `false` | `root` | Owner for managed CA files. |
 | `ca_group` | `str` | `false` | `root` | Group for managed CA files. |
@@ -131,7 +131,7 @@ The following variables are part of the public role interface.
 - X.509 material, authority chains, certificate bundles, CRLs, and inventory composition use internal advisory locks below `<ca_base_dir>/.locks` so concurrent jobs for the same CA object cannot interleave their file writes.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
 - FritzBox deployment runs only for certificate entries with `fritzbox_deploy.enabled=true`; it compares the desired leaf certificate with the current FRITZ!Box HTTPS certificate and uploads only when they differ, unless `ca_force_reissue=true`.
-- FritzBox deployment needs an HTTPS `base_url` for the idempotent comparison; `ca_force_reissue=true` skips the comparison and uploads directly.
+- FritzBox deployment uses `fritzbox_deploy.url`, defaults to `https://fritz.box`, and disables certificate verification by default because FRITZ!OS usually starts with a self-signed HTTPS certificate.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
 ## Supported Platforms
@@ -160,7 +160,7 @@ Creates the Root CA and the three issuing CAs without certificates.
     - role: jomrr.ca
       vars:
         ca_name: Example
-        ca_base_url: https://pki.example.org
+        ca_base_url: http://pki.example.org
         ca_authorities:
           - name: root
             common_name: Example Root CA
@@ -204,7 +204,7 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
     - role: jomrr.ca
       vars:
         ca_name: Example
-        ca_base_url: https://pki.example.org
+        ca_base_url: http://pki.example.org
         ca_authorities:
           - name: root
             common_name: Example Root CA
