@@ -18,7 +18,9 @@
         subject: {{ (ca_subject | combine(ca_authority.subject | default({}))) | to_json }}
         next_update_days: "{{ ca_authority.crl_days }}"
         revoked_certificates: {{ ca_authority.revocations | default([]) | to_json }}
-        digest: "{{ ca_authority.crl_digest | default(ca_default_md) }}"
+{% if ca_authority.crl_digest is defined %}
+        digest: "{{ ca_authority.crl_digest }}"
+{% endif %}
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
       no_log: true

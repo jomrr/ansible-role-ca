@@ -89,11 +89,6 @@ argument_specs:
         required: false
         default: 4096
         description: DH parameter size when `ca_create_dhparams=true`.
-      ca_default_md:
-        type: str
-        required: false
-        default: sha384
-        description: Default message digest for CRLs.
       ca_force_reissue:
         type: bool
         required: false
@@ -258,36 +253,31 @@ argument_specs:
             type: str
             required: false
             description: Friendly name for PFX/PKCS#12 export.
-      ca_crl_automation:
-        type: dict
+      ca_crl_automation_enabled:
+        type: bool
         required: false
-        description: Optional systemd CRL renewal automation.
-        options:
-          enabled:
-            type: bool
-            required: false
-            default: false
-            description: Manage and enable the CRL renewal timer.
-          ansible_playbook:
-            type: str
-            required: false
-            default: ansible-playbook
-            description: Command used by the CRL renewal service.
-          on_calendar:
-            type: str
-            required: false
-            default: daily
-            description: systemd timer OnCalendar value.
-          randomized_delay_sec:
-            type: str
-            required: false
-            default: 15m
-            description: systemd timer randomized delay.
-          persistent:
-            type: bool
-            required: false
-            default: true
-            description: systemd timer Persistent value.
+        default: false
+        description: Manage and enable the CRL renewal timer.
+      ca_crl_automation_ansible_playbook:
+        type: str
+        required: false
+        default: ansible-playbook
+        description: Command used by the CRL renewal service.
+      ca_crl_automation_on_calendar:
+        type: str
+        required: false
+        default: daily
+        description: systemd timer OnCalendar value.
+      ca_crl_automation_randomized_delay_sec:
+        type: str
+        required: false
+        default: 15m
+        description: systemd timer randomized delay.
+      ca_crl_automation_persistent:
+        type: bool
+        required: false
+        default: true
+        description: systemd timer Persistent value.
       ca_create_dhparams:
         type: bool
         required: false

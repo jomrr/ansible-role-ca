@@ -6,4 +6,4 @@ After=network-online.target
 [Service]
 Type=oneshot
 Environment=ANSIBLE_LIBRARY={{ ca_base_dir }}/automation/library
-ExecStart={{ ca_crl_automation.ansible_playbook }} {{ ca_base_dir }}/automation/crl-renew.yml
+ExecStart={{ ca_crl_automation_ansible_playbook }} {{ ca_base_dir }}/automation/crl-renew.yml

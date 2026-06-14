@@ -63,14 +63,17 @@ The following variables are part of the public role interface.
 | `ca_no_log` | `bool` | `false` | `True` | Suppress task output that can contain private key passphrases or PFX passphrases. |
 | `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: Yourdomain SE<br />organizational_unit: Yourdomain Certificate Authority | Default X.509 subject attributes added before the certificate common name. |
 | `ca_default_bits` | `int` | `false` | `4096` | DH parameter size when `ca_create_dhparams=true`. |
-| `ca_default_md` | `str` | `false` | `sha384` | Default message digest for CRLs. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
 | `ca_certificate_async_timeout` | `int` | `false` | `600` | Async timeout in seconds for end-entity certificate and bundle jobs. |
 | `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for end-entity certificate and bundle jobs. |
 | `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for end-entity certificate and bundle jobs. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_certificates` | `list` | `false` | [] | End-entity certificates to manage. |
-| `ca_crl_automation` | `dict` | `false` |  | Optional systemd CRL renewal automation. |
+| `ca_crl_automation_enabled` | `bool` | `false` | `False` | Manage and enable the CRL renewal timer. |
+| `ca_crl_automation_ansible_playbook` | `str` | `false` | `ansible-playbook` | Command used by the CRL renewal service. |
+| `ca_crl_automation_on_calendar` | `str` | `false` | `daily` | systemd timer OnCalendar value. |
+| `ca_crl_automation_randomized_delay_sec` | `str` | `false` | `15m` | systemd timer randomized delay. |
+| `ca_crl_automation_persistent` | `bool` | `false` | `True` | systemd timer Persistent value. |
 | `ca_create_dhparams` | `bool` | `false` | `False` | Generate Diffie-Hellman parameters under the platform PKI base directory. |
 
 ## Managed Files
@@ -86,8 +89,8 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/private/*-ca.key`
 - `<ca_base_dir>/private/*-ca.pass`
 - `<ca_base_dir>/certs/*`
-- `/etc/systemd/system/<ca_name | lower>-ca-crl-renew.service` when `ca_crl_automation.enabled=true`
-- `/etc/systemd/system/<ca_name | lower>-ca-crl-renew.timer` when `ca_crl_automation.enabled=true`
+- `/etc/systemd/system/<ca_name | lower>-ca-crl-renew.service` when `ca_crl_automation_enabled=true`
+- `/etc/systemd/system/<ca_name | lower>-ca-crl-renew.timer` when `ca_crl_automation_enabled=true`
 
 ## Security Notes
 

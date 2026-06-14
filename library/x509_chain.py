@@ -3,14 +3,12 @@
 
 from __future__ import annotations
 
-import re
-
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_common import load_certificates  # type: ignore[import-not-found,import-untyped]
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
-    from cryptography import x509
     from cryptography.hazmat.primitives import serialization
 except Exception as exc:  # pragma: no cover - handled at runtime by Ansible
     CRYPTOGRAPHY_IMPORT_ERROR = exc
@@ -18,26 +16,11 @@ else:
     CRYPTOGRAPHY_IMPORT_ERROR = None
 
 
-PEM_CERT_RE = re.compile(
-    rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----\s*",
-    re.DOTALL,
-)
-
-
-def _load_certificates(path: str):
-    """Load one or more certificates from a PEM or DER source."""
-    data = read_file(path)
-    pem_blocks = PEM_CERT_RE.findall(data)
-    if pem_blocks:
-        return [x509.load_pem_x509_certificate(block) for block in pem_blocks]
-    return [x509.load_der_x509_certificate(data)]
-
-
 def _chain_content(paths: list[str]) -> bytes:
     """Return normalized PEM content for an ordered certificate chain."""
     certificates = []
     for path in paths:
-        certificates.extend(_load_certificates(path))
+        certificates.extend(load_certificates(path))
     if not certificates:
         raise ValueError("certificate chain needs at least one certificate")
     return b"".join(

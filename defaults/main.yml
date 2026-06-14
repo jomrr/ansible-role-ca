@@ -19,7 +19,6 @@ ca_subject:
   organizational_unit: Yourdomain Certificate Authority
 
 ca_default_bits: 4096
-ca_default_md: sha384
 ca_force_reissue: false
 ca_certificate_async_timeout: 600
 ca_certificate_async_retries: 600
@@ -63,11 +62,10 @@ ca_authorities:
 # List of managed end-entity certificates.
 ca_certificates: []
 
-ca_crl_automation:
-  enabled: false
-  ansible_playbook: ansible-playbook
-  on_calendar: daily
-  randomized_delay_sec: 15m
-  persistent: true
+ca_crl_automation_enabled: false
+ca_crl_automation_ansible_playbook: ansible-playbook
+ca_crl_automation_on_calendar: daily
+ca_crl_automation_randomized_delay_sec: 15m
+ca_crl_automation_persistent: true
 
 ca_create_dhparams: false

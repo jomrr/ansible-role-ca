@@ -5,38 +5,24 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
-from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+    load_private_key,
+    signature_algorithm,
+    subject_from_params,
+)
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import ed25519, ed448
-    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import serialization
 except Exception as exc:  # pragma: no cover
     CRYPTOGRAPHY_IMPORT_ERROR = exc
 else:
     CRYPTOGRAPHY_IMPORT_ERROR = None
 
-
-NAME_OIDS = {
-    "C": NameOID.COUNTRY_NAME,
-    "countryName": NameOID.COUNTRY_NAME,
-    "ST": NameOID.STATE_OR_PROVINCE_NAME,
-    "stateOrProvinceName": NameOID.STATE_OR_PROVINCE_NAME,
-    "L": NameOID.LOCALITY_NAME,
-    "localityName": NameOID.LOCALITY_NAME,
-    "O": NameOID.ORGANIZATION_NAME,
-    "organizationName": NameOID.ORGANIZATION_NAME,
-    "OU": NameOID.ORGANIZATIONAL_UNIT_NAME,
-    "organizationalUnitName": NameOID.ORGANIZATIONAL_UNIT_NAME,
-    "CN": NameOID.COMMON_NAME,
-    "commonName": NameOID.COMMON_NAME,
-    "emailAddress": NameOID.EMAIL_ADDRESS,
-}
 
 REASON_FLAGS = {
     "key_compromise": x509.ReasonFlags.key_compromise,
@@ -48,75 +34,6 @@ REASON_FLAGS = {
     "privilege_withdrawn": x509.ReasonFlags.privilege_withdrawn,
     "aa_compromise": x509.ReasonFlags.aa_compromise,
 }
-
-
-def _digest(name: str) -> hashes.HashAlgorithm:
-    """Return a cryptography hash object for a digest name."""
-    normalized = name.replace("-", "").lower()
-    digests: dict[str, Any] = {
-        "sha1": hashes.SHA1,
-        "sha224": hashes.SHA224,
-        "sha256": hashes.SHA256,
-        "sha384": hashes.SHA384,
-        "sha512": hashes.SHA512,
-    }
-    if normalized not in digests:
-        raise ValueError(f"Unsupported digest {name}")
-    return digests[normalized]()
-
-
-def _signature_algorithm(private_key, digest: str):
-    """Return the CRL signing hash or None for EdDSA private keys."""
-    if isinstance(private_key, (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)):
-        return None
-    return _digest(digest)
-
-
-def _subject(subject_ordered) -> x509.Name:
-    """Build an X.509 issuer name from ordered subject attributes."""
-    attributes = []
-    for item in subject_ordered or []:
-        if len(item) != 1:
-            raise ValueError("subject entries must contain exactly one item")
-        key, value = next(iter(item.items()))
-        if value is None or str(value) == "":
-            continue
-        oid = NAME_OIDS.get(str(key))
-        if oid is None:
-            raise ValueError(f"Unsupported issuer attribute {key}")
-        attributes.append(x509.NameAttribute(oid, str(value)))
-    return x509.Name(attributes)
-
-
-def _subject_from_params(params: dict) -> x509.Name:
-    """Build the CRL issuer name from module parameters."""
-    common_name = str(params.get("common_name") or "").strip()
-    if not common_name:
-        raise ValueError("common_name is required")
-
-    subject_values = params.get("subject") or {}
-    subject = [
-        {"C": subject_values.get("country", subject_values.get("C", ""))},
-        {"ST": subject_values.get("state", subject_values.get("ST", ""))},
-        {"L": subject_values.get("locality", subject_values.get("L", ""))},
-        {"O": subject_values.get("organization", subject_values.get("O", ""))},
-        {
-            "OU": subject_values.get(
-                "organizational_unit",
-                subject_values.get("OU", ""),
-            )
-        },
-        {"CN": common_name},
-    ]
-    return _subject(subject)
-
-
-def _load_key(path: str, passphrase: str | None):
-    """Load the CA private key used to sign the CRL."""
-    return serialization.load_pem_private_key(
-        read_file(path),
-        password=passphrase.encode() if passphrase else None,
-    )
 
 
 def _load_crl(path: str):
@@ -181,7 +98,7 @@ def _build_crl(params):
     now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     builder = (
         x509.CertificateRevocationListBuilder()
-        .issuer_name(_subject_from_params(params))
+        .issuer_name(subject_from_params(params))
         .last_update(now)
         .next_update(now + _dt.timedelta(days=int(params["next_update_days"])))
     )
@@ -197,10 +114,12 @@ def _build_crl(params):
             reason = REASON_FLAGS[str(entry["reason"])]
             revoked = revoked.add_extension(x509.CRLReason(reason), critical=False)
         builder = builder.add_revoked_certificate(revoked.build())
-    private_key = _load_key(params["privatekey_path"], params["privatekey_passphrase"])
+    private_key = load_private_key(
+        params["privatekey_path"], params["privatekey_passphrase"]
+    )
     return builder.sign(
         private_key=private_key,
-        algorithm=_signature_algorithm(private_key, params["digest"]),
+        algorithm=signature_algorithm(private_key, params["digest"]),
     )
 
 
@@ -252,7 +171,7 @@ def run_module():
         if not changed:
             try:
                 existing = _load_crl(params["path"])
-                changed = existing.issuer != _subject_from_params(
+                changed = existing.issuer != subject_from_params(
                     params
                 ) or _revoked_signature(existing) != _desired_revoked(
                     params["revoked_certificates"]

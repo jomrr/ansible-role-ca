@@ -10,39 +10,19 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     set_attrs,
     write_file,
 )
+from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+    load_certificates,
+    load_private_key,
+)
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
-    from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.serialization import pkcs12
 except Exception as exc:  # pragma: no cover
     CRYPTOGRAPHY_IMPORT_ERROR = exc
 else:
     CRYPTOGRAPHY_IMPORT_ERROR = None
-
-
-def _load_key(path: str, passphrase: str | None):
-    """Load a PEM private key for PKCS#12 serialization."""
-    return serialization.load_pem_private_key(
-        read_file(path),
-        password=passphrase.encode() if passphrase else None,
-    )
-
-
-def _load_certificates(path: str):
-    """Load one or more certificates from a PEM or DER source."""
-    data = read_file(path)
-    certs = []
-    marker = b"-----END CERTIFICATE-----"
-    if marker in data:
-        chunks = data.split(marker)
-        for chunk in chunks:
-            if b"-----BEGIN CERTIFICATE-----" in chunk:
-                certs.append(x509.load_pem_x509_certificate(chunk + marker + b"\n"))
-    else:
-        certs.append(x509.load_der_x509_certificate(data))
-    return certs
 
 
 def _public_key_bytes(key_or_cert) -> bytes:
@@ -142,9 +122,9 @@ def run_module():
         paths = _paths(
             params["base_dir"], params["name"], params["output_dir"], params["format"]
         )
-        key = _load_key(paths["key"], params["key_passphrase"])
-        cert = _load_certificates(paths["cert"])[0]
-        extra_certs = _load_certificates(paths["chain"])
+        key = load_private_key(paths["key"], params["key_passphrase"])
+        cert = load_certificates(paths["cert"])[0]
+        extra_certs = load_certificates(paths["chain"])
         changed = params["force"]
         if not changed:
             changed = not _existing_matches(

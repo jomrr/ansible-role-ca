@@ -12,7 +12,7 @@
     subject: "{{ ca_subject | combine(ca_authority.subject | default({})) }}"
     next_update_days: "{{ ca_authority.crl_days }}"
     revoked_certificates: "{{ ca_authority.revocations | default([]) }}"
-    digest: "{{ ca_authority.crl_digest | default(ca_default_md) }}"
+    digest: "{{ ca_authority.crl_digest | default(omit) }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"

@@ -24,11 +24,9 @@ ca_fritzbox_bundle_order:
 ca_certificate_types:
   tls_server:
     issuer: component
-    required_fields: []
     formats: "{{ ca_default_certificate_formats }}"
   tls_client:
     issuer: component
-    required_fields: []
     formats: "{{ ca_default_certificate_formats }}"
   mskdc:
     issuer: component
@@ -37,23 +35,19 @@ ca_certificate_types:
     formats: "{{ ca_default_certificate_formats }}"
   fritzbox:
     issuer: component
-    required_fields: []
     formats:
       - pem
       - der
       - fritzbox
   identity_full:
     issuer: identity
-    required_fields: []
     formats:
       - pem
       - der
       - pfx
   identity:
     issuer: identity
-    required_fields: []
     formats: "{{ ca_default_certificate_formats }}"
   eap_tls_client:
     issuer: network
-    required_fields: []
     formats: "{{ ca_default_certificate_formats }}"

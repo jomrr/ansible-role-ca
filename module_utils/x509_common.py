@@ -32,8 +32,13 @@ else:
 __all__ = [
     "CRYPTOGRAPHY_IMPORT_ERROR",
     "apply_profile_defaults",
+    "digest_algorithm",
     "ensure_x509",
+    "load_certificates",
+    "load_private_key",
     "sanitize_error",
+    "signature_algorithm",
+    "subject_from_params",
     "x509_argument_spec",
     "x509_certificate_argument_spec",
     "x509_certificate_params",
@@ -65,6 +70,11 @@ EXTENDED_KEY_USAGE_OIDS = {
     "OCSPSigning": ExtendedKeyUsageOID.OCSP_SIGNING,
     "smartcardLogon": x509.ObjectIdentifier("1.3.6.1.4.1.311.20.2.2"),
 }
+
+PEM_CERT_RE = re.compile(
+    rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----\s*",
+    re.DOTALL,
+)
 
 
 def _der_len(length: int) -> bytes:
@@ -133,7 +143,7 @@ def _der_pkinit_principal(realm: str) -> bytes:
     )
 
 
-def _digest(name: str) -> hashes.HashAlgorithm:
+def digest_algorithm(name: str) -> hashes.HashAlgorithm:
     """Return a cryptography hash object for a digest name."""
     normalized = name.replace("-", "").lower()
     digests: dict[str, Any] = {
@@ -229,11 +239,11 @@ def _generate_private_key(spec: dict[str, Any]):
     raise ValueError(f"Unsupported key type {spec['type']}")
 
 
-def _signature_algorithm(private_key, digest: str):
+def signature_algorithm(private_key, digest: str):
     """Return the signing hash or None for EdDSA private keys."""
     if isinstance(private_key, (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)):
         return None
-    return _digest(digest)
+    return digest_algorithm(digest)
 
 
 def _ensure_directory(path: str | None, owner, group, mode) -> bool:
@@ -244,7 +254,7 @@ def _ensure_directory(path: str | None, owner, group, mode) -> bool:
     return set_attrs(path, owner, group, mode)
 
 
-def _load_private_key(path: str, passphrase: str | None):
+def load_private_key(path: str, passphrase: str | None):
     """Load a PEM private key from disk."""
     return serialization.load_pem_private_key(
         read_file(path),
@@ -295,13 +305,22 @@ def _load_csr(path: str):
     return x509.load_pem_x509_csr(read_file(path))
 
 
-def _load_certificate(path: str):
+def load_certificate(path: str):
     """Load a PEM or DER certificate from disk."""
     data = read_file(path)
     try:
         return x509.load_pem_x509_certificate(data)
     except ValueError:
         return x509.load_der_x509_certificate(data)
+
+
+def load_certificates(path: str):
+    """Load one or more certificates from a PEM or DER source."""
+    data = read_file(path)
+    pem_blocks = PEM_CERT_RE.findall(data)
+    if pem_blocks:
+        return [x509.load_pem_x509_certificate(block) for block in pem_blocks]
+    return [x509.load_der_x509_certificate(data)]
 
 
 def _not_valid_after_utc(cert):
@@ -331,7 +350,7 @@ def _subject(subject_ordered) -> x509.Name:
     return x509.Name(attributes)
 
 
-def _subject_from_params(params: dict) -> x509.Name:
+def subject_from_params(params: dict) -> x509.Name:
     """Build an X.509 subject from module parameters."""
     if params.get("subject_ordered"):
         return _subject(params["subject_ordered"])
@@ -678,7 +697,7 @@ def _ensure_key(params):
     changed = False
     if not params["force"]:
         try:
-            key = _load_private_key(params["key_path"], params["key_passphrase"])
+            key = load_private_key(params["key_path"], params["key_passphrase"])
         except Exception:
             key = None
         if key is not None and not _key_matches(key, spec):
@@ -714,7 +733,7 @@ def _ensure_csr(params, key, subject, csr_extensions):
     """Ensure the CSR matches the requested subject, key, and extensions."""
     builder = x509.CertificateSigningRequestBuilder().subject_name(subject)
     builder = _add_extensions(builder, csr_extensions)
-    csr = builder.sign(key, _signature_algorithm(key, params["digest"]))
+    csr = builder.sign(key, signature_algorithm(key, params["digest"]))
     changed = params["force"]
     if not changed:
         try:
@@ -760,13 +779,13 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
     builder = _add_extensions(builder, cert_extensions)
     cert = builder.sign(
         private_key=signer_key,
-        algorithm=_signature_algorithm(signer_key, params["digest"]),
+        algorithm=signature_algorithm(signer_key, params["digest"]),
     )
 
     changed = params["force"]
     if not changed:
         try:
-            existing = _load_certificate(params["cert_path"])
+            existing = load_certificate(params["cert_path"])
             current_time = _dt.datetime.now(_dt.timezone.utc)
             if _not_valid_after_utc(existing) <= current_time:
                 changed = True
@@ -784,7 +803,7 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
         content = cert.public_bytes(serialization.Encoding.PEM)
     else:
         content = read_file(params["cert_path"])
-        cert = _load_certificate(params["cert_path"])
+        cert = load_certificate(params["cert_path"])
 
     changed = (
         write_file(
@@ -1109,20 +1128,20 @@ def ensure_x509(
             params["directory_mode"],
         )
     key, key_changed = _ensure_key(params)
-    subject = _subject_from_params(params)
+    subject = subject_from_params(params)
     signer_key = key
     signer_cert = None
     if signed:
-        signer_key = _load_private_key(
+        signer_key = load_private_key(
             params["signer_key_path"], params["signer_key_passphrase"]
         )
-        signer_cert = _load_certificate(params["signer_cert_path"])
+        signer_cert = load_certificate(params["signer_cert_path"])
 
     signer_public_key = (
         signer_cert.public_key() if signer_cert is not None else key.public_key()
     )
     csr_extensions = _desired_extensions(params, key.public_key(), signer_public_key)
-    csr, csr_changed = _ensure_csr(params, key, subject, csr_extensions)
+    _, csr_changed = _ensure_csr(params, key, subject, csr_extensions)
     cert_extensions = _desired_extensions(params, key.public_key(), signer_public_key)
     cert, cert_changed = _ensure_certificate(
         params, key, subject, cert_extensions, signer_key, signer_cert

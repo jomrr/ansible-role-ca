@@ -194,6 +194,5 @@ class FilterModule:
         """Return the filters exported by this plugin."""
         return {
             "ca_authority_map": ca_authority_map,
-            "ca_certificate_model": ca_certificate_model,
             "ca_certificate_models": ca_certificate_models,
         }

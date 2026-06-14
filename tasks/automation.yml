@@ -9,25 +9,32 @@
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     mode: "0600"
-  when: ca_crl_automation.enabled | bool
+  when: ca_crl_automation_enabled | bool
 
-- name: "CA | Create CRL renewal module directory"
+- name: "CA | Create CRL renewal module directories"
   ansible.builtin.file:
-    path: "{{ ca_base_dir }}/automation/library"
+    path: "{{ ca_base_dir }}/automation/{{ item }}"
     state: directory
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     mode: "0750"
-  when: ca_crl_automation.enabled | bool
+  loop:
+    - library
+    - module_utils
+  when: ca_crl_automation_enabled | bool
 
-- name: "CA | Install CRL renewal module"
+- name: "CA | Install CRL renewal modules"
   ansible.builtin.copy:
-    src: "{{ role_path }}/library/ca_crl.py"
-    dest: "{{ ca_base_dir }}/automation/library/ca_crl.py"
+    src: "{{ role_path }}/{{ item }}"
+    dest: "{{ ca_base_dir }}/automation/{{ item }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     mode: "0644"
-  when: ca_crl_automation.enabled | bool
+  loop:
+    - library/ca_crl.py
+    - module_utils/ca_file.py
+    - module_utils/x509_common.py
+  when: ca_crl_automation_enabled | bool
 
 - name: "CA | Render CRL renewal systemd service"
   ansible.builtin.template:
@@ -36,7 +43,7 @@
     owner: root
     group: root
     mode: "0644"
-  when: ca_crl_automation.enabled | bool
+  when: ca_crl_automation_enabled | bool
 
 - name: "CA | Render CRL renewal systemd timer"
   ansible.builtin.template:
@@ -45,7 +52,7 @@
     owner: root
     group: root
     mode: "0644"
-  when: ca_crl_automation.enabled | bool
+  when: ca_crl_automation_enabled | bool
 
 - name: "CA | Enable CRL renewal timer"
   ansible.builtin.systemd_service:
@@ -53,7 +60,7 @@
     enabled: true
     state: started
     daemon_reload: true
-  when: ca_crl_automation.enabled | bool
+  when: ca_crl_automation_enabled | bool
 
 - name: "CA | Disable CRL renewal timer"
   ansible.builtin.systemd_service:
@@ -62,7 +69,7 @@
     state: stopped
     daemon_reload: true
   failed_when: false
-  when: not ca_crl_automation.enabled | bool
+  when: not ca_crl_automation_enabled | bool
 
 - name: "CA | Remove CRL renewal systemd units"
   ansible.builtin.file:
@@ -71,10 +78,13 @@
   loop:
     - "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.service"
     - "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.timer"
-  when: not ca_crl_automation.enabled | bool
+  when: not ca_crl_automation_enabled | bool
 
-- name: "CA | Remove CRL renewal module"
+- name: "CA | Remove CRL renewal modules"
   ansible.builtin.file:
-    path: "{{ ca_base_dir }}/automation/library"
+    path: "{{ ca_base_dir }}/automation/{{ item }}"
     state: absent
-  when: not ca_crl_automation.enabled | bool
+  loop:
+    - library
+    - module_utils
+  when: not ca_crl_automation_enabled | bool
