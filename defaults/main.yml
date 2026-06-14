@@ -31,6 +31,7 @@ ca_authorities:
     common_name: "{{ ca_name }} Root CA"
     parent: root
     days: 3652
+    default_days: 397
     crl_days: 30
     key_passphrase: ""
     revocations: []
@@ -38,6 +39,7 @@ ca_authorities:
     common_name: "{{ ca_name }} Component CA"
     parent: root
     days: 1826
+    default_days: 397
     crl_days: 30
     key_passphrase: ""
     revocations: []
@@ -45,6 +47,7 @@ ca_authorities:
     common_name: "{{ ca_name }} Network CA"
     parent: root
     days: 1826
+    default_days: 397
     crl_days: 30
     key_passphrase: ""
     revocations: []
@@ -52,19 +55,10 @@ ca_authorities:
     common_name: "{{ ca_name }} Identity CA"
     parent: root
     days: 1826
+    default_days: 730
     crl_days: 30
     key_passphrase: ""
     revocations: []
-
-ca_default_certificate_days: 397
-ca_certificate_type_days:
-  tls_server: "{{ ca_default_certificate_days }}"
-  tls_client: "{{ ca_default_certificate_days }}"
-  mskdc: "{{ ca_default_certificate_days }}"
-  fritzbox: "{{ ca_default_certificate_days }}"
-  identity_full: 730
-  identity: 730
-  eap_tls_client: "{{ ca_default_certificate_days }}"
 
 # List of managed end-entity certificates.
 ca_certificates: []

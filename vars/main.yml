@@ -24,23 +24,19 @@ ca_fritzbox_bundle_order:
 ca_certificate_types:
   tls_server:
     issuer: component
-    days: "{{ ca_certificate_type_days.tls_server | default(ca_default_certificate_days) }}"
     required_fields: []
     formats: "{{ ca_default_certificate_formats }}"
   tls_client:
     issuer: component
-    days: "{{ ca_certificate_type_days.tls_client | default(ca_default_certificate_days) }}"
     required_fields: []
     formats: "{{ ca_default_certificate_formats }}"
   mskdc:
     issuer: component
-    days: "{{ ca_certificate_type_days.mskdc | default(ca_default_certificate_days) }}"
     required_fields:
       - ad_object_guid
     formats: "{{ ca_default_certificate_formats }}"
   fritzbox:
     issuer: component
-    days: "{{ ca_certificate_type_days.fritzbox | default(ca_default_certificate_days) }}"
     required_fields: []
     formats:
       - pem
@@ -48,7 +44,6 @@ ca_certificate_types:
       - fritzbox
   identity_full:
     issuer: identity
-    days: "{{ ca_certificate_type_days.identity_full | default(730) }}"
     required_fields: []
     formats:
       - pem
@@ -56,11 +51,9 @@ ca_certificate_types:
       - pfx
   identity:
     issuer: identity
-    days: "{{ ca_certificate_type_days.identity | default(730) }}"
     required_fields: []
     formats: "{{ ca_default_certificate_formats }}"
   eap_tls_client:
     issuer: network
-    days: "{{ ca_certificate_type_days.eap_tls_client | default(ca_default_certificate_days) }}"
     required_fields: []
     formats: "{{ ca_default_certificate_formats }}"

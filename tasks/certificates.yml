@@ -10,8 +10,6 @@
         | ca_certificate_models(
           ca_certificate_types,
           ca_authorities,
-          ca_base_dir,
-          ca_default_certificate_days,
           ca_kerberos_realm,
           ca_subject
         )

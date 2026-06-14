@@ -33,6 +33,7 @@ provisioner:
             common_name: "Example Root CA"
             parent: "root"
             days: 3652
+            default_days: 397
             crl_days: 30
             key_passphrase: "molecule-root-passphrase"
             revocations: []
@@ -40,6 +41,7 @@ provisioner:
             common_name: "Example Component CA"
             parent: "root"
             days: 1826
+            default_days: 397
             crl_days: 30
             key_passphrase: "molecule-component-passphrase"
             revocations: []
@@ -47,6 +49,7 @@ provisioner:
             common_name: "Example Network CA"
             parent: "root"
             days: 1826
+            default_days: 397
             crl_days: 30
             key_passphrase: "molecule-network-passphrase"
             revocations: []
@@ -54,6 +57,7 @@ provisioner:
             common_name: "Example Identity CA"
             parent: "root"
             days: 1826
+            default_days: 730
             crl_days: 30
             key_passphrase: "molecule-identity-passphrase"
             revocations: []

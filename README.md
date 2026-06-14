@@ -69,8 +69,6 @@ The following variables are part of the public role interface.
 | `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for end-entity certificate and bundle jobs. |
 | `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for end-entity certificate and bundle jobs. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
-| `ca_default_certificate_days` | `int` | `false` | `397` | Default validity period for end-entity certificate profiles. |
-| `ca_certificate_type_days` | `dict` | `false` | tls_server: 397<br />tls_client: 397<br />mskdc: 397<br />fritzbox: 397<br />identity_full: 730<br />identity: 730<br />eap_tls_client: 397 | Validity periods for built-in certificate profiles. |
 | `ca_certificates` | `list` | `false` | [] | End-entity certificates to manage. |
 | `ca_crl` | `dict` | `false` |  | CRL generation settings. |
 | `ca_crl_automation` | `dict` | `false` |  | Optional systemd CRL renewal automation. |
@@ -112,7 +110,7 @@ The following variables are part of the public role interface.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
-- Override certificate profile validity periods through `ca_certificate_type_days` or a per-certificate `days` value.
+- Default end-entity certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - FritzBox bundles are assembled in the default order `private_key`, `certificate`, `chain`.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
@@ -148,24 +146,28 @@ Creates the Root CA and the three issuing CAs without end-entity certificates.
             common_name: Example Root CA
             parent: root
             days: 3652
+            default_days: 397
             crl_days: 30
             key_passphrase: vaulted-root-passphrase
           - name: component
             common_name: Example Component CA
             parent: root
             days: 1826
+            default_days: 397
             crl_days: 30
             key_passphrase: vaulted-component-passphrase
           - name: network
             common_name: Example Network CA
             parent: root
             days: 1826
+            default_days: 397
             crl_days: 30
             key_passphrase: vaulted-network-passphrase
           - name: identity
             common_name: Example Identity CA
             parent: root
             days: 1826
+            default_days: 730
             crl_days: 30
             key_passphrase: vaulted-identity-passphrase
 ```
@@ -188,24 +190,28 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
             common_name: Example Root CA
             parent: root
             days: 3652
+            default_days: 397
             crl_days: 30
             key_passphrase: vaulted-root-passphrase
           - name: component
             common_name: Example Component CA
             parent: root
             days: 1826
+            default_days: 397
             crl_days: 30
             key_passphrase: vaulted-component-passphrase
           - name: network
             common_name: Example Network CA
             parent: root
             days: 1826
+            default_days: 397
             crl_days: 30
             key_passphrase: vaulted-network-passphrase
           - name: identity
             common_name: Example Identity CA
             parent: root
             days: 1826
+            default_days: 730
             crl_days: 30
             key_passphrase: vaulted-identity-passphrase
         ca_certificates:

@@ -26,10 +26,11 @@
       - ca_authority.parent is defined
       - ca_authority.common_name is defined
       - ca_authority.days is defined
+      - ca_authority.default_days is defined
       - ca_authority.crl_days is defined
       - ca_authority.key_passphrase is defined
       - ca_authority.key_passphrase | string | length > 0
-    fail_msg: "Every managed CA needs name, parent, common_name, days, crl_days, and key_passphrase."
+    fail_msg: "Every managed CA needs name, parent, common_name, days, default_days, crl_days, and key_passphrase."
   loop: "{{ ca_authorities }}"
   loop_control:
     loop_var: ca_authority

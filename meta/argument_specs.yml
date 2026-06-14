@@ -144,6 +144,11 @@ argument_specs:
             type: int
             required: true
             description: Authority certificate validity in days.
+          default_days:
+            type: int
+            required: true
+            description: Default validity in days for end-entity certificates issued by
+              this authority.
           crl_days:
             type: int
             required: true
@@ -162,23 +167,6 @@ argument_specs:
             type: str
             required: false
             description: Optional CRL message digest override.
-      ca_default_certificate_days:
-        type: int
-        required: false
-        default: 397
-        description: Default validity period for end-entity certificate profiles.
-      ca_certificate_type_days:
-        type: dict
-        required: false
-        default:
-          tls_server: 397
-          tls_client: 397
-          mskdc: 397
-          fritzbox: 397
-          identity_full: 730
-          identity: 730
-          eap_tls_client: 397
-        description: Validity periods for built-in certificate profiles.
       ca_certificates:
         type: list
         elements: dict

@@ -69,8 +69,6 @@ def ca_certificate_model(
     certificate: dict[str, Any],
     certificate_types: dict[str, dict[str, Any]],
     authorities: list[dict[str, Any]],
-    _base_dir: str,
-    default_certificate_days: int,
     kerberos_realm: str,
     subject: dict[str, Any],
 ) -> dict[str, Any]:
@@ -99,6 +97,12 @@ def ca_certificate_model(
     if issuer not in authority_map:
         raise AnsibleFilterError(
             f"Certificate type {cert_type} references unknown issuer {issuer}"
+        )
+    issuer_authority = authority_map[issuer]
+    default_days = issuer_authority.get("default_days")
+    if "days" not in certificate and default_days is None:
+        raise AnsibleFilterError(
+            f"Certificate {name} needs days or issuer authority {issuer} needs default_days"
         )
 
     for field in _as_list(profile.get("required_fields")):
@@ -139,9 +143,7 @@ def ca_certificate_model(
             "common_name": common_name,
             "issuer": issuer,
             "formats": formats,
-            "days": certificate.get(
-                "days", profile.get("days", default_certificate_days)
-            ),
+            "days": certificate.get("days", default_days),
             "san": san,
             "key_passphrase": _string(certificate.get("key_passphrase")),
             "pfx_passphrase": _string(certificate.get("pfx_passphrase")),
@@ -164,8 +166,6 @@ def ca_certificate_models(
     certificates: list[dict[str, Any]],
     certificate_types: dict[str, dict[str, Any]],
     authorities: list[dict[str, Any]],
-    base_dir: str,
-    default_certificate_days: int,
     kerberos_realm: str,
     subject: dict[str, Any],
 ) -> list[dict[str, Any]]:
@@ -176,8 +176,6 @@ def ca_certificate_models(
             certificate,
             certificate_types,
             authorities,
-            base_dir,
-            default_certificate_days,
             kerberos_realm,
             subject,
         )
