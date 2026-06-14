@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_common import run_x509_certificate_module  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_profiles import (  # type: ignore[import-not-found,import-untyped]
     IDENTITY_CERTIFICATE_DEFAULTS,
-    run_x509_certificate_module,
 )
 
 

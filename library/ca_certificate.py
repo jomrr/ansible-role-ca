@@ -7,11 +7,13 @@ import re
 from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_profiles import (  # type: ignore[import-not-found,import-untyped]
     CERTIFICATE_DEFAULT_FORMATS,
     CERTIFICATE_PROFILE_DEFAULTS,
-    CRYPTOGRAPHY_IMPORT_ERROR,
     apply_certificate_profile,
+)
+from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+    CRYPTOGRAPHY_IMPORT_ERROR,
     ensure_x509,
     normalize_formats,
     sanitize_error,

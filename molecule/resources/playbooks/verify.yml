@@ -28,6 +28,8 @@
         - "{{ ca_molecule_base }}/automation/library/ca_crl.py"
         - "{{ ca_molecule_base }}/automation/module_utils/ca_file.py"
         - "{{ ca_molecule_base }}/automation/module_utils/x509_common.py"
+        - "{{ ca_molecule_base }}/automation/module_utils/x509_profiles.py"
+        - "{{ ca_molecule_base }}/automation/module_utils/x509_text.py"
         - "/etc/systemd/system/{{ ca_name | lower }}-crl-renew@.service"
         - "/etc/systemd/system/{{ ca_name | lower }}-crl-renew@.timer"
         - "{{ ca_molecule_base }}/certs/web01/web01.pem"

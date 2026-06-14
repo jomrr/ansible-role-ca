@@ -43,6 +43,8 @@
     - library/ca_crl.py
     - module_utils/ca_file.py
     - module_utils/x509_common.py
+    - module_utils/x509_profiles.py
+    - module_utils/x509_text.py
   when: ca_crl_automation_enabled | bool
 
 - name: "CA | Render CRL renewal systemd service"
