@@ -5,6 +5,9 @@ Manage a normal PEM fullchain bundle.
 `ca_fullchain_bundle` concatenates an existing leaf certificate and copied
 issuer chain into a fullchain file.
 
+The module uses the internal `ca_pem_bundle` helper for path derivation,
+locking, source concatenation, and atomic writes.
+
 ## Behavior
 
 - Reads `<output_dir>/<name>.pem`.
@@ -47,4 +50,3 @@ For `name: web01` and `base_dir: /etc/pki/example`:
     base_dir: /etc/pki/example
     name: web01
 ```
-

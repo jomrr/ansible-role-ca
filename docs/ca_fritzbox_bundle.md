@@ -6,6 +6,9 @@ Manage a FritzBox PEM import bundle.
 chain, and private key into the PEM order expected by FRITZ!OS certificate
 import.
 
+The module uses the internal `ca_pem_bundle` helper for path derivation,
+locking, source concatenation, and atomic writes.
+
 ## Behavior
 
 - Reads `<output_dir>/<name>.pem`.
@@ -52,4 +55,3 @@ For `name: fritzbox` and `base_dir: /etc/pki/example`:
     base_dir: /etc/pki/example
     name: fritzbox
 ```
-

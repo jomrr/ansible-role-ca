@@ -47,6 +47,7 @@ inventory state, and validation.
 
 - [ca_file](ca_file.md)
 - [ca_inventory](ca_inventory.md)
+- [ca_pem_bundle](ca_pem_bundle.md)
 - [ca_profiles](ca_profiles.md)
 - [ca_renewal](ca_renewal.md)
 - [ca_serial](ca_serial.md)

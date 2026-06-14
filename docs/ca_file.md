@@ -70,5 +70,6 @@ with file_locks(lock_paths):
 - `ca_fullchain_bundle`
 - `ca_pkcs12_bundle`
 - `ca_inventory`
+- `ca_pem_bundle`
 - `ca_text`
 - `ca_x509`
