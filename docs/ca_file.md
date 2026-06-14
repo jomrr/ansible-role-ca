@@ -31,11 +31,13 @@ I/O, advisory locks, ownership handling, mode handling, and error sanitization.
 ## Behavior
 
 - Final symlinks are refused for reads, attribute updates, and replacements.
+- Parent directory components are created and opened without following symlinks
+  before writes, temporary files, replacements, and lock files are created.
 - Lock directories that are symlinks are refused.
 - Multiple locks are deduplicated and acquired in deterministic path order to
   avoid deadlocks between dependent CA operations.
-- Writes use a temporary file in the target directory, `fsync`, and
-  `os.replace`.
+- Writes use a temporary file created through the opened parent directory,
+  `fsync`, and directory-fd based `os.replace`.
 - Parent directories are created when writing.
 - Directory metadata is fsynced when the platform supports it.
 - Ownership accepts names, numeric strings, or `None`.

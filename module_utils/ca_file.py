@@ -8,13 +8,15 @@ import grp
 import os
 import pwd
 import re
-import tempfile
+import secrets
+import stat
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any, Iterable
 
 MASK = "********"
 NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 SECRET_KEY_RE = re.compile(r"(?i)(passphrase|password|secret|token)")
 SECRET_ASSIGNMENT_RE = re.compile(
     r"(?i)\b(passphrase|password|secret|token)\b\s*[:=]\s*([^\s,;]+)"
@@ -38,20 +40,24 @@ def ca_lock_path(base_dir: str, namespace: str, name: str) -> str:
 def file_lock(path: str):
     """Hold an exclusive advisory lock for one managed file operation."""
     lock_path = Path(path)
-    if lock_path.parent.is_symlink():
-        raise ValueError(f"Refusing to use symlinked lock directory: {lock_path.parent}")
-    lock_path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-    os.chmod(lock_path.parent, 0o700)
-    fd = _open_no_follow(str(lock_path), os.O_CREAT | os.O_RDWR)
+    lock_name = lock_path.name
+    if not lock_name:
+        raise ValueError(f"Refusing to lock directory path: {path}")
+    parent_fd = _open_parent_directory(lock_path)
     try:
-        os.fchmod(fd, 0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        yield
-    finally:
+        os.fchmod(parent_fd, 0o700)
+        fd = _open_no_follow(lock_name, os.O_CREAT | os.O_RDWR, dir_fd=parent_fd)
         try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.fchmod(fd, 0o600)
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
         finally:
-            os.close(fd)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            finally:
+                os.close(fd)
+    finally:
+        os.close(parent_fd)
 
 
 @contextmanager
@@ -91,13 +97,56 @@ def _mode(mode: Any, fallback: int = 0o600) -> int:
     return int(str(mode), 8)
 
 
-def _open_no_follow(path: str, flags: int) -> int:
+def _open_no_follow(path: str, flags: int, *, dir_fd: int | None = None) -> int:
     """Open a path without following a final symlink."""
     try:
-        return os.open(path, flags | NOFOLLOW)
+        if dir_fd is None:
+            return os.open(path, flags | NOFOLLOW)
+        return os.open(path, flags | NOFOLLOW, dir_fd=dir_fd)
     except OSError as exc:
         if exc.errno == errno.ELOOP:
             raise ValueError(f"Refusing to follow symlink: {path}") from exc
+        raise
+
+
+def _open_directory_no_follow(path: str, *, dir_fd: int | None = None) -> int:
+    """Open a directory path without following a final symlink."""
+    try:
+        if dir_fd is None:
+            return os.open(path, os.O_RDONLY | DIRECTORY | NOFOLLOW)
+        return os.open(path, os.O_RDONLY | DIRECTORY | NOFOLLOW, dir_fd=dir_fd)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise ValueError(f"Refusing to follow symlinked directory: {path}") from exc
+        if exc.errno == errno.ENOTDIR:
+            raise ValueError(f"Refusing non-directory path component: {path}") from exc
+        raise
+
+
+def _open_parent_directory(path: Path) -> int:
+    """Create and open a target parent directory without following symlinks."""
+    parent = path.parent
+    if parent.is_absolute():
+        directory_fd = _open_directory_no_follow(os.sep)
+        parts = parent.parts[1:]
+    else:
+        directory_fd = _open_directory_no_follow(".")
+        parts = parent.parts
+
+    try:
+        for part in parts:
+            if part in ("", "."):
+                continue
+            try:
+                os.mkdir(part, 0o755, dir_fd=directory_fd)
+            except FileExistsError:
+                pass
+            next_fd = _open_directory_no_follow(part, dir_fd=directory_fd)
+            os.close(directory_fd)
+            directory_fd = next_fd
+        return directory_fd
+    except Exception:
+        os.close(directory_fd)
         raise
 
 
@@ -107,45 +156,88 @@ def _read_file(path: str) -> bytes:
         return handle.read()
 
 
+def _read_file_at(parent_fd: int, name: str) -> bytes:
+    """Read a file below an opened directory without following symlinks."""
+    fd = _open_no_follow(name, os.O_RDONLY, dir_fd=parent_fd)
+    with os.fdopen(fd, "rb") as handle:
+        return handle.read()
+
+
 def read_file(path: str) -> bytes:
     """Read file content through the shared symlink-safe helper."""
     return _read_file(path)
 
 
-def _fsync_directory(path: str) -> None:
+def _fsync_directory_fd(directory_fd: int) -> None:
     """Flush directory metadata when the platform supports it."""
-    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-    try:
-        directory_fd = os.open(path, directory_flags)
-    except OSError:
-        return
     try:
         os.fsync(directory_fd)
+    except OSError:
+        pass
+
+
+def _set_attrs_fd(fd: int, owner: Any, group: Any, mode: Any) -> bool:
+    """Apply owner, group, and mode to an opened file descriptor."""
+    changed = False
+    stat_result = os.fstat(fd)
+    desired_uid = uid(owner)
+    desired_gid = gid(group)
+    owner_changed = desired_uid != -1 and stat_result.st_uid != desired_uid
+    group_changed = desired_gid != -1 and stat_result.st_gid != desired_gid
+    if owner_changed or group_changed:
+        os.fchown(fd, desired_uid, desired_gid)
+        changed = True
+    if mode is not None:
+        desired_mode = _mode(mode)
+        if (stat_result.st_mode & 0o7777) != desired_mode:
+            os.fchmod(fd, desired_mode)
+            changed = True
+    return changed
+
+
+def _set_attrs_at(parent_fd: int, name: str, owner: Any, group: Any, mode: Any) -> bool:
+    """Apply file attributes below an opened directory without following symlinks."""
+    fd = _open_no_follow(name, os.O_RDONLY, dir_fd=parent_fd)
+    try:
+        return _set_attrs_fd(fd, owner, group, mode)
     finally:
-        os.close(directory_fd)
+        os.close(fd)
 
 
 def set_attrs(path: str, owner: Any, group: Any, mode: Any) -> bool:
     """Apply owner, group, and mode to a path and report changes."""
-    changed = False
     fd = _open_no_follow(path, os.O_RDONLY)
     try:
-        stat = os.fstat(fd)
-        desired_uid = uid(owner)
-        desired_gid = gid(group)
-        owner_changed = desired_uid != -1 and stat.st_uid != desired_uid
-        group_changed = desired_gid != -1 and stat.st_gid != desired_gid
-        if owner_changed or group_changed:
-            os.fchown(fd, desired_uid, desired_gid)
-            changed = True
-        if mode is not None:
-            desired_mode = _mode(mode)
-            if (stat.st_mode & 0o7777) != desired_mode:
-                os.fchmod(fd, desired_mode)
-                changed = True
-        return changed
+        return _set_attrs_fd(fd, owner, group, mode)
     finally:
         os.close(fd)
+
+
+def _check_final_target(parent_fd: int, name: str, display_path: str) -> None:
+    """Refuse an existing final symlink below an opened directory."""
+    try:
+        stat_result = os.lstat(name, dir_fd=parent_fd)
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(stat_result.st_mode):
+        raise ValueError(f"Refusing to replace symlink: {display_path}")
+
+
+def _create_temp_file(parent_fd: int, target_name: str) -> tuple[int, str]:
+    """Create a private temporary file below an opened directory."""
+    for _ in range(100):
+        tmp_name = f".{target_name}.{secrets.token_hex(8)}.ansible_tmp"
+        try:
+            tmp_fd = os.open(
+                tmp_name,
+                os.O_CREAT | os.O_EXCL | os.O_RDWR | NOFOLLOW,
+                0o600,
+                dir_fd=parent_fd,
+            )
+            return tmp_fd, tmp_name
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"Could not create a unique temporary file for {target_name}")
 
 
 def _secret_values(value: Any) -> set[str]:
@@ -184,46 +276,53 @@ def write_file(
 ) -> bool:
     """Atomically write content and enforce file attributes."""
     target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if target.is_symlink():
-        raise ValueError(f"Refusing to replace symlink: {path}")
+    target_name = target.name
+    if not target_name:
+        raise ValueError(f"Refusing to write to directory path: {path}")
+
+    parent_fd = _open_parent_directory(target)
     try:
-        changed = force or _read_file(path) != content
-    except FileNotFoundError:
-        changed = True
-    if changed:
-        tmp_path = None
-        tmp_fd = -1
+        _check_final_target(parent_fd, target_name, path)
         try:
-            tmp_fd, tmp_path = tempfile.mkstemp(
-                prefix=f".{target.name}.",
-                suffix=".ansible_tmp",
-                dir=str(target.parent),
-            )
-            os.fchmod(tmp_fd, 0o600)
-            with os.fdopen(tmp_fd, "wb") as handle:
-                tmp_fd = -1
-                handle.write(content)
-                handle.flush()
-                os.fsync(handle.fileno())
-            tmp_fd = _open_no_follow(tmp_path, os.O_RDWR)
-            desired_uid = uid(owner)
-            desired_gid = gid(group)
-            if desired_uid != -1 or desired_gid != -1:
-                os.fchown(tmp_fd, desired_uid, desired_gid)
-            os.fchmod(tmp_fd, _mode(mode))
-            os.close(tmp_fd)
+            changed = force or _read_file_at(parent_fd, target_name) != content
+        except FileNotFoundError:
+            changed = True
+
+        if changed:
+            tmp_name = None
             tmp_fd = -1
-            os.replace(tmp_path, path)
-            tmp_path = None
-            _fsync_directory(str(target.parent))
-        finally:
-            if tmp_fd != -1:
+            try:
+                tmp_fd, tmp_name = _create_temp_file(parent_fd, target_name)
+                with os.fdopen(tmp_fd, "wb") as handle:
+                    tmp_fd = -1
+                    handle.write(content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                tmp_fd = _open_no_follow(tmp_name, os.O_RDWR, dir_fd=parent_fd)
+                desired_uid = uid(owner)
+                desired_gid = gid(group)
+                if desired_uid != -1 or desired_gid != -1:
+                    os.fchown(tmp_fd, desired_uid, desired_gid)
+                os.fchmod(tmp_fd, _mode(mode))
                 os.close(tmp_fd)
-            if tmp_path is not None:
-                try:
-                    os.unlink(tmp_path)
-                except FileNotFoundError:
-                    pass
-    attrs_changed = set_attrs(path, owner, group, mode)
-    return changed or attrs_changed
+                tmp_fd = -1
+                os.replace(
+                    tmp_name,
+                    target_name,
+                    src_dir_fd=parent_fd,
+                    dst_dir_fd=parent_fd,
+                )
+                tmp_name = None
+                _fsync_directory_fd(parent_fd)
+            finally:
+                if tmp_fd != -1:
+                    os.close(tmp_fd)
+                if tmp_name is not None:
+                    try:
+                        os.unlink(tmp_name, dir_fd=parent_fd)
+                    except FileNotFoundError:
+                        pass
+        attrs_changed = _set_attrs_at(parent_fd, target_name, owner, group, mode)
+        return changed or attrs_changed
+    finally:
+        os.close(parent_fd)
