@@ -63,13 +63,6 @@ ca_authorities:
 # List of managed end-entity certificates.
 ca_certificates: []
 
-ca_crl:
-  enabled: true
-  formats:
-    - pem
-    - der
-  mode: generate
-
 ca_crl_automation:
   enabled: false
   ansible_playbook: ansible-playbook

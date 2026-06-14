@@ -70,7 +70,6 @@ The following variables are part of the public role interface.
 | `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for end-entity certificate and bundle jobs. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_certificates` | `list` | `false` | [] | End-entity certificates to manage. |
-| `ca_crl` | `dict` | `false` |  | CRL generation settings. |
 | `ca_crl_automation` | `dict` | `false` |  | Optional systemd CRL renewal automation. |
 | `ca_create_dhparams` | `bool` | `false` | `False` | Generate Diffie-Hellman parameters under the platform PKI base directory. |
 

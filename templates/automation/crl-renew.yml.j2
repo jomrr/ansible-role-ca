@@ -7,7 +7,7 @@
 
   tasks:
 {% for ca_authority in ca_authorities %}
-{% for ca_crl_format in ca_crl.formats | default(['pem', 'der']) | map('lower') | list %}
+{% for ca_crl_format in ['pem', 'der'] %}
     - name: "CA | Renew {{ ca_authority.name }} {{ ca_crl_format }} CRL"
       ca_crl:
         base_dir: "{{ ca_base_dir }}"

@@ -238,29 +238,6 @@ argument_specs:
             type: str
             required: false
             description: Friendly name for PFX/PKCS#12 export.
-      ca_crl:
-        type: dict
-        required: false
-        description: CRL generation settings.
-        options:
-          enabled:
-            type: bool
-            required: false
-            default: true
-            description: Manage CRLs.
-          formats:
-            type: list
-            elements: str
-            required: false
-            default:
-              - pem
-              - der
-            description: CRL output formats.
-          mode:
-            type: str
-            required: false
-            default: generate
-            description: CRL generation mode.
       ca_crl_automation:
         type: dict
         required: false

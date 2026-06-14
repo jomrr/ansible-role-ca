@@ -16,5 +16,7 @@
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ ca_crl.formats | default(['pem', 'der']) | map('lower') | list }}"
+  loop:
+    - pem
+    - der
   no_log: true

@@ -71,7 +71,6 @@
 
 - name: "CA | Manage CRLs"
   ansible.builtin.import_tasks: crls.yml
-  when: ca_crl.enabled | bool
   tags: crl
 
 - name: "CA | Configure CRL renewal automation"
