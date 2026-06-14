@@ -5,8 +5,10 @@ from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+    CERTIFICATE_DEFAULT_FORMATS,
     CRYPTOGRAPHY_IMPORT_ERROR,
-    apply_profile_defaults,
+    IDENTITY_CERTIFICATE_DEFAULTS,
+    apply_certificate_profile,
     ensure_x509,
     sanitize_error,
     x509_certificate_argument_spec,
@@ -14,28 +16,7 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
 )
 
 
-PROFILE_DEFAULTS = {
-    "identity": {
-        "digest": "sha384",
-        "key_usage": ["digitalSignature", "keyEncipherment", "nonRepudiation"],
-        "extended_key_usage": [
-            "clientAuth",
-            "emailProtection",
-            "1.3.6.1.4.1.311.20.2.2",
-        ],
-    },
-    "identity_full": {
-        "digest": "sha384",
-        "key_usage": ["digitalSignature", "keyEncipherment", "nonRepudiation"],
-        "extended_key_usage": [
-            "clientAuth",
-            "emailProtection",
-            "codeSigning",
-            "1.3.6.1.4.1.311.20.2.2",
-        ],
-    },
-}
-DEFAULT_FORMATS = ["pem", "der", "pfx"]
+PROFILE_DEFAULTS = IDENTITY_CERTIFICATE_DEFAULTS
 
 
 def run_module():
@@ -59,12 +40,9 @@ def run_module():
     try:
         params = x509_certificate_params(
             module.params,
-            default_formats=DEFAULT_FORMATS,
+            default_formats=CERTIFICATE_DEFAULT_FORMATS[module.params["profile"]],
         )
-        params = apply_profile_defaults(
-            params,
-            PROFILE_DEFAULTS[params["profile"]],
-        )
+        params = apply_certificate_profile(params, params["profile"])
         result = ensure_x509(
             params, signed=True, manage_directory=True, manage_chain=True
         )

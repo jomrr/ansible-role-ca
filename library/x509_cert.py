@@ -5,8 +5,10 @@ from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+    CERTIFICATE_DEFAULT_FORMATS,
     CRYPTOGRAPHY_IMPORT_ERROR,
-    apply_profile_defaults,
+    STANDARD_CERTIFICATE_DEFAULTS,
+    apply_certificate_profile,
     ensure_x509,
     sanitize_error,
     x509_certificate_argument_spec,
@@ -14,25 +16,7 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
 )
 
 
-PROFILE_DEFAULTS = {
-    "tls_server": {
-        "default_dns_san": True,
-        "digest": "sha384",
-        "key_usage": ["digitalSignature", "keyEncipherment"],
-        "extended_key_usage": ["serverAuth"],
-    },
-    "tls_client": {
-        "digest": "sha384",
-        "key_usage": ["digitalSignature", "keyEncipherment"],
-        "extended_key_usage": ["clientAuth"],
-    },
-    "eap_tls_client": {
-        "digest": "sha384",
-        "key_usage": ["digitalSignature", "keyEncipherment"],
-        "extended_key_usage": ["clientAuth"],
-    },
-}
-DEFAULT_FORMATS = ["pem", "der"]
+PROFILE_DEFAULTS = STANDARD_CERTIFICATE_DEFAULTS
 
 
 def run_module():
@@ -56,12 +40,9 @@ def run_module():
     try:
         params = x509_certificate_params(
             module.params,
-            default_formats=DEFAULT_FORMATS,
+            default_formats=CERTIFICATE_DEFAULT_FORMATS[module.params["profile"]],
         )
-        params = apply_profile_defaults(
-            params,
-            PROFILE_DEFAULTS[params["profile"]],
-        )
+        params = apply_certificate_profile(params, params["profile"])
         result = ensure_x509(
             params, signed=True, manage_directory=True, manage_chain=True
         )

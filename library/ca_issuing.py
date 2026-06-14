@@ -6,9 +6,9 @@ from __future__ import annotations
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
+    ca_authority_argument_spec,
     ensure_x509,
     sanitize_error,
-    x509_argument_spec,
 )
 
 ISSUING_CA_DEFAULTS = {
@@ -20,14 +20,11 @@ ISSUING_CA_DEFAULTS = {
 
 def run_module():
     """Run the Ansible module for an issuing CA."""
-    spec = x509_argument_spec(
-        authority=True,
-        signer=True,
-        defaults=ISSUING_CA_DEFAULTS,
-    )
-    spec["parent_key_passphrase"] = spec.pop("signer_key_passphrase")
     module = AnsibleModule(
-        argument_spec=spec,
+        argument_spec=ca_authority_argument_spec(
+            signed=True,
+            defaults=ISSUING_CA_DEFAULTS,
+        ),
         supports_check_mode=False,
     )
 
@@ -38,7 +35,7 @@ def run_module():
 
     try:
         params = dict(module.params)
-        params["signer_key_passphrase"] = params.pop("parent_key_passphrase")
+        params["signer_key_passphrase"] = params["parent_key_passphrase"]
         result = ensure_x509(params, signed=True, authority=True)
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))

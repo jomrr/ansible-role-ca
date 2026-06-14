@@ -30,16 +30,23 @@ else:
     CRYPTOGRAPHY_IMPORT_ERROR = None
 
 __all__ = [
+    "CERTIFICATE_DEFAULT_FORMATS",
+    "CERTIFICATE_PROFILE_DEFAULTS",
     "CRYPTOGRAPHY_IMPORT_ERROR",
+    "IDENTITY_CERTIFICATE_DEFAULTS",
+    "STANDARD_CERTIFICATE_DEFAULTS",
     "apply_profile_defaults",
+    "apply_certificate_profile",
+    "ca_authority_argument_spec",
     "digest_algorithm",
     "ensure_x509",
+    "FRITZBOX_DIGESTS",
     "load_certificates",
     "load_private_key",
+    "normalize_formats",
     "sanitize_error",
     "signature_algorithm",
     "subject_from_params",
-    "x509_argument_spec",
     "x509_certificate_argument_spec",
     "x509_certificate_params",
 ]
@@ -75,6 +82,87 @@ PEM_CERT_RE = re.compile(
     rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----\s*",
     re.DOTALL,
 )
+KRB5_REALM_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
+GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+GUID_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
+
+STANDARD_CERTIFICATE_DEFAULTS = {
+    "tls_server": {
+        "default_dns_san": True,
+        "digest": "sha384",
+        "key_usage": ["digitalSignature", "keyEncipherment"],
+        "extended_key_usage": ["serverAuth"],
+    },
+    "tls_client": {
+        "digest": "sha384",
+        "key_usage": ["digitalSignature", "keyEncipherment"],
+        "extended_key_usage": ["clientAuth"],
+    },
+    "eap_tls_client": {
+        "digest": "sha384",
+        "key_usage": ["digitalSignature", "keyEncipherment"],
+        "extended_key_usage": ["clientAuth"],
+    },
+}
+IDENTITY_CERTIFICATE_DEFAULTS = {
+    "identity": {
+        "digest": "sha384",
+        "key_usage": ["digitalSignature", "keyEncipherment", "nonRepudiation"],
+        "extended_key_usage": [
+            "clientAuth",
+            "emailProtection",
+            "1.3.6.1.4.1.311.20.2.2",
+        ],
+    },
+    "identity_full": {
+        "digest": "sha384",
+        "key_usage": ["digitalSignature", "keyEncipherment", "nonRepudiation"],
+        "extended_key_usage": [
+            "clientAuth",
+            "emailProtection",
+            "codeSigning",
+            "1.3.6.1.4.1.311.20.2.2",
+        ],
+    },
+}
+MSKDC_CERTIFICATE_DEFAULTS = {
+    "default_dns_san": True,
+    "digest": "sha384",
+    "key_usage": ["digitalSignature", "keyEncipherment"],
+    "extended_key_usage": [
+        "serverAuth",
+        "clientAuth",
+        "1.3.6.1.5.2.3.5",
+    ],
+    "raw_extensions": [
+        {
+            "oid": "1.3.6.1.4.1.311.20.2",
+            "value": "ASN1:BMPSTRING:DomainController",
+        }
+    ],
+}
+FRITZBOX_CERTIFICATE_DEFAULTS = {
+    "default_dns_san": True,
+    "digest": "sha384",
+    "key_usage": ["digitalSignature", "keyEncipherment"],
+    "extended_key_usage": ["serverAuth", "clientAuth"],
+}
+CERTIFICATE_PROFILE_DEFAULTS = {
+    **STANDARD_CERTIFICATE_DEFAULTS,
+    **IDENTITY_CERTIFICATE_DEFAULTS,
+    "mskdc": MSKDC_CERTIFICATE_DEFAULTS,
+    "fritzbox": FRITZBOX_CERTIFICATE_DEFAULTS,
+}
+CERTIFICATE_DEFAULT_FORMATS = {
+    "tls_server": ["pem", "der"],
+    "tls_client": ["pem", "der"],
+    "eap_tls_client": ["pem", "der"],
+    "mskdc": ["pem", "der"],
+    "identity": ["pem", "der", "pfx"],
+    "identity_full": ["pem", "der", "pfx"],
+    "fritzbox": ["pem", "der", "fritzbox"],
+}
+FRITZBOX_DIGESTS = {"sha1", "sha224", "sha256", "sha384"}
 
 
 def _der_len(length: int) -> bytes:
@@ -845,11 +933,6 @@ def _ensure_chain(params):
     )
 
 
-def _formats(params) -> list[str]:
-    """Return normalized output format names from module parameters."""
-    return [str(item).lower() for item in params.get("formats", [])]
-
-
 def _merge_raw_extensions(defaults, overrides):
     """Merge default raw extensions with caller overrides by OID."""
     overrides = list(overrides or [])
@@ -861,6 +944,64 @@ def _merge_raw_extensions(defaults, overrides):
     ]
     merged.extend(overrides)
     return merged
+
+
+def _ad_guid_hex(value) -> str:
+    """Return AD objectGUID bytes as uppercase hex in directory byte order."""
+    guid = str(value or "").lower().strip().strip("{}")
+    guid_hex = re.sub(r"[-: ]", "", guid)
+
+    if GUID_RE.match(guid):
+        return (
+            guid[6:8]
+            + guid[4:6]
+            + guid[2:4]
+            + guid[0:2]
+            + guid[11:13]
+            + guid[9:11]
+            + guid[16:18]
+            + guid[14:16]
+            + guid[19:23]
+            + guid[24:36]
+        ).upper()
+
+    if GUID_HEX_RE.match(guid_hex):
+        return guid_hex.upper()
+
+    raise ValueError(
+        "mskdc certificate requires ad_object_guid as canonical GUID or raw 16-byte hex"
+    )
+
+
+def _apply_mskdc_extensions(params: dict) -> dict:
+    """Add PKINIT SAN and NTDS objectGUID extensions to module params."""
+    result = dict(params)
+    realm = str(result.pop("krb5_realm", "") or "").strip().upper()
+    if not KRB5_REALM_RE.match(realm):
+        raise ValueError("mskdc certificate requires a valid krb5_realm for PKINIT")
+
+    prefix = re.sub(r"[^A-Za-z0-9_]", "_", f"pkinit_{result['name']}")
+    san = list(result.get("san") or [])
+    san.append(f"otherName:1.3.6.1.5.2.2;SEQUENCE:{prefix}_principal")
+    result["san"] = san
+    result["pkinit"] = {"realm": realm}
+
+    raw_extensions = [
+        extension
+        for extension in (result.get("raw_extensions") or [])
+        if str(extension.get("oid")) != "1.3.6.1.4.1.311.25.1"
+    ]
+    raw_extensions.append(
+        {
+            "oid": "1.3.6.1.4.1.311.25.1",
+            "value": (
+                "ASN1:FORMAT:HEX,OCTETSTRING:"
+                + _ad_guid_hex(result.pop("ad_object_guid", ""))
+            ),
+        }
+    )
+    result["raw_extensions"] = raw_extensions
+    return result
 
 
 def apply_profile_defaults(params: dict, defaults: dict) -> dict:
@@ -890,6 +1031,26 @@ def apply_profile_defaults(params: dict, defaults: dict) -> dict:
     return result
 
 
+def apply_certificate_profile(params: dict, profile: str) -> dict:
+    """Apply built-in certificate profile defaults and validations."""
+    if profile not in CERTIFICATE_PROFILE_DEFAULTS:
+        raise ValueError(f"Unsupported certificate profile {profile}")
+
+    result = dict(params)
+    result["profile"] = profile
+    if profile == "mskdc":
+        result = _apply_mskdc_extensions(result)
+
+    result = apply_profile_defaults(result, CERTIFICATE_PROFILE_DEFAULTS[profile])
+
+    if profile == "fritzbox":
+        digest = str(result["digest"]).replace("-", "").lower()
+        if digest not in FRITZBOX_DIGESTS:
+            raise ValueError("FritzBox certificates support digests up to sha384")
+
+    return result
+
+
 def _base_url(params: dict, name: str, key: str) -> str:
     """Derive an AIA or CDP URL from explicit or base URL parameters."""
     value = str(params.get(key) or "").rstrip("/")
@@ -913,7 +1074,7 @@ def _with_derived_paths(
     result = dict(params)
     base_dir = str(result["base_dir"]).rstrip("/")
     name = str(result["name"])
-    formats = _formats(result)
+    formats = normalize_formats(result.get("formats"))
     result["formats"] = formats
 
     if authority:
@@ -956,14 +1117,12 @@ def _with_derived_paths(
     return result
 
 
-def x509_argument_spec(
+def ca_authority_argument_spec(
     *,
-    authority: bool = False,
-    directory: bool = False,
-    signer: bool = False,
+    signed: bool = False,
     defaults: dict | None = None,
 ):
-    """Build the argument spec for CA certificate modules."""
+    """Build the argument spec for CA authority modules."""
     spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
         "base_url": {"type": "str", "default": ""},
@@ -998,22 +1157,15 @@ def x509_argument_spec(
         "key_mode": {"type": "str", "default": "0600"},
         "public_mode": {"type": "str", "default": "0644"},
         "force": {"type": "bool", "default": False},
+        "key_passphrase": {
+            "type": "str",
+            "required": True,
+            "no_log": True,
+        },
     }
-    spec["key_passphrase"] = {
-        "type": "str",
-        "required": authority,
-        "no_log": True,
-    }
-    if directory:
-        spec.update(
-            {
-                "output_dir": {"type": "path"},
-                "directory_mode": {"type": "str", "default": "0755"},
-            }
-        )
-    if signer:
-        spec["parent" if authority else "issuer"] = {"type": "str", "required": True}
-        spec["signer_key_passphrase"] = {
+    if signed:
+        spec["parent"] = {"type": "str", "required": True}
+        spec["parent_key_passphrase"] = {
             "type": "str",
             "required": True,
             "no_log": True,
@@ -1063,7 +1215,7 @@ def x509_certificate_argument_spec(*, defaults: dict | None = None):
     return spec
 
 
-def _normalized_formats(formats: Any) -> list[str]:
+def normalize_formats(formats: Any) -> list[str]:
     """Return normalized certificate output format names."""
     if isinstance(formats, str):
         raise ValueError("formats must be a list")
@@ -1112,7 +1264,7 @@ def x509_certificate_params(
     formats = module_formats if module_formats is not None else certificate_formats
     if formats is None:
         formats = default_formats if default_formats is not None else ["pem", "der"]
-    result["formats"] = _normalized_formats(formats)
+    result["formats"] = normalize_formats(formats)
     result["signer_key_passphrase"] = result.pop("issuer_key_passphrase")
     return result
 

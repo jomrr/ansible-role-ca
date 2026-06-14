@@ -2,131 +2,26 @@
 # role: ansible-role-ca
 # file: tasks/certificates.yml
 
-- name: "CA | Resolve certificate models"
-  ansible.builtin.set_fact:
-    __ca_certificate_models: >-
-      {{
-        ca_certificates
-        | ca_certificate_models(
-          ca_certificate_types,
-          ca_authorities,
-          ca_kerberos_realm,
-          ca_subject
-        )
-      }}
-  no_log: >-
-    {{
-      ca_no_log | bool
-      or (ca_certificates | selectattr('key_passphrase', 'defined') | list | length > 0)
-      or (ca_certificates | selectattr('pfx_passphrase', 'defined') | list | length > 0)
-    }}
-
-- name: "CA | Start standard certificate material jobs"
-  x509_cert:
+- name: "CA | Start certificate material jobs"
+  x509_certificate:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
     certificate: "{{ ca_certificate }}"
-    name: "{{ ca_certificate.name }}"
-    issuer: "{{ ca_certificate.issuer }}"
-    profile: "{{ ca_certificate.type }}"
-    issuer_key_passphrase: "{{ (ca_authorities | ca_authority_map)[ca_certificate.issuer].key_passphrase }}"
-    common_name: "{{ ca_certificate.common_name }}"
-    days: "{{ ca_certificate.days }}"
+    certificate_types: "{{ ca_certificate_types }}"
+    authorities: "{{ ca_authorities }}"
+    kerberos_realm: "{{ ca_kerberos_realm }}"
+    subject: "{{ ca_subject }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop: >-
-    {{
-      __ca_certificate_models
-      | rejectattr('type', 'equalto', 'identity')
-      | rejectattr('type', 'equalto', 'identity_full')
-      | rejectattr('type', 'equalto', 'mskdc')
-      | rejectattr('type', 'equalto', 'fritzbox')
-      | list
-    }}
+  loop: "{{ ca_certificates }}"
   loop_control:
     loop_var: ca_certificate
     label: "{{ ca_certificate.name }}"
   async: "{{ ca_certificate_async_timeout }}"
   poll: 0
   changed_when: false
-  register: __ca_certificate_standard_jobs
-  no_log: true
-
-- name: "CA | Start identity certificate material jobs"
-  x509_identity:
-    base_dir: "{{ ca_base_dir }}"
-    base_url: "{{ ca_base_url }}"
-    certificate: "{{ ca_certificate }}"
-    name: "{{ ca_certificate.name }}"
-    issuer: "{{ ca_certificate.issuer }}"
-    profile: "{{ ca_certificate.type }}"
-    issuer_key_passphrase: "{{ (ca_authorities | ca_authority_map)[ca_certificate.issuer].key_passphrase }}"
-    common_name: "{{ ca_certificate.common_name }}"
-    days: "{{ ca_certificate.days }}"
-    owner: "{{ ca_owner }}"
-    group: "{{ ca_group }}"
-    force: "{{ ca_force_reissue | bool }}"
-  loop: >-
-    {{
-      (__ca_certificate_models | selectattr('type', 'equalto', 'identity') | list)
-      + (__ca_certificate_models | selectattr('type', 'equalto', 'identity_full') | list)
-    }}
-  loop_control:
-    loop_var: ca_certificate
-    label: "{{ ca_certificate.name }}"
-  async: "{{ ca_certificate_async_timeout }}"
-  poll: 0
-  changed_when: false
-  register: __ca_certificate_identity_jobs
-  no_log: true
-
-- name: "CA | Start MSKDC certificate material jobs"
-  x509_mskdc:
-    base_dir: "{{ ca_base_dir }}"
-    base_url: "{{ ca_base_url }}"
-    certificate: "{{ ca_certificate }}"
-    name: "{{ ca_certificate.name }}"
-    issuer: "{{ ca_certificate.issuer }}"
-    issuer_key_passphrase: "{{ (ca_authorities | ca_authority_map)[ca_certificate.issuer].key_passphrase }}"
-    common_name: "{{ ca_certificate.common_name }}"
-    krb5_realm: "{{ ca_certificate.krb5_realm }}"
-    ad_object_guid: "{{ ca_certificate.ad_object_guid }}"
-    days: "{{ ca_certificate.days }}"
-    owner: "{{ ca_owner }}"
-    group: "{{ ca_group }}"
-    force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ __ca_certificate_models | selectattr('type', 'equalto', 'mskdc') | list }}"
-  loop_control:
-    loop_var: ca_certificate
-    label: "{{ ca_certificate.name }}"
-  async: "{{ ca_certificate_async_timeout }}"
-  poll: 0
-  changed_when: false
-  register: __ca_certificate_mskdc_jobs
-  no_log: true
-
-- name: "CA | Start FritzBox certificate material jobs"
-  x509_fritzbox:
-    base_dir: "{{ ca_base_dir }}"
-    base_url: "{{ ca_base_url }}"
-    certificate: "{{ ca_certificate }}"
-    name: "{{ ca_certificate.name }}"
-    issuer: "{{ ca_certificate.issuer }}"
-    issuer_key_passphrase: "{{ (ca_authorities | ca_authority_map)[ca_certificate.issuer].key_passphrase }}"
-    common_name: "{{ ca_certificate.common_name }}"
-    days: "{{ ca_certificate.days }}"
-    owner: "{{ ca_owner }}"
-    group: "{{ ca_group }}"
-    force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ __ca_certificate_models | selectattr('type', 'equalto', 'fritzbox') | list }}"
-  loop_control:
-    loop_var: ca_certificate
-    label: "{{ ca_certificate.name }}"
-  async: "{{ ca_certificate_async_timeout }}"
-  poll: 0
-  changed_when: false
-  register: __ca_certificate_fritzbox_cert_jobs
+  register: __ca_certificate_jobs
   no_log: true
 
 - name: "CA | Wait for certificate material jobs"
@@ -134,12 +29,8 @@
     jid: "{{ ca_certificate_job.ansible_job_id }}"
   loop: >-
     {{
-      (
-        (__ca_certificate_standard_jobs.results | default([]))
-        + (__ca_certificate_identity_jobs.results | default([]))
-        + (__ca_certificate_mskdc_jobs.results | default([]))
-        + (__ca_certificate_fritzbox_cert_jobs.results | default([]))
-      )
+      __ca_certificate_jobs.results
+      | default([])
       | selectattr('ansible_job_id', 'defined')
       | list
     }}
@@ -163,11 +54,10 @@
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ __ca_certificate_material_status.results | default([]) | subelements('formats') }}"
+  loop: "{{ __ca_certificate_material_status.results | default([]) | subelements('pkcs12_formats') }}"
   loop_control:
     loop_var: ca_certificate_export
     label: "{{ ca_certificate_export.0.ca_certificate_job.ca_certificate.name }}.{{ ca_certificate_export.1 }}"
-  when: ca_certificate_export.1 in ['pfx', 'p12']
   async: "{{ ca_certificate_async_timeout }}"
   poll: 0
   changed_when: false
@@ -186,18 +76,7 @@
   loop_control:
     loop_var: ca_certificate_result
     label: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
-  when: >-
-    'fritzbox' in (ca_certificate_result.formats | default([]))
-    or
-    (
-      ca_certificate_result.ca_certificate_job.ca_certificate.type == 'fritzbox'
-      and
-      (
-        ca_certificate_result.ca_certificate_job.ca_certificate.formats is not defined
-        or
-        'fritzbox' in ca_certificate_result.ca_certificate_job.ca_certificate.formats
-      )
-    )
+  when: ca_certificate_result.fritzbox_bundle | default(false) | bool
   async: "{{ ca_certificate_async_timeout }}"
   poll: 0
   changed_when: false

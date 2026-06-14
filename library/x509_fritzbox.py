@@ -5,23 +5,14 @@ from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+    CERTIFICATE_DEFAULT_FORMATS,
     CRYPTOGRAPHY_IMPORT_ERROR,
-    apply_profile_defaults,
+    apply_certificate_profile,
     ensure_x509,
     sanitize_error,
     x509_certificate_argument_spec,
     x509_certificate_params,
 )
-
-
-FRITZBOX_DIGESTS = {"sha1", "sha224", "sha256", "sha384"}
-DEFAULT_FORMATS = ["pem", "der", "fritzbox"]
-FRITZBOX_DEFAULTS = {
-    "default_dns_san": True,
-    "digest": "sha384",
-    "key_usage": ["digitalSignature", "keyEncipherment"],
-    "extended_key_usage": ["serverAuth", "clientAuth"],
-}
 
 
 def run_module():
@@ -39,13 +30,10 @@ def run_module():
 
     params = x509_certificate_params(
         module.params,
-        default_formats=DEFAULT_FORMATS,
+        default_formats=CERTIFICATE_DEFAULT_FORMATS["fritzbox"],
     )
-    params = apply_profile_defaults(params, FRITZBOX_DEFAULTS)
-    digest = str(params["digest"]).replace("-", "").lower()
-    if digest not in FRITZBOX_DIGESTS:
-        module.fail_json(msg="FritzBox certificates support digests up to sha384")
     try:
+        params = apply_certificate_profile(params, "fritzbox")
         result = ensure_x509(
             params, signed=True, manage_directory=True, manage_chain=True
         )
