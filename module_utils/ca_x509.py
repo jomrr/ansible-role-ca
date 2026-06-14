@@ -16,11 +16,7 @@ try:
         set_attrs,
         write_file,
     )
-    from ansible.module_utils.x509_profiles import (  # type: ignore[import-not-found,import-untyped]
-        CERTIFICATE_DEFAULT_FORMATS,
-        apply_certificate_profile,
-    )
-    from ansible.module_utils.x509_text import ensure_txt  # type: ignore[import-not-found,import-untyped]
+    from ansible.module_utils.ca_text import ensure_txt  # type: ignore[import-not-found,import-untyped]
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, rsa
@@ -42,13 +38,10 @@ __all__ = [
     "load_certificates",
     "load_private_key",
     "normalize_formats",
-    "run_ca_authority_module",
-    "run_x509_certificate_module",
     "sanitize_error",
     "signature_algorithm",
     "subject_from_params",
-    "x509_certificate_argument_spec",
-    "x509_certificate_params",
+    "certificate_params",
 ]
 
 
@@ -922,7 +915,6 @@ def _with_derived_paths(
 
 def ca_authority_argument_spec(
     *,
-    signed: bool = False,
     defaults: dict | None = None,
 ):
     """Build the argument spec for CA authority modules."""
@@ -930,6 +922,7 @@ def ca_authority_argument_spec(
         "base_dir": {"type": "path", "required": True},
         "base_url": {"type": "str", "default": ""},
         "name": {"type": "str", "required": True},
+        "parent": {"type": "str", "default": ""},
         "formats": {
             "type": "list",
             "elements": "str",
@@ -944,9 +937,8 @@ def ca_authority_argument_spec(
         "basic_constraints": {
             "type": "list",
             "elements": "str",
-            "default": ["CA:FALSE"],
         },
-        "key_usage": {"type": "list", "elements": "str", "default": []},
+        "key_usage": {"type": "list", "elements": "str"},
         "key_usage_critical": {"type": "bool", "default": True},
         "extended_key_usage": {"type": "list", "elements": "str", "default": []},
         "extended_key_usage_critical": {"type": "bool", "default": False},
@@ -969,84 +961,10 @@ def ca_authority_argument_spec(
             "required": True,
             "no_log": True,
         },
-    }
-    if signed:
-        spec["parent"] = {"type": "str", "required": True}
-        spec["parent_key_passphrase"] = {
+        "parent_key_passphrase": {
             "type": "str",
-            "required": True,
-            "no_log": True,
-        }
-    for key, value in (defaults or {}).items():
-        if key in spec:
-            spec[key]["default"] = value
-    return spec
-
-
-def _fail_on_crypto_import_error(module) -> None:
-    """Abort an Ansible module when required crypto imports are unavailable."""
-    if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(
-            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
-        )
-
-
-def run_ca_authority_module(*, defaults: dict, signed: bool = False) -> None:
-    """Run a CA authority module using shared X.509 authority handling."""
-    from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-
-    module = AnsibleModule(
-        argument_spec=ca_authority_argument_spec(
-            signed=signed,
-            defaults=defaults,
-        ),
-        supports_check_mode=False,
-    )
-    _fail_on_crypto_import_error(module)
-
-    try:
-        params = dict(module.params)
-        if signed:
-            params["signer_key_passphrase"] = params["parent_key_passphrase"]
-        result = ensure_x509(params, signed=signed, authority=True)
-    except Exception as exc:
-        module.fail_json(msg=sanitize_error(exc, module.params))
-
-    module.exit_json(**result)
-
-
-def x509_certificate_argument_spec(*, defaults: dict | None = None):
-    """Build the argument spec for certificate modules."""
-    spec: dict[str, dict[str, Any]] = {
-        "base_dir": {"type": "path", "required": True},
-        "base_url": {"type": "str"},
-        "certificate": {"type": "dict", "no_log": True},
-        "name": {"type": "str", "required": True},
-        "issuer": {"type": "str", "required": True},
-        "issuer_key_passphrase": {
-            "type": "str",
-            "required": True,
             "no_log": True,
         },
-        "formats": {"type": "list", "elements": "str"},
-        "output_dir": {"type": "path"},
-        "key_type": {"type": "str"},
-        "key_size": {"type": "int"},
-        "key_passphrase": {"type": "str", "no_log": True},
-        "subject_ordered": {"type": "list", "elements": "dict"},
-        "common_name": {"type": "str", "required": True},
-        "email": {"type": "str"},
-        "subject": {"type": "dict"},
-        "key_usage": {"type": "list", "elements": "str"},
-        "extended_key_usage": {"type": "list", "elements": "str"},
-        "san": {"type": "list", "elements": "str"},
-        "aia_base_url": {"type": "str"},
-        "cdp_base_url": {"type": "str"},
-        "raw_extensions": {"type": "list", "elements": "dict"},
-        "days": {"type": "int", "required": True},
-        "owner": {"type": "str"},
-        "group": {"type": "str"},
-        "force": {"type": "bool", "default": False},
     }
     for key, value in (defaults or {}).items():
         if key in spec:
@@ -1061,7 +979,7 @@ def normalize_formats(formats: Any) -> list[str]:
     return [str(item).lower() for item in (formats or [])]
 
 
-def x509_certificate_params(
+def certificate_params(
     params: dict, *, default_formats: list[str] | None = None
 ) -> dict:
     """Merge certificate dictionaries with explicit module parameters."""
@@ -1108,49 +1026,6 @@ def x509_certificate_params(
     result["formats"] = normalize_formats(formats)
     result["signer_key_passphrase"] = result.pop("issuer_key_passphrase")
     return result
-
-
-def run_x509_certificate_module(
-    *,
-    fixed_profile: str | None = None,
-    profile_defaults: dict | None = None,
-    default_profile: str | None = None,
-    extra_spec: dict | None = None,
-) -> None:
-    """Run a certificate module using shared X.509 certificate handling."""
-    from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-
-    spec = x509_certificate_argument_spec()
-    if profile_defaults is not None:
-        choices = sorted(profile_defaults)
-        spec["profile"] = {
-            "type": "str",
-            "choices": choices,
-            "default": default_profile or choices[0],
-        }
-    if extra_spec:
-        spec.update(extra_spec)
-
-    module = AnsibleModule(argument_spec=spec, supports_check_mode=False)
-    _fail_on_crypto_import_error(module)
-
-    try:
-        profile = fixed_profile or module.params["profile"]
-        params = x509_certificate_params(
-            module.params,
-            default_formats=CERTIFICATE_DEFAULT_FORMATS[profile],
-        )
-        params = apply_certificate_profile(params, profile)
-        result = ensure_x509(
-            params,
-            signed=True,
-            manage_directory=True,
-            manage_chain=True,
-        )
-    except Exception as exc:
-        module.fail_json(msg=sanitize_error(exc, module.params))
-
-    module.exit_json(**result)
 
 
 def ensure_x509(

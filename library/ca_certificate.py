@@ -7,21 +7,21 @@ import re
 from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.x509_profiles import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_profiles import (  # type: ignore[import-not-found,import-untyped]
     CERTIFICATE_DEFAULT_FORMATS,
     CERTIFICATE_PROFILE_DEFAULTS,
     apply_certificate_profile,
 )
-from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
+    certificate_params,
     ensure_x509,
     normalize_formats,
     sanitize_error,
-    x509_certificate_params,
 )
 
 SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-SUPPORTED_FORMATS = {"pem", "der", "txt", "pfx", "p12", "fritzbox"}
+SUPPORTED_FORMATS = {"pem", "der", "txt", "pfx", "p12", "fullchain", "fritzbox"}
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -208,7 +208,7 @@ def run_module():
 
     try:
         model, module_params = _resolve_certificate(module.params)
-        params = x509_certificate_params(
+        params = certificate_params(
             module_params,
             default_formats=CERTIFICATE_DEFAULT_FORMATS[model["type"]],
         )
@@ -221,6 +221,7 @@ def run_module():
         result["pkcs12_formats"] = [
             item for item in formats if item in {"pfx", "p12"}
         ]
+        result["fullchain_bundle"] = "fullchain" in formats
         result["fritzbox_bundle"] = "fritzbox" in formats
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))

@@ -17,6 +17,7 @@ It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and 
 - PEM, DER, and text exports for all CA certificates
 - CA chain files
 - Declarative certificates in `ca_certificates`
+- Optional certificate fullchain PEM bundles
 - TLS server and TLS client certificates from the Component CA
 - Samba AD Domain Controller/MSKDC certificates from the Component CA
 - FritzBox import bundles from the Component CA
@@ -98,6 +99,7 @@ The following variables are part of the public role interface.
 - CA private keys are passphrase-protected and their passphrases are supplied by inventory variables.
 - CRL renewal timers source `/root/.profile`; define variables such as `CA_EXAMPLE_ROOT_KEY_PASSPHRASE` there for systemd-triggered renewal.
 - Certificate private key passphrases are optional except for formats that require export passwords, such as PFX/PKCS#12.
+- Fullchain bundles contain the certificate followed by its issuing chain and do not include the private key.
 - FritzBox bundles are mode `0600` because they include the private key, certificate, and issuing chain.
 - MSKDC certificates include `digitalSignature`, `serverAuth`, `clientAuth`, and KDC Authentication EKU `1.3.6.1.5.2.3.5` (OpenSSL renders it as `Signing KDC Response`); the Microsoft template-name extension is emitted as `1.3.6.1.4.1.311.20.2 = ASN1:BMPSTRING:DomainController`.
 - MSKDC certificates include a PKINIT SAN `otherName:1.3.6.1.5.2.2` containing the DER-encoded `KRB5PrincipalName` for `krbtgt/<REALM>@<REALM>`.
@@ -116,6 +118,7 @@ The following variables are part of the public role interface.
 - CRL renewal uses instantiated systemd timers named `<ca_name | lower>-crl-renew@<authority>.timer`, for example `example-crl-renew@root.timer`.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
+- Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.

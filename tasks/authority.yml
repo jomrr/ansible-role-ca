@@ -4,25 +4,8 @@
 
 - name: "CA | Manage authority {{ ca_authority.name }}"
   block:
-    - name: "CA | Manage root authority material for {{ ca_authority.name }}"
-      ca_root:
-        base_dir: "{{ ca_base_dir }}"
-        base_url: "{{ ca_base_url }}"
-        name: "{{ ca_authority.name }}"
-        key_type: "{{ ca_authority.key_type | default(omit) }}"
-        key_size: "{{ ca_authority.key_size | default(omit) }}"
-        key_passphrase: "{{ ca_authority.key_passphrase }}"
-        common_name: "{{ ca_authority.common_name }}"
-        subject: "{{ ca_subject | combine(ca_authority.subject | default({})) }}"
-        days: "{{ ca_authority.days }}"
-        owner: "{{ ca_owner }}"
-        group: "{{ ca_group }}"
-        force: "{{ ca_force_reissue | bool }}"
-      when: ca_authority.parent == ca_authority.name
-      no_log: true
-
-    - name: "CA | Manage issuing authority material for {{ ca_authority.name }}"
-      ca_issuing:
+    - name: "CA | Manage authority material for {{ ca_authority.name }}"
+      ca_authority:
         base_dir: "{{ ca_base_dir }}"
         base_url: "{{ ca_base_url }}"
         name: "{{ ca_authority.name }}"
@@ -32,7 +15,11 @@
         key_passphrase: "{{ ca_authority.key_passphrase }}"
         parent_key_passphrase: >-
           {{
-            (ca_authorities | ca_authority_map)[ca_authority.parent].key_passphrase
+            (
+              (ca_authorities | ca_authority_map)[ca_authority.parent].key_passphrase
+              if ca_authority.parent != ca_authority.name
+              else omit
+            )
           }}
         common_name: "{{ ca_authority.common_name }}"
         subject: "{{ ca_subject | combine(ca_authority.subject | default({})) }}"
@@ -40,11 +27,10 @@
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
         force: "{{ ca_force_reissue | bool }}"
-      when: ca_authority.parent != ca_authority.name
       no_log: true
 
     - name: "CA | Manage authority chain for {{ ca_authority.name }}"
-      x509_chain:
+      ca_chain:
         base_dir: "{{ ca_base_dir }}"
         name: "{{ ca_authority.name }}"
         parent: "{{ ca_authority.parent }}"

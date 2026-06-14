@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.x509_common import load_certificates  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_x509 import load_certificates  # type: ignore[import-not-found,import-untyped]
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:

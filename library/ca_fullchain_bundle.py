@@ -1,12 +1,10 @@
 #!/usr/bin/python
-"""Assemble an idempotent PEM bundle from files on the managed host."""
+"""Assemble an idempotent PEM fullchain bundle on the managed host."""
 
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
-
-FRITZBOX_BUNDLE_ORDER = ["certificate", "chain", "private_key"]
 
 
 def _read_sources(sources: list[str]) -> bytes:
@@ -20,16 +18,14 @@ def _read_sources(sources: list[str]) -> bytes:
 def _bundle_paths(
     base_dir: str, name: str, output_dir: str | None
 ) -> tuple[str, list[str]]:
-    """Derive the FritzBox bundle path and ordered input paths."""
+    """Derive the fullchain bundle path and ordered input paths."""
     directory = (output_dir or f"{base_dir.rstrip('/')}/certs/{name}").rstrip("/")
-    sources = {
-        "private_key": f"{directory}/{name}.key",
-        "certificate": f"{directory}/{name}.pem",
-        "chain": f"{directory}/{name}-chain.pem",
-    }
     return (
-        f"{directory}/{name}-fritzbox.pem",
-        [sources[item] for item in FRITZBOX_BUNDLE_ORDER],
+        f"{directory}/{name}-fullchain.pem",
+        [
+            f"{directory}/{name}.pem",
+            f"{directory}/{name}-chain.pem",
+        ],
     )
 
 
@@ -43,7 +39,7 @@ def _params(params: dict) -> dict:
 
 
 def run_module():
-    """Run the Ansible module for PEM bundles."""
+    """Run the Ansible module for PEM fullchain bundles."""
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
@@ -52,7 +48,7 @@ def run_module():
             "output_dir": {"type": "path"},
             "owner": {"type": "str"},
             "group": {"type": "str"},
-            "mode": {"type": "str", "default": "0600"},
+            "mode": {"type": "str", "default": "0644"},
             "force": {"type": "bool", "default": False},
         },
         supports_check_mode=False,

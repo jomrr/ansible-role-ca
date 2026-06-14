@@ -202,6 +202,7 @@ argument_specs:
               - Optional output format override passed to the certificate module.
               - Defaults are module-owned. Standard certificates and MSKDC default to `pem,der,txt`;
                 Identity defaults to `pem,der,txt,pfx`; FritzBox defaults to `pem,der,txt,fritzbox`.
+              - Add `fullchain` to create a certificate plus issuing-chain PEM bundle.
           common_name:
             type: str
             required: true

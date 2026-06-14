@@ -10,7 +10,7 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     set_attrs,
     write_file,
 )
-from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     load_certificates,
     load_private_key,
 )

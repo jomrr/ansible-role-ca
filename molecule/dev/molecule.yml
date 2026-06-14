@@ -66,6 +66,11 @@ provisioner:
           - name: "web01"
             type: "tls_server"
             common_name: "web01.molecule.test"
+            formats:
+              - "pem"
+              - "der"
+              - "txt"
+              - "fullchain"
             san:
               - "DNS:web01.molecule.test"
               - "DNS:web01"

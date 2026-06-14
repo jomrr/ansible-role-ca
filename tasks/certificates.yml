@@ -46,7 +46,7 @@
   no_log: true
 
 - name: "CA | Start PKCS#12 bundle jobs"
-  ca_pkcs12:
+  ca_pkcs12_bundle:
     base_dir: "{{ ca_base_dir }}"
     certificate: "{{ ca_certificate_export.0.ca_certificate_job.ca_certificate }}"
     name: "{{ ca_certificate_export.0.ca_certificate_job.ca_certificate.name }}"
@@ -64,8 +64,27 @@
   register: __ca_certificate_pfx_jobs
   no_log: true
 
+- name: "CA | Start fullchain bundle jobs"
+  ca_fullchain_bundle:
+    base_dir: "{{ ca_base_dir }}"
+    certificate: "{{ ca_certificate_result.ca_certificate_job.ca_certificate }}"
+    name: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    force: "{{ ca_force_reissue | bool }}"
+  loop: "{{ __ca_certificate_material_status.results | default([]) }}"
+  loop_control:
+    loop_var: ca_certificate_result
+    label: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+  when: ca_certificate_result.fullchain_bundle | default(false) | bool
+  async: "{{ ca_certificate_async_timeout }}"
+  poll: 0
+  changed_when: false
+  register: __ca_certificate_fullchain_jobs
+  no_log: true
+
 - name: "CA | Start FritzBox bundle jobs"
-  ca_pem_bundle:
+  ca_fritzbox_bundle:
     base_dir: "{{ ca_base_dir }}"
     certificate: "{{ ca_certificate_result.ca_certificate_job.ca_certificate }}"
     name: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
@@ -107,6 +126,27 @@
   delay: "{{ ca_certificate_async_delay }}"
   changed_when: __ca_certificate_pfx_status.changed | default(false)
   failed_when: __ca_certificate_pfx_status.failed | default(false)
+  no_log: true
+
+- name: "CA | Wait for fullchain bundle jobs"
+  ansible.builtin.async_status:
+    jid: "{{ ca_certificate_job.ansible_job_id }}"
+  loop: >-
+    {{
+      __ca_certificate_fullchain_jobs.results
+      | default([])
+      | selectattr('ansible_job_id', 'defined')
+      | list
+    }}
+  loop_control:
+    loop_var: ca_certificate_job
+    label: "{{ ca_certificate_job.ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+  register: __ca_certificate_fullchain_status
+  until: __ca_certificate_fullchain_status.finished
+  retries: "{{ ca_certificate_async_retries }}"
+  delay: "{{ ca_certificate_async_delay }}"
+  changed_when: __ca_certificate_fullchain_status.changed | default(false)
+  failed_when: __ca_certificate_fullchain_status.failed | default(false)
   no_log: true
 
 - name: "CA | Wait for FritzBox bundle jobs"

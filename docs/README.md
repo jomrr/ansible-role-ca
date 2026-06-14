@@ -10,17 +10,13 @@ shared X.509 helpers in `module_utils/`.
 
 The role currently ships these callable modules:
 
-- `ca_root`
-- `ca_issuing`
+- `ca_authority`
 - `ca_certificate`
-- `x509_cert`
-- `x509_identity`
-- `x509_mskdc`
-- `x509_fritzbox`
-- `x509_chain`
+- `ca_chain`
 - `ca_crl`
-- `ca_pkcs12`
-- `ca_pem_bundle`
+- `ca_pkcs12_bundle`
+- `ca_fullchain_bundle`
+- `ca_fritzbox_bundle`
 - `ca_dhparam`
 
 `module_utils/` and `filter_plugins/` contain internal helpers. They are not

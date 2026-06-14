@@ -8,7 +8,7 @@ import re
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     load_private_key,
     signature_algorithm,
     subject_from_params,
