@@ -11,7 +11,8 @@
         common_name: {{ ca_authority.common_name | to_json }}
         subject: {{ (ca_subject | combine(ca_authority.subject | default({}))) | to_json }}
         next_update_days: "{{ ca_authority.crl_days }}"
-        revoked_certificates: {{ ca_authority.revocations | default([]) | to_json }}
+        revoked_certificates: {{ ca_revocations.get(ca_authority.name, []) | to_json }}
+        crl_publish_hook: {{ ca_authority.crl_publish_hook | default({}) | to_json }}
         key_passphrase_env: {{ ('CA_' ~ ca_name ~ '_' ~ ca_authority.name ~ '_KEY_PASSPHRASE') | upper | regex_replace('[^A-Z0-9_]', '_') | to_json }}
 {% if ca_authority.crl_digest is defined %}
         digest: "{{ ca_authority.crl_digest }}"
@@ -37,13 +38,15 @@
         fail_msg: "Missing environment variable {{ '{{' }} ca_crl_authority_config.key_passphrase_env {{ '}}' }}."
       no_log: true
 
-    - name: "CA | Renew {{ '{{' }} ca_crl_authority {{ '}}' }} {{ '{{' }} ca_crl_format {{ '}}' }} CRL"
+    - name: "CA | Renew {{ '{{' }} ca_crl_authority {{ '}}' }} CRLs"
       ca_crl:
         base_dir: "{{ ca_base_dir }}"
         base_url: "{{ ca_base_url }}"
         ca_name: "{{ ca_name }}"
         name: "{{ '{{' }} ca_crl_authority {{ '}}' }}"
-        format: "{{ '{{' }} ca_crl_format {{ '}}' }}"
+        formats:
+          - pem
+          - der
         key_passphrase: "{{ '{{' }} lookup('ansible.builtin.env', ca_crl_authority_config.key_passphrase_env) {{ '}}' }}"
         common_name: "{{ '{{' }} ca_crl_authority_config.common_name {{ '}}' }}"
         subject: "{{ '{{' }} ca_crl_authority_config.subject {{ '}}' }}"
@@ -53,9 +56,16 @@
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
         force: true
-      loop:
-        - pem
-        - der
-      loop_control:
-        loop_var: ca_crl_format
+      register: __ca_crl_result
+      no_log: true
+
+    - name: "CA | Run {{ '{{' }} ca_crl_authority {{ '}}' }} CRL publish hook"
+      ansible.builtin.command:
+        argv: "{{ '{{' }} ca_crl_authority_config.crl_publish_hook.argv {{ '}}' }}"
+      environment: "{{ '{{' }} ca_crl_authority_config.crl_publish_hook.environment | default({}) {{ '}}' }}"
+      changed_when: true
+      when:
+        - __ca_crl_result.changed | default(false) | bool
+        - ca_crl_authority_config.crl_publish_hook.argv is defined
+        - ca_crl_authority_config.crl_publish_hook.argv | length > 0
       no_log: true

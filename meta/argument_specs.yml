@@ -164,16 +164,47 @@ argument_specs:
             type: str
             required: true
             description: Authority private key passphrase.
-          revocations:
-            type: list
-            elements: dict
-            required: false
-            default: []
-            description: Revoked certificate entries for this authority.
           crl_digest:
             type: str
             required: false
             description: Optional CRL message digest override.
+          crl_publish_hook:
+            type: dict
+            required: false
+            description:
+              - Optional command hook executed after this authority's CRL files change.
+              - The hook uses `ansible.builtin.command` with `argv`; no shell is invoked.
+            options:
+              argv:
+                type: list
+                elements: str
+                required: true
+                description: Command and arguments to execute.
+              environment:
+                type: dict
+                required: false
+                description: Optional environment variables for the hook process.
+      ca_revocations:
+        type: dict
+        required: false
+        default:
+          root: []
+          component: []
+          network: []
+          identity: []
+        description:
+          - Revoked certificate entries keyed by issuing authority name.
+          - Missing authority keys mean that no certificate is revoked for that authority.
+          - Each list item must identify one certificate by `name`, `certificate_name`,
+            `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.
+          - Names and fingerprints are resolved from the managed CA inventory; serial numbers
+            can be decimal, `0x` hex, or colon-separated hex.
+          - Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.
+          - Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`,
+            `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`,
+            and `aa_compromise`.
+          - PEM and DER CRLs are regenerated from one shared CRL object, so both formats
+            have identical CRL Number, AKI, timestamps, and revoked entries.
       ca_certificates:
         type: list
         elements: dict

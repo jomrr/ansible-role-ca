@@ -37,7 +37,6 @@ provisioner:
             default_days: 397
             crl_days: 30
             key_passphrase: "molecule-root-passphrase"
-            revocations: []
           - name: "component"
             common_name: "Example Component CA"
             parent: "root"
@@ -45,7 +44,6 @@ provisioner:
             default_days: 397
             crl_days: 30
             key_passphrase: "molecule-component-passphrase"
-            revocations: []
           - name: "network"
             common_name: "Example Network CA"
             parent: "root"
@@ -53,7 +51,6 @@ provisioner:
             default_days: 397
             crl_days: 30
             key_passphrase: "molecule-network-passphrase"
-            revocations: []
           - name: "identity"
             common_name: "Example Identity CA"
             parent: "root"
@@ -61,7 +58,11 @@ provisioner:
             default_days: 730
             crl_days: 30
             key_passphrase: "molecule-identity-passphrase"
-            revocations: []
+        ca_revocations:
+          component:
+            - name: "web01"
+              reason: "key_compromise"
+              invalidity_date: "2026-06-14T00:00:00Z"
         ca_certificates:
           - name: "web01"
             type: "tls_server"

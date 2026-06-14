@@ -14,7 +14,8 @@ The role tasks use the public modules in this order:
 
 1. `ca_authority` creates root and issuing CA certificates.
 2. `ca_chain` derives issuing CA chain files from the generated CA certificates.
-3. `ca_crl` creates CRLs for every CA.
+3. `ca_crl` resolves declared revocations and creates PEM/DER CRL exports for
+   every CA.
 4. `ca_certificate` dispatches declarative certificate entries to the built-in
    certificate profiles.
 5. `ca_pkcs12_bundle`, `ca_fullchain_bundle`, and `ca_fritzbox_bundle` create
@@ -150,3 +151,42 @@ Supported raw extension syntaxes:
 - `ASN1:FORMAT:HEX,OCTETSTRING:<hex>`
 - `DER:<hex>`
 
+## Revocation Workflow
+
+Revocations are declared with the role variable `ca_revocations`, keyed by
+issuing authority name:
+
+```yaml
+ca_revocations:
+  component:
+    - name: web01
+      reason: key_compromise
+      invalidity_date: "2026-06-14T00:00:00Z"
+  network: []
+```
+
+Missing authority keys mean that no certificate is revoked for that authority.
+Keys must match names from `ca_authorities`.
+
+The role passes the selected authority list to `ca_crl` as
+`revoked_certificates`. Revocations are resolved by `ca_crl` when CRLs are
+generated. A revocation entry can identify a certificate by:
+
+- `name`, `certificate`, or `certificate_name`
+- `fingerprint`, optionally prefixed with `sha1:` or `sha256:`
+- `sha1`
+- `sha256`
+- `serial` or `serial_number`
+
+Name and fingerprint selectors are resolved through the internal CA inventory.
+The resolved serial number is written into CRLs and revocation inventory state.
+
+Each revocation can also set:
+
+- `reason`
+- `revocation_date`
+- `invalidity_date`
+
+PEM and DER CRL files are exported from one generated CRL object, so they have
+the same CRL Number, Authority Key Identifier, timestamps, signature, and
+revoked certificate entries.

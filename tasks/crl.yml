@@ -8,17 +8,29 @@
     base_url: "{{ ca_base_url }}"
     ca_name: "{{ ca_name }}"
     name: "{{ ca_authority.name }}"
-    format: "{{ item }}"
+    formats:
+      - pem
+      - der
     key_passphrase: "{{ ca_authority.key_passphrase }}"
     common_name: "{{ ca_authority.common_name }}"
     subject: "{{ ca_subject | combine(ca_authority.subject | default({})) }}"
     next_update_days: "{{ ca_authority.crl_days }}"
-    revoked_certificates: "{{ ca_authority.revocations | default([]) }}"
+    revoked_certificates: "{{ ca_revocations.get(ca_authority.name, []) }}"
     digest: "{{ ca_authority.crl_digest | default(omit) }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop:
-    - pem
-    - der
+  register: __ca_crl_result
   no_log: true
+
+- name: "CA | Run CRL publish hook for {{ ca_authority.name }}"
+  ansible.builtin.command:
+    argv: "{{ ca_authority.crl_publish_hook.argv }}"
+  environment: "{{ ca_authority.crl_publish_hook.environment | default({}) }}"
+  changed_when: true
+  when:
+    - __ca_crl_result.changed | default(false) | bool
+    - ca_authority.crl_publish_hook is defined
+    - ca_authority.crl_publish_hook.argv is defined
+    - ca_authority.crl_publish_hook.argv | length > 0
+  no_log: "{{ ca_no_log | bool }}"

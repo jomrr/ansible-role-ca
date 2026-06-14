@@ -26,12 +26,15 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - Identity certificates for smartcard logon, S/MIME, and optional code signing
 - EAP-TLS client certificates from the Network CA
 - PEM and DER CRLs
+- Declarative certificate revocation by certificate name, fingerprint, or serial number
+- CRL Number, Authority Key Identifier, reason, and optional Invalidity Date in CRLs
 - Embedded AIA and CDP URLs
+- Optional per-authority CRL publish hooks after CRL changes
 - Optional systemd service and timer for CRL renewal
 
 ### Not Managed
 
-- Publishing or serving AIA and CDP files
+- Serving AIA and CDP files
 - Online certificate enrollment protocols
 - OCSP responder services
 - Importing certificates into applications or hardware tokens other than optional FritzBox deployment
@@ -73,6 +76,7 @@ The following variables are part of the public role interface.
 | `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for certificate and bundle jobs. |
 | `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for certificate and bundle jobs. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
+| `ca_revocations` | `dict` | `false` | root: []<br />component: []<br />network: []<br />identity: [] | Revoked certificate entries keyed by issuing authority name.<br>Missing authority keys mean that no certificate is revoked for that authority.<br>Each list item must identify one certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.<br>Names and fingerprints are resolved from the managed CA inventory; serial numbers can be decimal, `0x` hex, or colon-separated hex.<br>Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.<br>Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`, `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`, and `aa_compromise`.<br>PEM and DER CRLs are regenerated from one shared CRL object, so both formats have identical CRL Number, AKI, timestamps, and revoked entries. |
 | `ca_certificates` | `list` | `false` | [] | Certificates to manage. |
 | `ca_crl_automation_enabled` | `bool` | `false` | `False` | Manage and enable CRL renewal timer instances.<br>The role enables `<ca_name \| lower>-crl-renew@<authority>.timer` for every authority.<br>The service sources `/root/.profile` and expects `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE` environment variables, uppercased with non-alphanumeric characters replaced by underscores. |
 | `ca_crl_automation_ansible_playbook` | `str` | `false` | `ansible-playbook` | Command used by the CRL renewal service template. |
@@ -118,11 +122,15 @@ The following variables are part of the public role interface.
 - MSKDC `krb5_realm` is uppercased before encoding and becomes `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
 - MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs are converted to AD byte order for the NTDS replication extension.
 - AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
-- AIA/CDP publication is outside this role because URLs do not describe an Ansible transport target.
+- AIA/CDP serving is outside this role because URLs do not describe an Ansible transport target.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
 - Self-signed root CAs do not get a separate chain file because it would be identical to the root certificate.
+- Revocations are declared in `ca_revocations`, keyed by issuing authority name; each entry can identify a managed certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.
+- CRL PEM and DER files are exported from the same generated CRL object, so both formats share the same CRL Number, Authority Key Identifier, lastUpdate, nextUpdate, and revoked certificate entries.
+- Revocation entries support `reason`, `revocation_date`, and `invalidity_date`; `reason` is encoded as CRL Reason and `invalidity_date` as Invalidity Date.
+- Per-authority `crl_publish_hook.argv` can run a local command after CRL files changed; the hook uses `ansible.builtin.command` and does not invoke a shell.
 - CRL renewal uses instantiated systemd timers named `<ca_name | lower>-crl-renew@<authority>.timer`, for example `example-crl-renew@root.timer`.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
@@ -177,6 +185,10 @@ Creates the Root CA and the three issuing CAs without certificates.
             default_days: 397
             crl_days: 30
             key_passphrase: vaulted-component-passphrase
+            crl_publish_hook:
+              argv:
+                - /usr/local/sbin/publish-ca-crl
+                - component
           - name: network
             common_name: Example Network CA
             parent: root
@@ -191,6 +203,11 @@ Creates the Root CA and the three issuing CAs without certificates.
             default_days: 730
             crl_days: 30
             key_passphrase: vaulted-identity-passphrase
+        ca_revocations:
+          component:
+            - name: web01
+              reason: key_compromise
+              invalidity_date: "2026-06-14T00:00:00Z"
 ```
 ### Managed certificate examples
 

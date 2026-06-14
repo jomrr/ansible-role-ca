@@ -37,6 +37,18 @@
     label: "{{ ca_authority.name | default('unnamed') }}"
   no_log: true
 
+- name: "CA | Assert revocation definitions target known authorities"
+  ansible.builtin.assert:
+    that:
+      - ca_revocations is mapping
+      - >-
+        ca_revocations.keys()
+        | list
+        | difference(ca_authorities | map(attribute='name') | list)
+        | length
+        == 0
+    fail_msg: "ca_revocations keys must match managed authority names."
+
 - name: "CA | Assert managed certificate types are known"
   ansible.builtin.assert:
     that:

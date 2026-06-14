@@ -85,6 +85,7 @@
           - __ca_molecule_inventory.certificates | length == 11
           - __ca_molecule_inventory.issued_certificates | length == 11
           - __ca_molecule_inventory.crls | length == 8
+          - __ca_molecule_inventory.revocations | length == 1
           - >-
             (
               __ca_molecule_inventory.certificates
@@ -95,6 +96,18 @@
             (
               __ca_molecule_inventory.certificates
               | selectattr('name', 'equalto', 'web01')
+              | first
+            ).status.state == 'revoked'
+          - >-
+            (
+              __ca_molecule_inventory.certificates
+              | selectattr('name', 'equalto', 'web01')
+              | first
+            ).status.revocation.reason == 'key_compromise'
+          - >-
+            (
+              __ca_molecule_inventory.certificates
+              | selectattr('name', 'equalto', 'client01')
               | first
             ).status.state == 'valid'
           - >-
@@ -287,7 +300,26 @@
       register: __ca_molecule_der_crl_text
       changed_when: false
 
-    - name: "CA | Assert default CRL signature digest"
+    - name: "CA | Read CRL numbers"
+      ansible.builtin.command:
+        cmd: "{{ item }}"
+      loop:
+        - "openssl crl -in {{ ca_molecule_base }}/crl/component-ca.crl -inform DER -noout -crlnumber"
+        - "openssl crl -in {{ ca_molecule_base }}/crl/component-ca.crl.pem -noout -crlnumber"
+      register: __ca_molecule_crl_numbers
+      changed_when: false
+
+    - name: "CA | Assert CRL profile"
       ansible.builtin.assert:
         that:
           - "'Signature Algorithm: sha384WithRSAEncryption' in __ca_molecule_der_crl_text.stdout"
+          - "'X509v3 CRL Number:' in __ca_molecule_der_crl_text.stdout"
+          - "'X509v3 Authority Key Identifier:' in __ca_molecule_der_crl_text.stdout"
+          - "'Invalidity Date:' in __ca_molecule_der_crl_text.stdout"
+          - "'Key Compromise' in __ca_molecule_der_crl_text.stdout"
+          - >-
+            __ca_molecule_crl_numbers.results
+            | map(attribute='stdout')
+            | unique
+            | list
+            | length == 1

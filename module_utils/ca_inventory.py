@@ -106,6 +106,22 @@ def _parse_serial(value: Any) -> int:
     return int(text)
 
 
+def _normalize_hex(value: Any) -> str:
+    """Return uppercase hexadecimal text without separators."""
+    return SERIAL_CLEANUP_RE.sub("", str(value)).upper()
+
+
+def _split_fingerprint(value: Any) -> tuple[str, str]:
+    """Return an optional fingerprint algorithm and normalized fingerprint."""
+    text = str(value or "").strip()
+    if ":" in text:
+        prefix, payload = text.split(":", 1)
+        algorithm = prefix.replace("-", "").lower()
+        if algorithm in {"sha1", "sha256"}:
+            return algorithm, _normalize_hex(payload)
+    return "", _normalize_hex(text)
+
+
 def _name_attributes(name: x509.Name) -> list[dict[str, str]]:
     """Return a stable list of X.509 name attributes."""
     return [
@@ -342,6 +358,180 @@ def _read_collection(base_dir: str, collection: str) -> list[dict[str, Any]]:
     return records
 
 
+def _certificate_fingerprint_match(
+    record: dict[str, Any],
+    *,
+    algorithm: str,
+    fingerprint: str,
+) -> bool:
+    """Return whether a certificate record matches a normalized fingerprint."""
+    fingerprints = record.get("certificate", {}).get("fingerprints", {})
+    if algorithm:
+        return _normalize_hex(fingerprints.get(algorithm, "")) == fingerprint
+    return any(_normalize_hex(value) == fingerprint for value in fingerprints.values())
+
+
+def _current_certificate_record(
+    base_dir: str,
+    *,
+    name: str,
+) -> dict[str, Any] | None:
+    """Return the current certificate pointer for a certificate name."""
+    for record in _read_collection(base_dir, "current_certificates"):
+        if str(record.get("name")) == name:
+            return record
+    return None
+
+
+def _issued_certificate_by_pointer(
+    base_dir: str,
+    pointer: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Return the issued certificate record referenced by a current pointer."""
+    issuer = str(pointer.get("issuer", ""))
+    serial_hex = str(pointer.get("serial_number_hex", ""))
+    for record in _read_collection(base_dir, "issued_certificates"):
+        if (
+            str(record.get("issuer", "")) == issuer
+            and str(record.get("certificate", {}).get("serial_number_hex", ""))
+            == serial_hex
+        ):
+            return record
+    return None
+
+
+def _issued_certificate_by_fingerprint(
+    base_dir: str,
+    *,
+    authority: str,
+    algorithm: str,
+    fingerprint: str,
+) -> dict[str, Any]:
+    """Return one issued certificate record matching a fingerprint."""
+    matches = [
+        record
+        for record in _read_collection(base_dir, "issued_certificates")
+        if str(record.get("issuer", "")) == authority
+        and _certificate_fingerprint_match(
+            record,
+            algorithm=algorithm,
+            fingerprint=fingerprint,
+        )
+    ]
+    if not matches:
+        raise ValueError(
+            f"No issued certificate with matching fingerprint was found for {authority}"
+        )
+    if len(matches) > 1:
+        names = ", ".join(sorted(str(record.get("name", "")) for record in matches))
+        raise ValueError(
+            f"Fingerprint matches multiple certificates issued by {authority}: {names}"
+        )
+    return matches[0]
+
+
+def _revocation_field(entry: dict[str, Any], *keys: str) -> Any:
+    """Return the first non-empty revocation field from a list of aliases."""
+    for key in keys:
+        value = entry.get(key)
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _resolved_revocation_from_record(
+    entry: dict[str, Any],
+    record: dict[str, Any],
+) -> dict[str, Any]:
+    """Return a revocation entry enriched from an issued certificate record."""
+    certificate = record["certificate"]
+    result = dict(entry)
+    result["serial_number"] = certificate["serial_number"]
+    result["serial_number_hex"] = certificate["serial_number_hex"]
+    result["issuer"] = record["issuer"]
+    result["certificate_name"] = record["name"]
+    result["fingerprints"] = certificate.get("fingerprints", {})
+    return result
+
+
+def resolve_revocation_entries(
+    *,
+    base_dir: str,
+    authority: str,
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Resolve revocation entries by serial number, certificate name, or fingerprint."""
+    resolved = []
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            raise ValueError("Revocation entries must be dictionaries")
+
+        issuer = str(entry.get("issuer", entry.get("authority", authority)) or "")
+        if issuer and issuer != authority:
+            raise ValueError(
+                f"Revocation entry for authority {issuer} was passed to {authority}"
+            )
+
+        serial = _revocation_field(entry, "serial_number", "serial")
+        if serial is not None:
+            item = dict(entry)
+            item["serial_number"] = str(_parse_serial(serial))
+            resolved.append(item)
+            continue
+
+        certificate_name = _revocation_field(
+            entry,
+            "name",
+            "certificate",
+            "certificate_name",
+        )
+        if certificate_name is not None:
+            pointer = _current_certificate_record(
+                base_dir,
+                name=str(certificate_name),
+            )
+            if pointer is None:
+                raise ValueError(
+                    f"No current certificate named {certificate_name} was found"
+                )
+            if str(pointer.get("issuer", "")) != authority:
+                raise ValueError(
+                    f"Certificate {certificate_name} is issued by "
+                    f"{pointer.get('issuer')}, not {authority}"
+                )
+            record = _issued_certificate_by_pointer(base_dir, pointer)
+            if record is None:
+                raise ValueError(
+                    f"Inventory record for certificate {certificate_name} was not found"
+                )
+            resolved.append(_resolved_revocation_from_record(entry, record))
+            continue
+
+        fingerprint_value = _revocation_field(entry, "fingerprint", "sha1", "sha256")
+        if fingerprint_value is not None:
+            algorithm = ""
+            if entry.get("sha1") is not None:
+                algorithm = "sha1"
+            elif entry.get("sha256") is not None:
+                algorithm = "sha256"
+            parsed_algorithm, fingerprint = _split_fingerprint(fingerprint_value)
+            algorithm = algorithm or parsed_algorithm
+            record = _issued_certificate_by_fingerprint(
+                base_dir,
+                authority=authority,
+                algorithm=algorithm,
+                fingerprint=fingerprint,
+            )
+            resolved.append(_resolved_revocation_from_record(entry, record))
+            continue
+
+        raise ValueError(
+            "Revocation entries require one of serial_number, serial, name, "
+            "certificate, certificate_name, fingerprint, sha1, or sha256"
+        )
+    return resolved
+
+
 def record_authority_inventory(
     params: dict[str, Any],
     result: dict[str, Any],
@@ -441,6 +631,25 @@ def _crl_update(crl, name: str):
     return _utc(value)
 
 
+def _crl_number(crl) -> int | None:
+    """Return the CRL Number extension value when present."""
+    try:
+        return crl.extensions.get_extension_for_class(x509.CRLNumber).value.crl_number
+    except x509.ExtensionNotFound:
+        return None
+
+
+def _crl_authority_key_identifier(crl) -> str:
+    """Return the CRL Authority Key Identifier when present."""
+    try:
+        value = crl.extensions.get_extension_for_class(
+            x509.AuthorityKeyIdentifier
+        ).value
+    except x509.ExtensionNotFound:
+        return ""
+    return _colon_hex(value.key_identifier or b"")
+
+
 def _revoked_from_crl(crl) -> list[dict[str, Any]]:
     """Return revoked certificate metadata from a CRL object."""
     revoked = []
@@ -454,21 +663,30 @@ def _revoked_from_crl(crl) -> list[dict[str, Any]]:
         date = getattr(item, "revocation_date_utc", None)
         if date is None:
             date = _utc(item.revocation_date)
-        revoked.append(
-            {
-                "serial_number": str(item.serial_number),
-                "serial_number_hex": _serial_hex(item.serial_number),
-                "reason": reason,
-                "revocation_date": _timestamp(date),
-            }
-        )
+        record = {
+            "serial_number": str(item.serial_number),
+            "serial_number_hex": _serial_hex(item.serial_number),
+            "reason": reason,
+            "revocation_date": _timestamp(date),
+        }
+        try:
+            invalidity_ext = item.extensions.get_extension_for_class(
+                x509.InvalidityDate
+            )
+            invalidity_date = getattr(invalidity_ext.value, "invalidity_date_utc", None)
+            if invalidity_date is None:
+                invalidity_date = _utc(invalidity_ext.value.invalidity_date)
+            record["invalidity_date"] = _timestamp(invalidity_date)
+        except x509.ExtensionNotFound:
+            pass
+        revoked.append(record)
     return sorted(revoked, key=lambda entry: entry["serial_number_hex"])
 
 
 def _revocation_event(authority: str, entry: dict[str, Any]) -> dict[str, Any]:
     """Return one revocation event record from declarative input."""
     serial = _parse_serial(entry.get("serial_number", entry.get("serial")))
-    return {
+    event = {
         "record_type": "revocation",
         "schema_version": 1,
         "issuer": authority,
@@ -476,8 +694,14 @@ def _revocation_event(authority: str, entry: dict[str, Any]) -> dict[str, Any]:
         "serial_number_hex": _serial_hex(serial),
         "reason": str(entry.get("reason") or ""),
         "revocation_date": str(entry.get("revocation_date") or ""),
+        "invalidity_date": str(entry.get("invalidity_date") or ""),
         "source": "declarative",
     }
+    if entry.get("certificate_name"):
+        event["certificate_name"] = str(entry["certificate_name"])
+    if entry.get("fingerprints"):
+        event["fingerprints"] = entry["fingerprints"]
+    return event
 
 
 def record_crl_inventory(
@@ -498,6 +722,8 @@ def record_crl_inventory(
         "last_update": _crl_timestamp(_crl_update(crl, "last_update")),
         "next_update": _crl_timestamp(_crl_update(crl, "next_update")),
         "signature_algorithm": _oid_name(crl.signature_algorithm_oid),
+        "crl_number": _crl_number(crl),
+        "authority_key_identifier": _crl_authority_key_identifier(crl),
         "revoked_certificates": _revoked_from_crl(crl),
     }
     changed = _write_json(

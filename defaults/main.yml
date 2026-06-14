@@ -34,7 +34,6 @@ ca_authorities:
     default_days: 397
     crl_days: 30
     key_passphrase: ""
-    revocations: []
   - name: component
     common_name: "{{ ca_name }} Component CA"
     parent: root
@@ -42,7 +41,6 @@ ca_authorities:
     default_days: 397
     crl_days: 30
     key_passphrase: ""
-    revocations: []
   - name: network
     common_name: "{{ ca_name }} Network CA"
     parent: root
@@ -50,7 +48,6 @@ ca_authorities:
     default_days: 397
     crl_days: 30
     key_passphrase: ""
-    revocations: []
   - name: identity
     common_name: "{{ ca_name }} Identity CA"
     parent: root
@@ -58,7 +55,13 @@ ca_authorities:
     default_days: 730
     crl_days: 30
     key_passphrase: ""
-    revocations: []
+
+# Revocations are keyed by issuing authority name.
+ca_revocations:
+  root: []
+  component: []
+  network: []
+  identity: []
 
 # List of managed certificates.
 ca_certificates: []

@@ -19,7 +19,8 @@ users to call a separate inventory module.
 | --- | --- |
 | `record_authority_inventory(params, result)` | Records one authority certificate and derived artifact paths. |
 | `record_certificate_inventory(params, model, result)` | Records one issued certificate and updates its current pointer. |
-| `record_crl_inventory(params, crl)` | Records one CRL and declarative revocation events. |
+| `record_crl_inventory(params, crl)` | Records one CRL format and declarative revocation events. |
+| `resolve_revocation_entries(base_dir, authority, entries)` | Resolves revocation entries by serial, certificate name, or fingerprint. |
 | `compose_inventory(base_dir, ca_name, base_url)` | Builds the complete inventory dictionary from fragments. |
 | `write_composed_inventory(base_dir, ca_name, base_url, owner, group, mode="0644", force=False)` | Writes `<base_dir>/inventory/ca-inventory.json`. |
 | `compose_inventory_if_configured(params)` | Writes composed inventory when `params.ca_name` is non-empty. |
@@ -60,6 +61,16 @@ Revocation state is represented by declarative revocation event fragments keyed
 by issuer and serial number. When the same issuer and serial appear in CRL
 input, the composed issued certificate status becomes `revoked`.
 
+Revocation entries can be resolved from:
+
+- direct serials through `serial` or `serial_number`
+- current managed certificate names through `name`, `certificate`, or
+  `certificate_name`
+- fingerprints through `fingerprint`, `sha1`, or `sha256`
+
+Resolved revocation events can include `reason`, `revocation_date`,
+`invalidity_date`, certificate name, and public fingerprints.
+
 ## Defaults And Safety
 
 | Setting | Value |
@@ -69,6 +80,7 @@ input, the composed issued certificate status becomes `revoked`.
 | Composed inventory mode | `0644` |
 | Secret storage | none |
 | Fingerprints | `sha1`, `sha256` |
+| Revocation selectors | serial, current certificate name, SHA-1 fingerprint, SHA-256 fingerprint |
 
 The inventory does not store private keys, passphrases, PKCS#12 passphrases, or
 FRITZ!OS credentials. It stores certificate metadata, public fingerprints,
@@ -86,4 +98,3 @@ inventory_changed = compose_inventory_if_configured(params) or inventory_changed
 - `ca_authority`
 - `ca_certificate`
 - `ca_crl`
-
