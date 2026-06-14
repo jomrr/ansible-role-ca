@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Manage an end-entity certificate signed by an issuing CA."""
+"""Manage a certificate signed by an issuing CA."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ PROFILE_DEFAULTS = {
 
 
 def run_module():
-    """Run the Ansible module for standard end-entity certificates."""
+    """Run the Ansible module for standard certificates."""
     spec = x509_certificate_argument_spec()
     spec["profile"] = {
         "type": "str",

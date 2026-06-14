@@ -7,7 +7,7 @@ Ansible role for managing a two-tier private CA with certificate issuance, CRLs,
 ## Purpose
 
 This role manages a private two-tier PKI with a Root CA and Component, Network, and Identity issuing CAs.
-It creates CA keys, CSRs, certificates, chains, DER exports, CRLs, and managed end-entity certificates from inventory variables.
+It creates CA keys, CSRs, certificates, chains, DER exports, CRLs, and managed certificates from inventory variables.
 
 ## Scope
 
@@ -16,7 +16,7 @@ It creates CA keys, CSRs, certificates, chains, DER exports, CRLs, and managed e
 - Root CA and Component, Network, and Identity issuing CAs
 - PEM and DER exports for all CA certificates
 - CA chain files
-- Declarative end-entity certificates in `ca_certificates`
+- Declarative certificates in `ca_certificates`
 - TLS server and TLS client certificates from the Component CA
 - Samba AD Domain Controller/MSKDC certificates from the Component CA
 - FritzBox import bundles from the Component CA
@@ -64,11 +64,11 @@ The following variables are part of the public role interface.
 | `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: Yourdomain SE<br />organizational_unit: Yourdomain Certificate Authority | Default X.509 subject attributes added before the certificate common name. |
 | `ca_default_bits` | `int` | `false` | `4096` | DH parameter size when `ca_create_dhparams=true`. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
-| `ca_certificate_async_timeout` | `int` | `false` | `600` | Async timeout in seconds for end-entity certificate and bundle jobs. |
-| `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for end-entity certificate and bundle jobs. |
-| `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for end-entity certificate and bundle jobs. |
+| `ca_certificate_async_timeout` | `int` | `false` | `600` | Async timeout in seconds for certificate and bundle jobs. |
+| `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for certificate and bundle jobs. |
+| `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for certificate and bundle jobs. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
-| `ca_certificates` | `list` | `false` | [] | End-entity certificates to manage. |
+| `ca_certificates` | `list` | `false` | [] | Certificates to manage. |
 | `ca_crl_automation_enabled` | `bool` | `false` | `False` | Manage and enable the CRL renewal timer. |
 | `ca_crl_automation_ansible_playbook` | `str` | `false` | `ansible-playbook` | Command used by the CRL renewal service. |
 | `ca_crl_automation_on_calendar` | `str` | `false` | `daily` | systemd timer OnCalendar value. |
@@ -96,7 +96,7 @@ The following variables are part of the public role interface.
 
 - CA private keys are passphrase-protected and their passphrases are supplied by inventory variables.
 - Generated CA passphrase files and private keys are mode `0600`.
-- End-entity private key passphrases are optional except for formats that require export passwords, such as PFX/PKCS#12.
+- Certificate private key passphrases are optional except for formats that require export passwords, such as PFX/PKCS#12.
 - FritzBox bundles are mode `0600` because they include the private key, certificate, and issuing chain.
 - MSKDC certificates include `digitalSignature`, `serverAuth`, `clientAuth`, and KDC Authentication EKU `1.3.6.1.5.2.3.5` (OpenSSL renders it as `Signing KDC Response`); the Microsoft template-name extension is emitted as `1.3.6.1.4.1.311.20.2 = ASN1:BMPSTRING:DomainController`.
 - MSKDC certificates include a PKINIT SAN `otherName:1.3.6.1.5.2.2` containing the DER-encoded `KRB5PrincipalName` for `krbtgt/<REALM>@<REALM>`.
@@ -113,7 +113,7 @@ The following variables are part of the public role interface.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
-- Default end-entity certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
+- Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - FritzBox bundles are assembled in the default order `private_key`, `certificate`, `chain`.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
@@ -132,7 +132,7 @@ The following variables are part of the public role interface.
 
 ### Minimal two-tier PKI
 
-Creates the Root CA and the three issuing CAs without end-entity certificates.
+Creates the Root CA and the three issuing CAs without certificates.
 
 ```yaml
 ---

@@ -2,7 +2,7 @@
 # role: ansible-role-ca
 # file: tasks/certificates.yml
 
-- name: "CA | Resolve end-entity certificate models"
+- name: "CA | Resolve certificate models"
   ansible.builtin.set_fact:
     __ca_certificate_models: >-
       {{
@@ -21,7 +21,7 @@
       or (ca_certificates | selectattr('pfx_passphrase', 'defined') | list | length > 0)
     }}
 
-- name: "CA | Start standard end-entity certificate material jobs"
+- name: "CA | Start standard certificate material jobs"
   x509_cert:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
@@ -129,7 +129,7 @@
   register: __ca_certificate_fritzbox_cert_jobs
   no_log: true
 
-- name: "CA | Wait for end-entity certificate material jobs"
+- name: "CA | Wait for certificate material jobs"
   ansible.builtin.async_status:
     jid: "{{ ca_certificate_job.ansible_job_id }}"
   loop: >-

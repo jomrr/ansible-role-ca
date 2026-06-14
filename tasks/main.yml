@@ -64,7 +64,7 @@
   ansible.builtin.import_tasks: authorities.yml
   tags: authorities
 
-- name: "CA | Manage end-entity certificates"
+- name: "CA | Manage certificates"
   ansible.builtin.import_tasks: certificates.yml
   when: ca_certificates | length > 0
   tags: create

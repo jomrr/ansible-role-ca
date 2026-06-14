@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Manage a FritzBox end-entity certificate signed by an issuing CA."""
+"""Manage a FritzBox certificate signed by an issuing CA."""
 
 from __future__ import annotations
 

@@ -59,7 +59,7 @@ ca_authorities:
     key_passphrase: ""
     revocations: []
 
-# List of managed end-entity certificates.
+# List of managed certificates.
 ca_certificates: []
 
 ca_crl_automation_enabled: false

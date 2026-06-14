@@ -7,8 +7,8 @@ argument_specs:
     short_description: Manage a two-tier private certificate authority.
     description:
       - Creates and manages a Root CA plus Component, Network, and Identity issuing CAs.
-      - Issues declared end-entity certificates, CRLs, embeds AIA/CDP URLs, and optionally
-        manages CRL renewal automation.
+      - Issues declared certificates, CRLs, embeds AIA/CDP URLs, and optionally manages
+        CRL renewal automation.
       - Built-in CA topology, certificate profiles, and FritzBox bundle order are role vars;
         validity periods are the intended override points.
     options:
@@ -98,19 +98,18 @@ argument_specs:
         type: int
         required: false
         default: 600
-        description: Async timeout in seconds for end-entity certificate and bundle jobs.
+        description: Async timeout in seconds for certificate and bundle jobs.
       ca_certificate_async_retries:
         type: int
         required: false
         default: 600
-        description: Number of async status retries for end-entity certificate and bundle
-          jobs.
+        description: Number of async status retries for certificate and bundle jobs.
       ca_certificate_async_delay:
         type: int
         required: false
         default: 1
-        description: Delay in seconds between async status checks for end-entity certificate
-          and bundle jobs.
+        description: Delay in seconds between async status checks for certificate and bundle
+          jobs.
       ca_authorities:
         type: list
         elements: dict
@@ -152,8 +151,7 @@ argument_specs:
           default_days:
             type: int
             required: true
-            description: Default validity in days for end-entity certificates issued by
-              this authority.
+            description: Default validity in days for certificates issued by this authority.
           crl_days:
             type: int
             required: true
@@ -177,7 +175,7 @@ argument_specs:
         elements: dict
         required: false
         default: []
-        description: End-entity certificates to manage.
+        description: Certificates to manage.
         options:
           name:
             type: str
@@ -244,7 +242,7 @@ argument_specs:
           key_passphrase:
             type: str
             required: false
-            description: Optional private key passphrase for the end-entity key.
+            description: Optional private key passphrase for the certificate key.
           pfx_passphrase:
             type: str
             required: false

@@ -832,7 +832,7 @@ def _ensure_der(params, cert):
 
 
 def _ensure_chain(params):
-    """Ensure the optional end-entity chain copy exists."""
+    """Ensure the optional certificate chain copy exists."""
     if not params["chain_src_path"] or not params["chain_path"]:
         return False
     content = read_file(params["chain_src_path"])
@@ -1025,7 +1025,7 @@ def x509_argument_spec(
 
 
 def x509_certificate_argument_spec(*, defaults: dict | None = None):
-    """Build the argument spec for end-entity certificate modules."""
+    """Build the argument spec for certificate modules."""
     spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
         "base_url": {"type": "str"},
