@@ -25,5 +25,5 @@
   loop_control:
     loop_var: ca_authority
     label: "{{ ca_authority.name }}"
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
   tags: init-passphrases

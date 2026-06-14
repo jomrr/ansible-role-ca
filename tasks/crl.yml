@@ -17,4 +17,4 @@
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
   loop: "{{ ca_crl.formats | default(['pem', 'der']) | map('lower') | list }}"
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true

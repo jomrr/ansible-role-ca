@@ -8,6 +8,7 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
     CRYPTOGRAPHY_IMPORT_ERROR,
     apply_profile_defaults,
     ensure_x509,
+    sanitize_error,
     x509_certificate_argument_spec,
     x509_certificate_params,
 )
@@ -44,7 +45,7 @@ def run_module():
             params, signed=True, manage_directory=True, manage_chain=True
         )
     except Exception as exc:
-        module.fail_json(msg=str(exc))
+        module.fail_json(msg=sanitize_error(exc, module.params))
 
     module.exit_json(**result)
 

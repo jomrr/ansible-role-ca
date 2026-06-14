@@ -16,6 +16,12 @@
           ca_subject
         )
       }}
+  no_log: >-
+    {{
+      ca_no_log | bool
+      or (ca_certificates | selectattr('key_passphrase', 'defined') | list | length > 0)
+      or (ca_certificates | selectattr('pfx_passphrase', 'defined') | list | length > 0)
+    }}
 
 - name: "CA | Start standard end-entity certificate material jobs"
   x509_cert:
@@ -58,7 +64,7 @@
   poll: 0
   changed_when: false
   register: __ca_certificate_standard_jobs
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Start identity certificate material jobs"
   x509_identity:
@@ -97,7 +103,7 @@
   poll: 0
   changed_when: false
   register: __ca_certificate_identity_jobs
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Start MSKDC certificate material jobs"
   x509_mskdc:
@@ -133,7 +139,7 @@
   poll: 0
   changed_when: false
   register: __ca_certificate_mskdc_jobs
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Start FritzBox certificate material jobs"
   x509_fritzbox:
@@ -167,7 +173,7 @@
   poll: 0
   changed_when: false
   register: __ca_certificate_fritzbox_cert_jobs
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Wait for end-entity certificate material jobs"
   ansible.builtin.async_status:
@@ -192,7 +198,7 @@
   delay: "{{ ca_certificate_async_delay }}"
   changed_when: __ca_certificate_material_status.changed | default(false)
   failed_when: __ca_certificate_material_status.failed | default(false)
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Start PKCS#12 bundle jobs"
   ca_pkcs12:
@@ -219,7 +225,7 @@
   poll: 0
   changed_when: false
   register: __ca_certificate_pfx_jobs
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Start FritzBox bundle jobs"
   ca_pem_bundle:
@@ -239,7 +245,12 @@
   poll: 0
   changed_when: false
   register: __ca_certificate_fritzbox_jobs
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: >-
+    {{
+      ca_no_log | bool
+      or ca_certificate.key_passphrase is defined
+      or ca_certificate.pfx_passphrase is defined
+    }}
 
 - name: "CA | Wait for PKCS#12 bundle jobs"
   ansible.builtin.async_status:
@@ -260,7 +271,7 @@
   delay: "{{ ca_certificate_async_delay }}"
   changed_when: __ca_certificate_pfx_status.changed | default(false)
   failed_when: __ca_certificate_pfx_status.failed | default(false)
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Wait for FritzBox bundle jobs"
   ansible.builtin.async_status:
@@ -281,4 +292,4 @@
   delay: "{{ ca_certificate_async_delay }}"
   changed_when: __ca_certificate_fritzbox_status.changed | default(false)
   failed_when: __ca_certificate_fritzbox_status.failed | default(false)
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true

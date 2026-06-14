@@ -22,7 +22,7 @@
         group: "{{ ca_group }}"
         force: "{{ ca_force_reissue | bool }}"
       when: __ca_authority_parent == ca_authority.name
-      no_log: "{{ ca_no_log | bool }}"
+      no_log: true
 
     - name: "CA | Manage issuing authority material for {{ ca_authority.name }}"
       ca_issuing:
@@ -40,7 +40,7 @@
         group: "{{ ca_group }}"
         force: "{{ ca_force_reissue | bool }}"
       when: __ca_authority_parent != ca_authority.name
-      no_log: "{{ ca_no_log | bool }}"
+      no_log: true
 
     - name: "CA | Manage authority chain for {{ ca_authority.name }}"
       x509_chain:

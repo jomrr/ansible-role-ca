@@ -7,6 +7,7 @@ from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-
 from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
     ensure_x509,
+    sanitize_error,
     x509_argument_spec,
 )
 
@@ -31,7 +32,7 @@ def run_module():
     try:
         result = ensure_x509(module.params, signed=False, authority=True)
     except Exception as exc:
-        module.fail_json(msg=str(exc))
+        module.fail_json(msg=sanitize_error(exc, module.params))
 
     module.exit_json(**result)
 

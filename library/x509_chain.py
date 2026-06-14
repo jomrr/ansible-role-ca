@@ -4,10 +4,9 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
@@ -26,7 +25,7 @@ PEM_CERT_RE = re.compile(
 
 
 def _load_certificates(path: str):
-    data = Path(path).read_bytes()
+    data = read_file(path)
     pem_blocks = PEM_CERT_RE.findall(data)
     if pem_blocks:
         return [x509.load_pem_x509_certificate(block) for block in pem_blocks]
@@ -87,7 +86,7 @@ def run_module():
             force=params["force"],
         )
     except Exception as exc:
-        module.fail_json(msg=str(exc))
+        module.fail_json(msg=sanitize_error(exc, module.params))
 
     module.exit_json(changed=changed, path=path)
 

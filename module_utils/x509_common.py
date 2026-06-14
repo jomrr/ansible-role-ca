@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import datetime as _dt
 import ipaddress
-import os
 import re
 from pathlib import Path
 from typing import Any
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
-    from ansible.module_utils.ca_file import set_attrs, write_file  # type: ignore[import-not-found,import-untyped]
+    from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+        read_file,
+        sanitize_error,
+        set_attrs,
+        write_file,
+    )
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -24,6 +28,16 @@ except Exception as exc:  # pragma: no cover - handled at runtime by Ansible
     CRYPTOGRAPHY_IMPORT_ERROR = exc
 else:
     CRYPTOGRAPHY_IMPORT_ERROR = None
+
+__all__ = [
+    "CRYPTOGRAPHY_IMPORT_ERROR",
+    "apply_profile_defaults",
+    "ensure_x509",
+    "sanitize_error",
+    "x509_argument_spec",
+    "x509_certificate_argument_spec",
+    "x509_certificate_params",
+]
 
 
 NAME_OIDS = {
@@ -131,11 +145,10 @@ def _ensure_directory(path: str | None, owner, group, mode) -> bool:
 
 
 def _load_private_key(path: str, passphrase: str | None):
-    with open(path, "rb") as handle:
-        return serialization.load_pem_private_key(
-            handle.read(),
-            password=passphrase.encode() if passphrase else None,
-        )
+    return serialization.load_pem_private_key(
+        read_file(path),
+        password=passphrase.encode() if passphrase else None,
+    )
 
 
 def _private_key_pem(key, passphrase: str | None) -> bytes:
@@ -173,13 +186,11 @@ def _csr_public_key_bytes(csr) -> bytes:
 
 
 def _load_csr(path: str):
-    with open(path, "rb") as handle:
-        return x509.load_pem_x509_csr(handle.read())
+    return x509.load_pem_x509_csr(read_file(path))
 
 
 def _load_certificate(path: str):
-    with open(path, "rb") as handle:
-        data = handle.read()
+    data = read_file(path)
     try:
         return x509.load_pem_x509_certificate(data)
     except ValueError:
@@ -542,7 +553,7 @@ def _ensure_key(params):
     changed = False
     if params["key_type"].upper() != "RSA":
         raise ValueError("CA X.509 modules currently support RSA private keys")
-    if os.path.exists(params["key_path"]) and not params["force"]:
+    if not params["force"]:
         try:
             key = _load_private_key(params["key_path"], params["key_passphrase"])
         except Exception:
@@ -584,7 +595,7 @@ def _ensure_csr(params, key, subject, csr_extensions):
     builder = x509.CertificateSigningRequestBuilder().subject_name(subject)
     builder = _add_extensions(builder, csr_extensions)
     csr = builder.sign(key, _digest(params["digest"]))
-    changed = params["force"] or not os.path.exists(params["csr_path"])
+    changed = params["force"]
     if not changed:
         try:
             existing = _load_csr(params["csr_path"])
@@ -598,7 +609,7 @@ def _ensure_csr(params, key, subject, csr_extensions):
     content = (
         csr.public_bytes(serialization.Encoding.PEM)
         if changed
-        else Path(params["csr_path"]).read_bytes()
+        else read_file(params["csr_path"])
     )
     changed = (
         write_file(
@@ -628,7 +639,7 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
     builder = _add_extensions(builder, cert_extensions)
     cert = builder.sign(private_key=signer_key, algorithm=_digest(params["digest"]))
 
-    changed = params["force"] or not os.path.exists(params["cert_path"])
+    changed = params["force"]
     if not changed:
         try:
             existing = _load_certificate(params["cert_path"])
@@ -648,7 +659,7 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
     if changed:
         content = cert.public_bytes(serialization.Encoding.PEM)
     else:
-        content = Path(params["cert_path"]).read_bytes()
+        content = read_file(params["cert_path"])
         cert = _load_certificate(params["cert_path"])
 
     changed = (
@@ -679,8 +690,7 @@ def _ensure_der(params, cert):
 def _ensure_chain(params):
     if not params["chain_src_path"] or not params["chain_path"]:
         return False
-    with open(params["chain_src_path"], "rb") as handle:
-        content = handle.read()
+    content = read_file(params["chain_src_path"])
     return write_file(
         params["chain_path"],
         content,

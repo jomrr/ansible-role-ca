@@ -21,5 +21,6 @@
         digest: "{{ ca_authority.crl_digest | default(ca_default_md) }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
+      no_log: true
 {% endfor %}
 {% endfor %}

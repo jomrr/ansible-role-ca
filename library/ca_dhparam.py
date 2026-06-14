@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import set_attrs, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+    read_file,
+    sanitize_error,
+    set_attrs,
+    write_file,
+)
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
@@ -21,7 +23,7 @@ else:
 
 def _existing_size(path: str):
     try:
-        parameters = serialization.load_pem_parameters(Path(path).read_bytes())
+        parameters = serialization.load_pem_parameters(read_file(path))
         return parameters.parameter_numbers().p.bit_length()
     except Exception:
         return None
@@ -49,11 +51,7 @@ def run_module():
     params = module.params
     path = params["path"] or f"{params['base_dir'].rstrip('/')}/dhparams.pem"
     try:
-        changed = (
-            params["force"]
-            or not os.path.exists(path)
-            or _existing_size(path) != params["size"]
-        )
+        changed = params["force"] or _existing_size(path) != params["size"]
         if changed:
             parameters = dh.generate_parameters(generator=2, key_size=params["size"])
             content = parameters.parameter_bytes(
@@ -74,7 +72,7 @@ def run_module():
                 or changed
             )
     except Exception as exc:
-        module.fail_json(msg=str(exc))
+        module.fail_json(msg=sanitize_error(exc, module.params))
     module.exit_json(changed=changed, path=path)
 
 

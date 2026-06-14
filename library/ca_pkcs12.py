@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import set_attrs, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+    read_file,
+    sanitize_error,
+    set_attrs,
+    write_file,
+)
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
@@ -22,13 +24,13 @@ else:
 
 def _load_key(path: str, passphrase: str | None):
     return serialization.load_pem_private_key(
-        Path(path).read_bytes(),
+        read_file(path),
         password=passphrase.encode() if passphrase else None,
     )
 
 
 def _load_certificates(path: str):
-    data = Path(path).read_bytes()
+    data = read_file(path)
     certs = []
     marker = b"-----END CERTIFICATE-----"
     if marker in data:
@@ -58,7 +60,7 @@ def _cert_fingerprint(cert):
 def _existing_matches(path, passphrase, key, cert, extra_certs):
     try:
         existing_key, existing_cert, existing_extra = pkcs12.load_key_and_certificates(
-            Path(path).read_bytes(),
+            read_file(path),
             passphrase.encode() if passphrase else None,
         )
     except Exception:
@@ -119,7 +121,7 @@ def run_module():
         key = _load_key(paths["key"], params["key_passphrase"])
         cert = _load_certificates(paths["cert"])[0]
         extra_certs = _load_certificates(paths["chain"])
-        changed = params["force"] or not os.path.exists(paths["path"])
+        changed = params["force"]
         if not changed:
             changed = not _existing_matches(
                 paths["path"], params["passphrase"], key, cert, extra_certs
@@ -147,7 +149,7 @@ def run_module():
                 paths["path"], params["owner"], params["group"], params["mode"]
             )
     except Exception as exc:
-        module.fail_json(msg=str(exc))
+        module.fail_json(msg=sanitize_error(exc, module.params))
     module.exit_json(changed=changed, path=paths["path"])
 
 

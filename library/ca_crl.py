@@ -4,13 +4,11 @@
 from __future__ import annotations
 
 import datetime as _dt
-import os
 import re
-from pathlib import Path
 from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
@@ -104,13 +102,13 @@ def _subject_from_params(params: dict) -> x509.Name:
 
 def _load_key(path: str, passphrase: str | None):
     return serialization.load_pem_private_key(
-        Path(path).read_bytes(),
+        read_file(path),
         password=passphrase.encode() if passphrase else None,
     )
 
 
 def _load_crl(path: str):
-    data = Path(path).read_bytes()
+    data = read_file(path)
     try:
         return x509.load_pem_x509_crl(data)
     except ValueError:
@@ -231,7 +229,7 @@ def run_module():
     try:
         params["privatekey_passphrase"] = params["key_passphrase"]
         crl = _build_crl(params)
-        changed = params["force"] or not os.path.exists(params["path"])
+        changed = params["force"]
         if not changed:
             try:
                 existing = _load_crl(params["path"])
@@ -247,9 +245,7 @@ def run_module():
             if params["format"] == "der"
             else serialization.Encoding.PEM
         )
-        content = (
-            crl.public_bytes(encoding) if changed else Path(params["path"]).read_bytes()
-        )
+        content = crl.public_bytes(encoding) if changed else read_file(params["path"])
         changed = (
             write_file(
                 params["path"],
@@ -261,7 +257,7 @@ def run_module():
             or changed
         )
     except Exception as exc:
-        module.fail_json(msg=str(exc))
+        module.fail_json(msg=sanitize_error(exc, module.params))
     module.exit_json(changed=changed)
 
 

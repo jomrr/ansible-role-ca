@@ -4,15 +4,13 @@
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
 
 
 def _read_sources(sources: list[str]) -> bytes:
     parts = []
     for source in sources:
-        with open(source, "rb") as handle:
-            content = handle.read().rstrip() + b"\n"
-        parts.append(content)
+        parts.append(read_file(source).rstrip() + b"\n")
     return b"".join(parts)
 
 
@@ -65,7 +63,7 @@ def run_module():
             force=params["force"],
         )
     except Exception as exc:
-        module.fail_json(msg=str(exc))
+        module.fail_json(msg=sanitize_error(exc, module.params))
 
     module.exit_json(changed=changed, path=path)
 

@@ -34,7 +34,7 @@
   loop_control:
     loop_var: ca_authority
     label: "{{ ca_authority.name | default('unnamed') }}"
-  no_log: "{{ ca_no_log | bool }}"
+  no_log: true
 
 - name: "CA | Assert managed certificate types are known"
   ansible.builtin.assert:
@@ -48,6 +48,12 @@
   loop_control:
     loop_var: ca_certificate
     label: "{{ ca_certificate.name | default('unnamed') }}"
+  no_log: >-
+    {{
+      ca_no_log | bool
+      or ca_certificate.key_passphrase is defined
+      or ca_certificate.pfx_passphrase is defined
+    }}
 
 - name: "CA | Initialize filesystem layout"
   ansible.builtin.import_tasks: init.yml
