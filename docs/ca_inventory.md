@@ -13,17 +13,21 @@ issued, what is current, what was revoked, and where generated artifacts live.
 It is intentionally managed through hooks in public modules instead of requiring
 users to call a separate inventory module.
 
-## Public Helpers
+## Transactional Hooks
 
 | Helper | Purpose |
 | --- | --- |
-| `record_authority_inventory(params, result)` | Records one authority certificate and derived artifact paths. |
-| `record_certificate_inventory(params, model, result)` | Records one issued certificate and updates its current pointer. |
-| `record_crl_inventory(params, crl)` | Records one CRL format and declarative revocation events. |
+| `update_authority_inventory(params, result)` | Records one authority certificate and derived artifact paths, then composes the inventory under one state lock. |
+| `update_certificate_inventory(params, model, result)` | Records one issued certificate and its current pointer, then composes the inventory under one state lock. |
+| `update_crl_inventory(params, crl)` | Records all exported CRL formats and declarative revocation events, then composes the inventory under one state lock. |
 | `resolve_revocation_entries(base_dir, authority, entries)` | Resolves revocation entries by serial, certificate name, or fingerprint. |
 | `compose_inventory(base_dir, ca_name, base_url)` | Builds the complete inventory dictionary from fragments. |
 | `write_composed_inventory(base_dir, ca_name, base_url, owner, group, mode="0644", force=False)` | Writes `<base_dir>/inventory/ca-inventory.json`. |
 | `compose_inventory_if_configured(params)` | Writes composed inventory when `params.ca_name` is non-empty. |
+
+The `record_*_inventory` helpers are intentionally low-level fragment writers.
+Public modules use the `update_*_inventory` hooks so related fragments and the
+composed inventory are updated in one inventory transaction.
 
 ## Stored Files
 
@@ -102,11 +106,14 @@ FRITZ!OS credentials. It stores certificate metadata, public fingerprints,
 serial numbers, validity timestamps, selected extensions, renewal policy and
 status, and generated paths.
 
+All inventory reads and writes that compose or mutate state use a shared
+inventory state lock. Certificate issuance therefore updates the issued record,
+current pointer, and composed `ca-inventory.json` in one critical section.
+
 ## Internal Example
 
 ```python
-inventory_changed = record_certificate_inventory(params, model, result)
-inventory_changed = compose_inventory_if_configured(params) or inventory_changed
+inventory_changed = update_certificate_inventory(params, model, result)
 ```
 
 ## Used By

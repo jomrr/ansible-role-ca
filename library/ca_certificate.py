@@ -8,8 +8,7 @@ from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
-    compose_inventory_if_configured,
-    record_certificate_inventory,
+    update_certificate_inventory,
 )
 from ansible.module_utils.ca_profiles import (  # type: ignore[import-not-found,import-untyped]
     CERTIFICATE_DEFAULT_FORMATS,
@@ -234,8 +233,7 @@ def run_module():
         ]
         result["fullchain_bundle"] = "fullchain" in formats
         result["fritzbox_bundle"] = "fritzbox" in formats
-        inventory_changed = record_certificate_inventory(params, model, result)
-        inventory_changed = compose_inventory_if_configured(params) or inventory_changed
+        inventory_changed = update_certificate_inventory(params, model, result)
         result["inventory_changed"] = inventory_changed
         result["changed"] = result["changed"] or inventory_changed
     except Exception as exc:

@@ -87,7 +87,9 @@ mix certificate and key material across concurrent authority renewal. Authority
 writes and CA chain generation also use an authority graph lock, so chain files
 are built from a consistent CA graph. FritzBox deployments use a per-target URL
 lock, so async deploy jobs cannot upload different certificates to the same
-device concurrently.
+device concurrently. Inventory state updates use a shared inventory lock, so
+fragment writes and composed inventory writes are committed in one critical
+section.
 
 Secret-looking values are masked from module error messages. Parameters marked
 as secret in the argument spec also use `no_log: true`.

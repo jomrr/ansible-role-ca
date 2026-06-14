@@ -39,6 +39,11 @@ def _inventory_path(base_dir: str) -> str:
     return f"{str(base_dir).rstrip('/')}/inventory/ca-inventory.json"
 
 
+def _inventory_lock_path(base_dir: str) -> str:
+    """Return the shared lock path for inventory state transactions."""
+    return ca_lock_path(base_dir, "inventory", "state")
+
+
 def _record_path(base_dir: str, *parts: str) -> str:
     """Return a JSON state fragment path below the inventory state directory."""
     safe_parts = [safe_path_component(part) for part in parts]
@@ -525,13 +530,13 @@ def _resolved_revocation_from_record(
     return result
 
 
-def resolve_revocation_entries(
+def _resolve_revocation_entries_unlocked(
     *,
     base_dir: str,
     authority: str,
     entries: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Resolve revocation entries by serial number, certificate name, or fingerprint."""
+    """Resolve revocation entries while the inventory state lock is held."""
     resolved = []
     for entry in entries or []:
         if not isinstance(entry, dict):
@@ -603,6 +608,21 @@ def resolve_revocation_entries(
     return resolved
 
 
+def resolve_revocation_entries(
+    *,
+    base_dir: str,
+    authority: str,
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Resolve revocation entries by serial number, certificate name, or fingerprint."""
+    with file_lock(_inventory_lock_path(base_dir)):
+        return _resolve_revocation_entries_unlocked(
+            base_dir=base_dir,
+            authority=authority,
+            entries=entries,
+        )
+
+
 def record_authority_inventory(
     params: dict[str, Any],
     result: dict[str, Any],
@@ -632,7 +652,12 @@ def record_authority_inventory(
         "paths": paths,
     }
     changed = _write_json(
-        _record_path(base_dir, "authorities", name),
+        _record_path(
+            base_dir,
+            "authority_certificates",
+            name,
+            certificate["serial_number_hex"],
+        ),
         record,
         params.get("owner"),
         params.get("group"),
@@ -640,12 +665,7 @@ def record_authority_inventory(
     )
     return (
         _write_json(
-            _record_path(
-                base_dir,
-                "authority_certificates",
-                name,
-                certificate["serial_number_hex"],
-            ),
+            _record_path(base_dir, "authorities", name),
             record,
             params.get("owner"),
             params.get("group"),
@@ -653,6 +673,17 @@ def record_authority_inventory(
         )
         or changed
     )
+
+
+def update_authority_inventory(
+    params: dict[str, Any],
+    result: dict[str, Any],
+) -> bool:
+    """Record authority fragments and compose inventory in one transaction."""
+    base_dir = str(params["base_dir"]).rstrip("/")
+    with file_lock(_inventory_lock_path(base_dir)):
+        changed = record_authority_inventory(params, result)
+        return _compose_inventory_if_configured_unlocked(params) or changed
 
 
 def record_certificate_inventory(
@@ -706,6 +737,18 @@ def record_certificate_inventory(
         )
         or changed
     )
+
+
+def update_certificate_inventory(
+    params: dict[str, Any],
+    model: dict[str, Any],
+    result: dict[str, Any],
+) -> bool:
+    """Record certificate fragments and compose inventory in one transaction."""
+    base_dir = str(params["base_dir"]).rstrip("/")
+    with file_lock(_inventory_lock_path(base_dir)):
+        changed = record_certificate_inventory(params, model, result)
+        return _compose_inventory_if_configured_unlocked(params) or changed
 
 
 def _crl_timestamp(value: _dt.datetime) -> str:
@@ -845,6 +888,22 @@ def record_crl_inventory(
     return changed
 
 
+def update_crl_inventory(
+    params: dict[str, Any],
+    crl,
+) -> bool:
+    """Record CRL fragments and compose inventory in one transaction."""
+    base_dir = str(params["base_dir"]).rstrip("/")
+    with file_lock(_inventory_lock_path(base_dir)):
+        changed = False
+        for crl_format, path in params["paths"].items():
+            crl_params = dict(params)
+            crl_params["format"] = crl_format
+            crl_params["path"] = path
+            changed = record_crl_inventory(crl_params, crl) or changed
+        return _compose_inventory_if_configured_unlocked(params) or changed
+
+
 def _revocation_map(revocations: list[dict[str, Any]]) -> dict[tuple[str, str], dict]:
     """Return revocation events keyed by issuer and serial hex."""
     result = {}
@@ -894,13 +953,13 @@ def _with_status(
     return result
 
 
-def compose_inventory(
+def _compose_inventory_unlocked(
     *,
     base_dir: str,
     ca_name: str,
     base_url: str,
 ) -> dict[str, Any]:
-    """Compose inventory JSON from internal state fragments."""
+    """Compose inventory JSON while the state lock is held."""
     authorities = sorted(
         _read_collection(base_dir, "authorities"),
         key=lambda record: str(record.get("name", "")),
@@ -957,6 +1016,21 @@ def compose_inventory(
     }
 
 
+def compose_inventory(
+    *,
+    base_dir: str,
+    ca_name: str,
+    base_url: str,
+) -> dict[str, Any]:
+    """Compose inventory JSON from internal state fragments."""
+    with file_lock(_inventory_lock_path(base_dir)):
+        return _compose_inventory_unlocked(
+            base_dir=base_dir,
+            ca_name=ca_name,
+            base_url=base_url,
+        )
+
+
 def write_composed_inventory(
     *,
     base_dir: str,
@@ -967,32 +1041,64 @@ def write_composed_inventory(
     mode: str = "0644",
     force: bool = False,
 ) -> bool:
-    """Write the composed CA inventory file."""
-    with file_lock(ca_lock_path(base_dir, "inventory", "compose")):
-        content = json.dumps(
-            compose_inventory(base_dir=base_dir, ca_name=ca_name, base_url=base_url),
-            indent=2,
-            sort_keys=True,
-        ).encode() + b"\n"
-        return write_file(
-            _inventory_path(base_dir),
-            content,
-            owner,
-            group,
-            mode,
+    """Write the composed CA inventory file in an inventory transaction."""
+    with file_lock(_inventory_lock_path(base_dir)):
+        return _write_composed_inventory_unlocked(
+            base_dir=base_dir,
+            ca_name=ca_name,
+            base_url=base_url,
+            owner=owner,
+            group=group,
+            mode=mode,
             force=force,
         )
 
 
-def compose_inventory_if_configured(params: dict[str, Any]) -> bool:
-    """Compose the central CA inventory when module parameters provide a CA name."""
+def _write_composed_inventory_unlocked(
+    *,
+    base_dir: str,
+    ca_name: str,
+    base_url: str,
+    owner: Any,
+    group: Any,
+    mode: str = "0644",
+    force: bool = False,
+) -> bool:
+    """Write the composed CA inventory file while the state lock is held."""
+    content = json.dumps(
+        _compose_inventory_unlocked(
+            base_dir=base_dir,
+            ca_name=ca_name,
+            base_url=base_url,
+        ),
+        indent=2,
+        sort_keys=True,
+    ).encode() + b"\n"
+    return write_file(
+        _inventory_path(base_dir),
+        content,
+        owner,
+        group,
+        mode,
+        force=force,
+    )
+
+
+def _compose_inventory_if_configured_unlocked(params: dict[str, Any]) -> bool:
+    """Compose the central CA inventory if configured while the state lock is held."""
     ca_name = str(params.get("ca_name") or "")
     if not ca_name:
         return False
-    return write_composed_inventory(
+    return _write_composed_inventory_unlocked(
         base_dir=str(params["base_dir"]),
         ca_name=ca_name,
         base_url=str(params.get("base_url") or ""),
         owner=params.get("owner"),
         group=params.get("group"),
     )
+
+
+def compose_inventory_if_configured(params: dict[str, Any]) -> bool:
+    """Compose the central CA inventory when module parameters provide a CA name."""
+    with file_lock(_inventory_lock_path(str(params["base_dir"]))):
+        return _compose_inventory_if_configured_unlocked(params)

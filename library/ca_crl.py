@@ -15,9 +15,8 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     write_file,
 )
 from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
-    compose_inventory_if_configured,
-    record_crl_inventory,
     resolve_revocation_entries,
+    update_crl_inventory,
 )
 from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     load_certificate,
@@ -405,16 +404,7 @@ def run_module():
                 crl_number = _crl_number(crl)
 
             changed = _write_crls(params, crl) or changed
-            for crl_format, path in params["paths"].items():
-                crl_params = dict(params)
-                crl_params["format"] = crl_format
-                crl_params["path"] = path
-                inventory_changed = (
-                    record_crl_inventory(crl_params, crl) or inventory_changed
-                )
-            inventory_changed = (
-                compose_inventory_if_configured(params) or inventory_changed
-            )
+            inventory_changed = update_crl_inventory(params, crl)
             changed = changed or inventory_changed
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
