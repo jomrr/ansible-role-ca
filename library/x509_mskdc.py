@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import re
 
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.x509_common import (
+from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
     apply_profile_defaults,
     ensure_x509,
@@ -15,9 +15,7 @@ from ansible.module_utils.x509_common import (
 )
 
 KRB5_REALM_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
-GUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-)
+GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 GUID_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -105,13 +103,17 @@ def run_module():
     )
 
     if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
+        module.fail_json(
+            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
+        )
 
     try:
         params = x509_certificate_params(module.params)
         params = _apply_mskdc_extensions(params)
         params = apply_profile_defaults(params, MSKDC_DEFAULTS)
-        result = ensure_x509(params, signed=True, manage_directory=True, manage_chain=True)
+        result = ensure_x509(
+            params, signed=True, manage_directory=True, manage_chain=True
+        )
     except Exception as exc:
         module.fail_json(msg=str(exc))
 

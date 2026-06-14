@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import datetime as _dt
-import grp
 import ipaddress
 import os
-import pwd
 import re
 from pathlib import Path
+from typing import Any
 
+CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
+    from ansible.module_utils.ca_file import set_attrs, write_file  # type: ignore[import-not-found,import-untyped]
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -95,7 +96,9 @@ def _der_octet_string(value: bytes) -> bytes:
 
 
 def _der_pkinit_principal(realm: str) -> bytes:
-    name_string = _der_sequence(_der_general_string("krbtgt"), _der_general_string(realm))
+    name_string = _der_sequence(
+        _der_general_string("krbtgt"), _der_general_string(realm)
+    )
     principal_name = _der_sequence(
         _der_context(0, _der_integer(2)),
         _der_context(1, name_string),
@@ -106,9 +109,9 @@ def _der_pkinit_principal(realm: str) -> bytes:
     )
 
 
-def _digest(name: str):
+def _digest(name: str) -> hashes.HashAlgorithm:
     normalized = name.replace("-", "").lower()
-    digests = {
+    digests: dict[str, Any] = {
         "sha1": hashes.SHA1,
         "sha224": hashes.SHA224,
         "sha256": hashes.SHA256,
@@ -120,63 +123,11 @@ def _digest(name: str):
     return digests[normalized]()
 
 
-def _uid(owner):
-    if owner is None:
-        return -1
-    value = str(owner)
-    if value.isdigit():
-        return int(value)
-    return pwd.getpwnam(value).pw_uid
-
-
-def _gid(group):
-    if group is None:
-        return -1
-    value = str(group)
-    if value.isdigit():
-        return int(value)
-    return grp.getgrnam(value).gr_gid
-
-
-def _ensure_parent(path: str) -> None:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-
-
 def _ensure_directory(path: str | None, owner, group, mode) -> bool:
     if not path:
         return False
     Path(path).mkdir(parents=True, exist_ok=True)
-    return _set_attrs(path, owner, group, mode)
-
-
-def _set_attrs(path: str, owner, group, mode) -> bool:
-    changed = False
-    stat = os.stat(path)
-    uid = _uid(owner)
-    gid = _gid(group)
-    if (uid != -1 and stat.st_uid != uid) or (gid != -1 and stat.st_gid != gid):
-        os.chown(path, uid, gid)
-        changed = True
-    if mode is not None:
-        desired = int(str(mode), 8)
-        if (stat.st_mode & 0o7777) != desired:
-            os.chmod(path, desired)
-            changed = True
-    return changed
-
-
-def _write_file(path: str, content: bytes, owner, group, mode) -> bool:
-    _ensure_parent(path)
-    changed = True
-    if os.path.exists(path):
-        with open(path, "rb") as handle:
-            changed = handle.read() != content
-    if changed:
-        tmp_path = f"{path}.ansible_tmp"
-        with open(tmp_path, "wb") as handle:
-            handle.write(content)
-        os.replace(tmp_path, path)
-    return changed | _set_attrs(path, owner, group, mode)
+    return set_attrs(path, owner, group, mode)
 
 
 def _load_private_key(path: str, passphrase: str | None):
@@ -342,7 +293,7 @@ def _other_name_value(value: str, pkinit_realm: str | None) -> bytes:
 
 
 def _subject_alt_name(values, pkinit_realm: str | None):
-    names = []
+    names: list[x509.GeneralName] = []
     for value in values or []:
         kind, payload = str(value).split(":", 1)
         kind_lower = kind.lower()
@@ -435,7 +386,9 @@ def _desired_extensions(params, public_key, signer_public_key):
                 x509.CRLDistributionPoints(
                     [
                         x509.DistributionPoint(
-                            full_name=[x509.UniformResourceIdentifier(params["cdp_url"])],
+                            full_name=[
+                                x509.UniformResourceIdentifier(params["cdp_url"])
+                            ],
                             relative_name=None,
                             reasons=None,
                             crl_issuer=None,
@@ -510,7 +463,9 @@ def _distribution_point_token(point):
     full_name = tuple(_name_token(name) for name in point.full_name or [])
     crl_issuer = tuple(_name_token(name) for name in point.crl_issuer or [])
     reasons = tuple(sorted(reason.name for reason in point.reasons or []))
-    relative_name = point.relative_name.rfc4514_string() if point.relative_name else None
+    relative_name = (
+        point.relative_name.rfc4514_string() if point.relative_name else None
+    )
     return (full_name, relative_name, reasons, crl_issuer)
 
 
@@ -539,17 +494,28 @@ def _extension_token(extension):
         return (
             "authority_information_access",
             tuple(
-                (description.access_method.dotted_string, _name_token(description.access_location))
+                (
+                    description.access_method.dotted_string,
+                    _name_token(description.access_location),
+                )
                 for description in value
             ),
         )
     if isinstance(value, x509.CRLDistributionPoints):
-        return ("crl_distribution_points", tuple(_distribution_point_token(point) for point in value))
+        return (
+            "crl_distribution_points",
+            tuple(_distribution_point_token(point) for point in value),
+        )
     if isinstance(value, x509.SubjectKeyIdentifier):
         return ("subject_key_identifier", value.digest)
     if isinstance(value, x509.AuthorityKeyIdentifier):
         issuers = tuple(_name_token(name) for name in value.authority_cert_issuer or [])
-        return ("authority_key_identifier", value.key_identifier, issuers, value.authority_cert_serial_number)
+        return (
+            "authority_key_identifier",
+            value.key_identifier,
+            issuers,
+            value.authority_cert_serial_number,
+        )
     if isinstance(value, x509.UnrecognizedExtension):
         return ("unrecognized", value.oid.dotted_string, value.value)
     return (value.__class__.__name__, repr(value))
@@ -586,23 +552,31 @@ def _ensure_key(params):
         if key is not None and key.key_size != params["key_size"]:
             key = None
     if key is None:
-        key = rsa.generate_private_key(public_exponent=65537, key_size=params["key_size"])
+        key = rsa.generate_private_key(
+            public_exponent=65537, key_size=params["key_size"]
+        )
         changed = True
         content = _private_key_pem(key, params["key_passphrase"])
-        changed = _write_file(
-            params["key_path"],
-            content,
-            params["owner"],
-            params["group"],
-            params["key_mode"],
-        ) or changed
+        changed = (
+            write_file(
+                params["key_path"],
+                content,
+                params["owner"],
+                params["group"],
+                params["key_mode"],
+            )
+            or changed
+        )
     else:
-        changed = _set_attrs(
-            params["key_path"],
-            params["owner"],
-            params["group"],
-            params["key_mode"],
-        ) or changed
+        changed = (
+            set_attrs(
+                params["key_path"],
+                params["owner"],
+                params["group"],
+                params["key_mode"],
+            )
+            or changed
+        )
     return key, changed
 
 
@@ -621,14 +595,21 @@ def _ensure_csr(params, key, subject, csr_extensions):
             )
         except Exception:
             changed = True
-    content = csr.public_bytes(serialization.Encoding.PEM) if changed else Path(params["csr_path"]).read_bytes()
-    changed = _write_file(
-        params["csr_path"],
-        content,
-        params["owner"],
-        params["group"],
-        params["public_mode"],
-    ) or changed
+    content = (
+        csr.public_bytes(serialization.Encoding.PEM)
+        if changed
+        else Path(params["csr_path"]).read_bytes()
+    )
+    changed = (
+        write_file(
+            params["csr_path"],
+            content,
+            params["owner"],
+            params["group"],
+            params["public_mode"],
+        )
+        or changed
+    )
     return csr, changed
 
 
@@ -670,20 +651,23 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
         content = Path(params["cert_path"]).read_bytes()
         cert = _load_certificate(params["cert_path"])
 
-    changed = _write_file(
-        params["cert_path"],
-        content,
-        params["owner"],
-        params["group"],
-        params["public_mode"],
-    ) or changed
+    changed = (
+        write_file(
+            params["cert_path"],
+            content,
+            params["owner"],
+            params["group"],
+            params["public_mode"],
+        )
+        or changed
+    )
     return cert, changed
 
 
 def _ensure_der(params, cert):
     if not params["der_path"]:
         return False
-    return _write_file(
+    return write_file(
         params["der_path"],
         cert.public_bytes(serialization.Encoding.DER),
         params["owner"],
@@ -697,7 +681,7 @@ def _ensure_chain(params):
         return False
     with open(params["chain_src_path"], "rb") as handle:
         content = handle.read()
-    return _write_file(
+    return write_file(
         params["chain_path"],
         content,
         params["owner"],
@@ -798,7 +782,9 @@ def _with_derived_paths(
     if signed:
         result["signer_cert_path"] = f"{base_dir}/ca/{issuer_file}.pem"
         result["signer_key_path"] = f"{base_dir}/private/{issuer_file}.key"
-    result["chain_src_path"] = f"{base_dir}/chains/{issuer_file}-chain.pem" if manage_chain else ""
+    result["chain_src_path"] = (
+        f"{base_dir}/chains/{issuer_file}-chain.pem" if manage_chain else ""
+    )
     result["chain_path"] = f"{output_dir}/{name}-chain.pem" if manage_chain else ""
     result["aia_url"] = _base_url(result, f"{issuer_file}.der", "aia_base_url")
     result["cdp_url"] = _base_url(result, f"{issuer_file}.crl", "cdp_base_url")
@@ -812,7 +798,7 @@ def x509_argument_spec(
     signer: bool = False,
     defaults: dict | None = None,
 ):
-    spec = {
+    spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
         "name": {"type": "str", "required": True},
         "formats": {"type": "list", "elements": "str", "default": ["pem", "der"]},
@@ -822,7 +808,11 @@ def x509_argument_spec(
         "common_name": {"type": "str"},
         "email": {"type": "str"},
         "subject": {"type": "dict", "default": {}},
-        "basic_constraints": {"type": "list", "elements": "str", "default": ["CA:FALSE"]},
+        "basic_constraints": {
+            "type": "list",
+            "elements": "str",
+            "default": ["CA:FALSE"],
+        },
         "key_usage": {"type": "list", "elements": "str", "default": []},
         "key_usage_critical": {"type": "bool", "default": True},
         "extended_key_usage": {"type": "list", "elements": "str", "default": []},
@@ -868,7 +858,7 @@ def x509_argument_spec(
 
 
 def x509_certificate_argument_spec(*, defaults: dict | None = None):
-    spec = {
+    spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
         "name": {"type": "str", "required": True},
         "issuer": {"type": "str", "required": True},
@@ -949,20 +939,31 @@ def ensure_x509(
     signer_key = key
     signer_cert = None
     if signed:
-        signer_key = _load_private_key(params["signer_key_path"], params["signer_key_passphrase"])
+        signer_key = _load_private_key(
+            params["signer_key_path"], params["signer_key_passphrase"]
+        )
         signer_cert = _load_certificate(params["signer_cert_path"])
 
-    signer_public_key = signer_cert.public_key() if signer_cert is not None else key.public_key()
+    signer_public_key = (
+        signer_cert.public_key() if signer_cert is not None else key.public_key()
+    )
     csr_extensions = _desired_extensions(params, key.public_key(), signer_public_key)
     csr, csr_changed = _ensure_csr(params, key, subject, csr_extensions)
     cert_extensions = _desired_extensions(params, key.public_key(), signer_public_key)
-    cert, cert_changed = _ensure_certificate(params, key, subject, cert_extensions, signer_key, signer_cert)
+    cert, cert_changed = _ensure_certificate(
+        params, key, subject, cert_extensions, signer_key, signer_cert
+    )
     der_changed = _ensure_der(params, cert)
     if manage_chain:
         chain_changed = _ensure_chain(params)
 
     return {
-        "changed": directory_changed or key_changed or csr_changed or cert_changed or der_changed or chain_changed,
+        "changed": directory_changed
+        or key_changed
+        or csr_changed
+        or cert_changed
+        or der_changed
+        or chain_changed,
         "directory_changed": directory_changed,
         "key_changed": key_changed,
         "csr_changed": csr_changed,

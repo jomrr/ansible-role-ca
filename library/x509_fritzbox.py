@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.x509_common import (
+from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
     apply_profile_defaults,
     ensure_x509,
@@ -30,7 +30,9 @@ def run_module():
     )
 
     if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
+        module.fail_json(
+            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
+        )
 
     params = x509_certificate_params(module.params)
     params = apply_profile_defaults(params, FRITZBOX_DEFAULTS)
@@ -38,7 +40,9 @@ def run_module():
     if digest not in FRITZBOX_DIGESTS:
         module.fail_json(msg="FritzBox certificates support digests up to sha384")
     try:
-        result = ensure_x509(params, signed=True, manage_directory=True, manage_chain=True)
+        result = ensure_x509(
+            params, signed=True, manage_directory=True, manage_chain=True
+        )
     except Exception as exc:
         module.fail_json(msg=str(exc))
 

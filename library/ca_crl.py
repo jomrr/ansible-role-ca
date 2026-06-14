@@ -4,14 +4,15 @@
 from __future__ import annotations
 
 import datetime as _dt
-import grp
 import os
-import pwd
 import re
 from pathlib import Path
+from typing import Any
 
-from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import write_file  # type: ignore[import-not-found,import-untyped]
 
+CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -50,9 +51,9 @@ REASON_FLAGS = {
 }
 
 
-def _digest(name: str):
+def _digest(name: str) -> hashes.HashAlgorithm:
     normalized = name.replace("-", "").lower()
-    digests = {
+    digests: dict[str, Any] = {
         "sha1": hashes.SHA1,
         "sha224": hashes.SHA224,
         "sha256": hashes.SHA256,
@@ -62,52 +63,6 @@ def _digest(name: str):
     if normalized not in digests:
         raise ValueError(f"Unsupported digest {name}")
     return digests[normalized]()
-
-
-def _uid(owner):
-    if owner is None:
-        return -1
-    value = str(owner)
-    if value.isdigit():
-        return int(value)
-    return pwd.getpwnam(value).pw_uid
-
-
-def _gid(group):
-    if group is None:
-        return -1
-    value = str(group)
-    if value.isdigit():
-        return int(value)
-    return grp.getgrnam(value).gr_gid
-
-
-def _set_attrs(path: str, owner, group, mode) -> bool:
-    changed = False
-    stat = os.stat(path)
-    uid = _uid(owner)
-    gid = _gid(group)
-    if (uid != -1 and stat.st_uid != uid) or (gid != -1 and stat.st_gid != gid):
-        os.chown(path, uid, gid)
-        changed = True
-    if mode is not None:
-        desired = int(str(mode), 8)
-        if (stat.st_mode & 0o7777) != desired:
-            os.chmod(path, desired)
-            changed = True
-    return changed
-
-
-def _write_file(path: str, content: bytes, owner, group, mode) -> bool:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    changed = True
-    if os.path.exists(path):
-        changed = Path(path).read_bytes() != content
-    if changed:
-        tmp_path = f"{path}.ansible_tmp"
-        Path(tmp_path).write_bytes(content)
-        os.replace(tmp_path, path)
-    return changed | _set_attrs(path, owner, group, mode)
 
 
 def _subject(subject_ordered) -> x509.Name:
@@ -178,7 +133,9 @@ def _parse_revocation_date(value):
         return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     text = str(value)
     if re.match(r"^\d{14}Z$", text):
-        return _dt.datetime.strptime(text, "%Y%m%d%H%M%SZ").replace(tzinfo=_dt.timezone.utc)
+        return _dt.datetime.strptime(text, "%Y%m%d%H%M%SZ").replace(
+            tzinfo=_dt.timezone.utc
+        )
     return _dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
@@ -215,7 +172,9 @@ def _build_crl(params):
     for entry in params["revoked_certificates"] or []:
         revoked = (
             x509.RevokedCertificateBuilder()
-            .serial_number(_parse_serial(entry.get("serial_number", entry.get("serial"))))
+            .serial_number(
+                _parse_serial(entry.get("serial_number", entry.get("serial")))
+            )
             .revocation_date(_parse_revocation_date(entry.get("revocation_date")))
         )
         if entry.get("reason"):
@@ -223,7 +182,9 @@ def _build_crl(params):
             revoked = revoked.add_extension(x509.CRLReason(reason), critical=False)
         builder = builder.add_revoked_certificate(revoked.build())
     return builder.sign(
-        private_key=_load_key(params["privatekey_path"], params["privatekey_passphrase"]),
+        private_key=_load_key(
+            params["privatekey_path"], params["privatekey_passphrase"]
+        ),
         algorithm=_digest(params["digest"]),
     )
 
@@ -262,7 +223,9 @@ def run_module():
     )
 
     if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
+        module.fail_json(
+            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
+        )
 
     params = _with_derived_paths(module.params)
     try:
@@ -272,17 +235,23 @@ def run_module():
         if not changed:
             try:
                 existing = _load_crl(params["path"])
-                changed = (
-                    existing.issuer != _subject_from_params(params)
-                    or _revoked_signature(existing)
-                    != _desired_revoked(params["revoked_certificates"])
+                changed = existing.issuer != _subject_from_params(
+                    params
+                ) or _revoked_signature(existing) != _desired_revoked(
+                    params["revoked_certificates"]
                 )
             except Exception:
                 changed = True
-        encoding = serialization.Encoding.DER if params["format"] == "der" else serialization.Encoding.PEM
-        content = crl.public_bytes(encoding) if changed else Path(params["path"]).read_bytes()
+        encoding = (
+            serialization.Encoding.DER
+            if params["format"] == "der"
+            else serialization.Encoding.PEM
+        )
+        content = (
+            crl.public_bytes(encoding) if changed else Path(params["path"]).read_bytes()
+        )
         changed = (
-            _write_file(
+            write_file(
                 params["path"],
                 content,
                 params["owner"],

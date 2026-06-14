@@ -3,14 +3,13 @@
 
 from __future__ import annotations
 
-import grp
-import os
-import pwd
 import re
 from pathlib import Path
 
-from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import write_file  # type: ignore[import-not-found,import-untyped]
 
+CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
     from cryptography.hazmat.primitives import serialization
@@ -24,40 +23,6 @@ PEM_CERT_RE = re.compile(
     rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----\s*",
     re.DOTALL,
 )
-
-
-def _uid(owner):
-    if owner is None:
-        return -1
-    value = str(owner)
-    if value.isdigit():
-        return int(value)
-    return pwd.getpwnam(value).pw_uid
-
-
-def _gid(group):
-    if group is None:
-        return -1
-    value = str(group)
-    if value.isdigit():
-        return int(value)
-    return grp.getgrnam(value).gr_gid
-
-
-def _set_attrs(path: str, owner, group, mode) -> bool:
-    changed = False
-    stat = os.stat(path)
-    uid = _uid(owner)
-    gid = _gid(group)
-    if (uid != -1 and stat.st_uid != uid) or (gid != -1 and stat.st_gid != gid):
-        os.chown(path, uid, gid)
-        changed = True
-    if mode is not None:
-        desired = int(str(mode), 8)
-        if (stat.st_mode & 0o7777) != desired:
-            os.chmod(path, desired)
-            changed = True
-    return changed
 
 
 def _load_certificates(path: str):
@@ -78,18 +43,6 @@ def _chain_content(paths: list[str]) -> bytes:
         cert.public_bytes(serialization.Encoding.PEM).rstrip() + b"\n"
         for cert in certificates
     )
-
-
-def _write_file(path: str, content: bytes, owner, group, mode, force: bool) -> bool:
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    changed = force or not os.path.exists(path)
-    if not changed:
-        changed = Path(path).read_bytes() != content
-    if changed:
-        tmp_path = f"{path}.ansible_tmp"
-        Path(tmp_path).write_bytes(content)
-        os.replace(tmp_path, path)
-    return changed | _set_attrs(path, owner, group, mode)
 
 
 def _paths(base_dir: str, name: str, parent: str | None) -> tuple[str, list[str]]:
@@ -115,19 +68,23 @@ def run_module():
     )
 
     if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
+        module.fail_json(
+            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
+        )
 
     params = module.params
     try:
-        path, certificates = _paths(params["base_dir"], params["name"], params["parent"])
+        path, certificates = _paths(
+            params["base_dir"], params["name"], params["parent"]
+        )
         content = _chain_content(certificates)
-        changed = _write_file(
+        changed = write_file(
             path,
             content,
             params["owner"],
             params["group"],
             params["mode"],
-            params["force"],
+            force=params["force"],
         )
     except Exception as exc:
         module.fail_json(msg=str(exc))

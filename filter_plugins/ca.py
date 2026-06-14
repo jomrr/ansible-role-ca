@@ -6,7 +6,7 @@ import re
 from copy import deepcopy
 from typing import Any
 
-from ansible.errors import AnsibleFilterError
+from ansible.errors import AnsibleFilterError  # type: ignore[import-not-found,import-untyped]
 
 
 SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")

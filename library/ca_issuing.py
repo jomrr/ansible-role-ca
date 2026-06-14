@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.x509_common import (
+from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
     ensure_x509,
     x509_argument_spec,
@@ -30,7 +30,9 @@ def run_module():
     )
 
     if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
+        module.fail_json(
+            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
+        )
 
     try:
         params = dict(module.params)
