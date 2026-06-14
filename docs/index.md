@@ -81,7 +81,9 @@ renewal is due; otherwise the existing key is reused.
 
 Managed writes use atomic temporary files and advisory locks below
 `<base_dir>/.locks`. Lock names are scoped by object type and name, so unrelated
-certificates can still be processed in parallel.
+certificates can still be processed in parallel. Operations that read signer CA
+material also lock the signer authority, so issued certificates and CRLs cannot
+mix certificate and key material across concurrent authority renewal.
 
 Secret-looking values are masked from module error messages. Parameters marked
 as secret in the argument spec also use `no_log: true`.

@@ -9,9 +9,9 @@ import os
 import pwd
 import re
 import tempfile
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 MASK = "********"
 NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
@@ -52,6 +52,16 @@ def file_lock(path: str):
             fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
+
+
+@contextmanager
+def file_locks(paths: Iterable[str]):
+    """Hold multiple exclusive advisory locks in deterministic order."""
+    lock_paths = sorted({str(path) for path in paths if path})
+    with ExitStack() as stack:
+        for path in lock_paths:
+            stack.enter_context(file_lock(path))
+        yield
 
 
 def uid(owner: Any) -> int:

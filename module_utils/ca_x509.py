@@ -12,7 +12,7 @@ CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
         ca_lock_path,
-        file_lock,
+        file_locks,
         read_file,
         sanitize_error,
         set_attrs,
@@ -1067,6 +1067,7 @@ def _with_derived_paths(
         if signed:
             parent = str(result["parent"])
             parent_file = f"{parent}-ca"
+            result["signer_lock_path"] = ca_lock_path(base_dir, "authority", parent)
             result["signer_cert_path"] = f"{base_dir}/ca/{parent_file}.pem"
             result["signer_key_path"] = f"{base_dir}/private/{parent_file}.key"
         authority_file = f"{ca_file}"
@@ -1089,6 +1090,7 @@ def _with_derived_paths(
     result["txt_path"] = f"{output_dir}/{name}.txt" if "txt" in formats else ""
     result["directory_path"] = output_dir if manage_directory else None
     if signed:
+        result["signer_lock_path"] = ca_lock_path(base_dir, "authority", issuer)
         result["signer_cert_path"] = f"{base_dir}/ca/{issuer_file}.pem"
         result["signer_key_path"] = f"{base_dir}/private/{issuer_file}.key"
     result["chain_src_path"] = (
@@ -1234,7 +1236,10 @@ def ensure_x509(
         manage_directory=manage_directory,
         manage_chain=manage_chain,
     )
-    with file_lock(params["lock_path"]):
+    lock_paths = [params["lock_path"]]
+    if signed:
+        lock_paths.append(params["signer_lock_path"])
+    with file_locks(lock_paths):
         return _ensure_x509_locked(
             params,
             signed=signed,

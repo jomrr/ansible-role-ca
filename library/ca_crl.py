@@ -9,7 +9,7 @@ import re
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
     ca_lock_path,
-    file_lock,
+    file_locks,
     read_file,
     sanitize_error,
     write_file,
@@ -358,7 +358,12 @@ def run_module():
     params = _with_derived_paths(module.params)
     inventory_changed = False
     try:
-        with file_lock(ca_lock_path(params["base_dir"], "crl", params["name"])):
+        with file_locks(
+            [
+                ca_lock_path(params["base_dir"], "authority", params["name"]),
+                ca_lock_path(params["base_dir"], "crl", params["name"]),
+            ]
+        ):
             params["privatekey_passphrase"] = params["key_passphrase"]
             params["revoked_certificates"] = resolve_revocation_entries(
                 base_dir=str(params["base_dir"]),

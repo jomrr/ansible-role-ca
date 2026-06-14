@@ -12,6 +12,7 @@ I/O, advisory locks, ownership handling, mode handling, and error sanitization.
 | `safe_path_component(value)` | Converts arbitrary text into a safe filename component. |
 | `ca_lock_path(base_dir, namespace, name)` | Returns `<base_dir>/.locks/<namespace>-<name>.lock` with sanitized components. |
 | `file_lock(path)` | Context manager that takes an exclusive advisory lock. |
+| `file_locks(paths)` | Context manager that takes multiple exclusive advisory locks in sorted order. |
 | `read_file(path)` | Reads a file without following a final symlink. |
 | `set_attrs(path, owner, group, mode)` | Applies owner, group, and mode and returns whether anything changed. |
 | `write_file(path, content, owner, group, mode, force=False)` | Atomically writes bytes and enforces file attributes. |
@@ -31,6 +32,8 @@ I/O, advisory locks, ownership handling, mode handling, and error sanitization.
 
 - Final symlinks are refused for reads, attribute updates, and replacements.
 - Lock directories that are symlinks are refused.
+- Multiple locks are deduplicated and acquired in deterministic path order to
+  avoid deadlocks between dependent CA operations.
 - Writes use a temporary file in the target directory, `fsync`, and
   `os.replace`.
 - Parent directories are created when writing.
@@ -43,9 +46,13 @@ I/O, advisory locks, ownership handling, mode handling, and error sanitization.
 ## Internal Example
 
 ```python
-from ansible.module_utils.ca_file import ca_lock_path, file_lock, write_file
+from ansible.module_utils.ca_file import ca_lock_path, file_locks, write_file
 
-with file_lock(ca_lock_path(base_dir, "certificate", name)):
+lock_paths = [
+    ca_lock_path(base_dir, "authority", issuer),
+    ca_lock_path(base_dir, "certificate", name),
+]
+with file_locks(lock_paths):
     changed = write_file(path, content, owner, group, "0644")
 ```
 
@@ -63,4 +70,3 @@ with file_lock(ca_lock_path(base_dir, "certificate", name)):
 - `ca_inventory`
 - `ca_text`
 - `ca_x509`
-
