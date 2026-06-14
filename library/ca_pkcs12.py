@@ -23,6 +23,7 @@ else:
 
 
 def _load_key(path: str, passphrase: str | None):
+    """Load a PEM private key for PKCS#12 serialization."""
     return serialization.load_pem_private_key(
         read_file(path),
         password=passphrase.encode() if passphrase else None,
@@ -30,6 +31,7 @@ def _load_key(path: str, passphrase: str | None):
 
 
 def _load_certificates(path: str):
+    """Load one or more certificates from a PEM or DER source."""
     data = read_file(path)
     certs = []
     marker = b"-----END CERTIFICATE-----"
@@ -44,6 +46,7 @@ def _load_certificates(path: str):
 
 
 def _public_key_bytes(key_or_cert) -> bytes:
+    """Return DER SubjectPublicKeyInfo bytes for a key or certificate."""
     key = (
         key_or_cert.public_key() if hasattr(key_or_cert, "public_key") else key_or_cert
     )
@@ -54,10 +57,12 @@ def _public_key_bytes(key_or_cert) -> bytes:
 
 
 def _cert_fingerprint(cert):
+    """Return the SHA-256 fingerprint for a certificate."""
     return cert.fingerprint(hashes.SHA256())
 
 
 def _existing_matches(path, passphrase, key, cert, extra_certs):
+    """Return whether an existing PKCS#12 bundle matches desired content."""
     try:
         existing_key, existing_cert, existing_extra = pkcs12.load_key_and_certificates(
             read_file(path),
@@ -81,6 +86,7 @@ def _existing_matches(path, passphrase, key, cert, extra_certs):
 def _paths(
     base_dir: str, name: str, output_dir: str | None, bundle_format: str
 ) -> dict[str, str]:
+    """Derive PKCS#12 output and input paths."""
     directory = (output_dir or f"{base_dir.rstrip('/')}/certs/{name}").rstrip("/")
     return {
         "path": f"{directory}/{name}.{bundle_format}",
@@ -91,6 +97,7 @@ def _paths(
 
 
 def _params(params: dict) -> dict:
+    """Merge certificate dictionary values and validate export passphrase."""
     certificate = dict(params.get("certificate") or {})
     result = dict(params)
     for key in ("output_dir", "key_passphrase", "passphrase", "friendly_name"):
@@ -106,6 +113,7 @@ def _params(params: dict) -> dict:
 
 
 def run_module():
+    """Run the Ansible module for PKCS#12 bundles."""
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
@@ -170,6 +178,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

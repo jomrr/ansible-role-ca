@@ -13,6 +13,7 @@ SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 def _as_list(value: Any) -> list[Any]:
+    """Return a list value or raise a filter error."""
     if value is None:
         return []
     if isinstance(value, list):
@@ -21,6 +22,7 @@ def _as_list(value: Any) -> list[Any]:
 
 
 def _as_dict(value: Any, context: str) -> dict[str, Any]:
+    """Return a dictionary value or raise a contextual filter error."""
     if value is None:
         return {}
     if isinstance(value, dict):
@@ -29,12 +31,14 @@ def _as_dict(value: Any, context: str) -> dict[str, Any]:
 
 
 def _string(value: Any) -> str:
+    """Normalize optional values to strings for validation."""
     if value is None:
         return ""
     return str(value)
 
 
 def _required(value: dict[str, Any], key: str, context: str) -> Any:
+    """Return a required dictionary value or raise a filter error."""
     if key not in value or _string(value[key]) == "":
         raise AnsibleFilterError(f"{context} requires {key}")
     return value[key]
@@ -187,6 +191,7 @@ class FilterModule:
     """Ansible filter plugin entry point."""
 
     def filters(self) -> dict[str, Any]:
+        """Return the filters exported by this plugin."""
         return {
             "ca_authority_map": ca_authority_map,
             "ca_certificate_model": ca_certificate_model,

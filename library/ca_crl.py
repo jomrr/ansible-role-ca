@@ -50,6 +50,7 @@ REASON_FLAGS = {
 
 
 def _digest(name: str) -> hashes.HashAlgorithm:
+    """Return a cryptography hash object for a digest name."""
     normalized = name.replace("-", "").lower()
     digests: dict[str, Any] = {
         "sha1": hashes.SHA1,
@@ -64,6 +65,7 @@ def _digest(name: str) -> hashes.HashAlgorithm:
 
 
 def _subject(subject_ordered) -> x509.Name:
+    """Build an X.509 issuer name from ordered subject attributes."""
     attributes = []
     for item in subject_ordered or []:
         if len(item) != 1:
@@ -79,6 +81,7 @@ def _subject(subject_ordered) -> x509.Name:
 
 
 def _subject_from_params(params: dict) -> x509.Name:
+    """Build the CRL issuer name from module parameters."""
     common_name = str(params.get("common_name") or "").strip()
     if not common_name:
         raise ValueError("common_name is required")
@@ -101,6 +104,7 @@ def _subject_from_params(params: dict) -> x509.Name:
 
 
 def _load_key(path: str, passphrase: str | None):
+    """Load the CA private key used to sign the CRL."""
     return serialization.load_pem_private_key(
         read_file(path),
         password=passphrase.encode() if passphrase else None,
@@ -108,6 +112,7 @@ def _load_key(path: str, passphrase: str | None):
 
 
 def _load_crl(path: str):
+    """Load an existing PEM or DER CRL from disk."""
     data = read_file(path)
     try:
         return x509.load_pem_x509_crl(data)
@@ -116,6 +121,7 @@ def _load_crl(path: str):
 
 
 def _parse_serial(value) -> int:
+    """Parse decimal, hexadecimal, or colon-separated serial numbers."""
     if isinstance(value, int):
         return value
     text = str(value)
@@ -127,6 +133,7 @@ def _parse_serial(value) -> int:
 
 
 def _parse_revocation_date(value):
+    """Parse a revocation timestamp or return the current UTC time."""
     if not value:
         return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     text = str(value)
@@ -138,6 +145,7 @@ def _parse_revocation_date(value):
 
 
 def _revoked_signature(crl):
+    """Return comparable revoked certificate entries from an existing CRL."""
     result = []
     for revoked in crl:
         reason = None
@@ -151,6 +159,7 @@ def _revoked_signature(crl):
 
 
 def _desired_revoked(entries):
+    """Return comparable revoked certificate entries from module params."""
     result = []
     for entry in entries or []:
         serial = _parse_serial(entry.get("serial_number", entry.get("serial")))
@@ -160,6 +169,7 @@ def _desired_revoked(entries):
 
 
 def _build_crl(params):
+    """Build and sign a CRL from module parameters."""
     now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     builder = (
         x509.CertificateRevocationListBuilder()
@@ -188,6 +198,7 @@ def _build_crl(params):
 
 
 def _with_derived_paths(params: dict) -> dict:
+    """Derive CRL and CA private key paths from base parameters."""
     result = dict(params)
     base_dir = str(result["base_dir"]).rstrip("/")
     name = str(result["name"])
@@ -201,6 +212,7 @@ def _with_derived_paths(params: dict) -> dict:
 
 
 def run_module():
+    """Run the Ansible module for certificate revocation lists."""
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
@@ -262,6 +274,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

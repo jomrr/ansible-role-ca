@@ -25,6 +25,7 @@ PEM_CERT_RE = re.compile(
 
 
 def _load_certificates(path: str):
+    """Load one or more certificates from a PEM or DER source."""
     data = read_file(path)
     pem_blocks = PEM_CERT_RE.findall(data)
     if pem_blocks:
@@ -33,6 +34,7 @@ def _load_certificates(path: str):
 
 
 def _chain_content(paths: list[str]) -> bytes:
+    """Return normalized PEM content for an ordered certificate chain."""
     certificates = []
     for path in paths:
         certificates.extend(_load_certificates(path))
@@ -45,6 +47,7 @@ def _chain_content(paths: list[str]) -> bytes:
 
 
 def _paths(base_dir: str, name: str, parent: str | None) -> tuple[str, list[str]]:
+    """Derive the chain output path and source certificate paths."""
     base = base_dir.rstrip("/")
     certificates = [f"{base}/ca/{name}-ca.pem"]
     if parent and parent != name:
@@ -53,6 +56,7 @@ def _paths(base_dir: str, name: str, parent: str | None) -> tuple[str, list[str]
 
 
 def run_module():
+    """Run the Ansible module for CA chain files."""
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
@@ -92,6 +96,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

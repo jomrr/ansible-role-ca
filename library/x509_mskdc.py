@@ -39,6 +39,7 @@ MSKDC_DEFAULTS = {
 
 
 def _ad_guid_hex(value) -> str:
+    """Return AD objectGUID bytes as uppercase hex in directory byte order."""
     guid = str(value or "").lower().strip().strip("{}")
     guid_hex = re.sub(r"[-: ]", "", guid)
 
@@ -65,6 +66,7 @@ def _ad_guid_hex(value) -> str:
 
 
 def _apply_mskdc_extensions(params: dict) -> dict:
+    """Add PKINIT SAN and NTDS objectGUID extensions to module params."""
     result = dict(params)
     realm = str(result.pop("krb5_realm") or "").strip().upper()
     if not KRB5_REALM_RE.match(realm):
@@ -95,6 +97,7 @@ def _apply_mskdc_extensions(params: dict) -> dict:
 
 
 def run_module():
+    """Run the Ansible module for MSKDC domain controller certificates."""
     spec = x509_certificate_argument_spec()
     spec["krb5_realm"] = {"type": "str", "required": True}
     spec["ad_object_guid"] = {"type": "str", "required": True}
@@ -122,6 +125,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

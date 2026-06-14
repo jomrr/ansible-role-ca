@@ -19,6 +19,7 @@ ISSUING_CA_DEFAULTS = {
 
 
 def run_module():
+    """Run the Ansible module for an issuing CA."""
     spec = x509_argument_spec(
         authority=True,
         signer=True,
@@ -46,6 +47,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

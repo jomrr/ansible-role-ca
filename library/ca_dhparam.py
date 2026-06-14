@@ -22,6 +22,7 @@ else:
 
 
 def _existing_size(path: str):
+    """Return the bit size of an existing DH parameter file."""
     try:
         parameters = serialization.load_pem_parameters(read_file(path))
         return parameters.parameter_numbers().p.bit_length()
@@ -30,6 +31,7 @@ def _existing_size(path: str):
 
 
 def run_module():
+    """Run the Ansible module for Diffie-Hellman parameters."""
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
@@ -77,6 +79,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

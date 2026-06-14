@@ -68,6 +68,7 @@ EXTENDED_KEY_USAGE_OIDS = {
 
 
 def _der_len(length: int) -> bytes:
+    """Encode a DER length octet sequence."""
     if length < 128:
         return bytes([length])
     raw = length.to_bytes((length.bit_length() + 7) // 8, "big")
@@ -75,18 +76,22 @@ def _der_len(length: int) -> bytes:
 
 
 def _der(tag: int, value: bytes) -> bytes:
+    """Encode a DER tag-length-value object."""
     return bytes([tag]) + _der_len(len(value)) + value
 
 
 def _der_sequence(*values: bytes) -> bytes:
+    """Encode values as a DER SEQUENCE."""
     return _der(0x30, b"".join(values))
 
 
 def _der_context(number: int, value: bytes) -> bytes:
+    """Encode an explicitly tagged DER context-specific value."""
     return _der(0xA0 + number, value)
 
 
 def _der_integer(value: int) -> bytes:
+    """Encode a non-negative integer as DER INTEGER."""
     raw = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
     if raw[0] & 0x80:
         raw = b"\x00" + raw
@@ -94,22 +99,27 @@ def _der_integer(value: int) -> bytes:
 
 
 def _der_general_string(value: str) -> bytes:
+    """Encode an ASCII value as DER GeneralString."""
     return _der(0x1B, value.encode("ascii"))
 
 
 def _der_utf8_string(value: str) -> bytes:
+    """Encode a value as DER UTF8String."""
     return _der(0x0C, value.encode("utf-8"))
 
 
 def _der_bmp_string(value: str) -> bytes:
+    """Encode a value as DER BMPString."""
     return _der(0x1E, value.encode("utf-16-be"))
 
 
 def _der_octet_string(value: bytes) -> bytes:
+    """Encode bytes as a DER OCTET STRING."""
     return _der(0x04, value)
 
 
 def _der_pkinit_principal(realm: str) -> bytes:
+    """Encode the MSKDC PKINIT KRB5PrincipalName otherName value."""
     name_string = _der_sequence(
         _der_general_string("krbtgt"), _der_general_string(realm)
     )
@@ -124,6 +134,7 @@ def _der_pkinit_principal(realm: str) -> bytes:
 
 
 def _digest(name: str) -> hashes.HashAlgorithm:
+    """Return a cryptography hash object for a digest name."""
     normalized = name.replace("-", "").lower()
     digests: dict[str, Any] = {
         "sha1": hashes.SHA1,
@@ -138,6 +149,7 @@ def _digest(name: str) -> hashes.HashAlgorithm:
 
 
 def _ensure_directory(path: str | None, owner, group, mode) -> bool:
+    """Create a directory and enforce requested attributes."""
     if not path:
         return False
     Path(path).mkdir(parents=True, exist_ok=True)
@@ -145,6 +157,7 @@ def _ensure_directory(path: str | None, owner, group, mode) -> bool:
 
 
 def _load_private_key(path: str, passphrase: str | None):
+    """Load a PEM private key from disk."""
     return serialization.load_pem_private_key(
         read_file(path),
         password=passphrase.encode() if passphrase else None,
@@ -152,6 +165,7 @@ def _load_private_key(path: str, passphrase: str | None):
 
 
 def _private_key_pem(key, passphrase: str | None) -> bytes:
+    """Serialize a private key as encrypted or unencrypted PKCS#8 PEM."""
     encryption = (
         serialization.BestAvailableEncryption(passphrase.encode())
         if passphrase
@@ -165,6 +179,7 @@ def _private_key_pem(key, passphrase: str | None) -> bytes:
 
 
 def _public_key_bytes(key) -> bytes:
+    """Return DER SubjectPublicKeyInfo bytes for a private key."""
     return key.public_key().public_bytes(
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -172,6 +187,7 @@ def _public_key_bytes(key) -> bytes:
 
 
 def _cert_public_key_bytes(cert) -> bytes:
+    """Return DER SubjectPublicKeyInfo bytes for a certificate."""
     return cert.public_key().public_bytes(
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -179,6 +195,7 @@ def _cert_public_key_bytes(cert) -> bytes:
 
 
 def _csr_public_key_bytes(csr) -> bytes:
+    """Return DER SubjectPublicKeyInfo bytes for a CSR."""
     return csr.public_key().public_bytes(
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
@@ -186,10 +203,12 @@ def _csr_public_key_bytes(csr) -> bytes:
 
 
 def _load_csr(path: str):
+    """Load a PEM certificate signing request from disk."""
     return x509.load_pem_x509_csr(read_file(path))
 
 
 def _load_certificate(path: str):
+    """Load a PEM or DER certificate from disk."""
     data = read_file(path)
     try:
         return x509.load_pem_x509_certificate(data)
@@ -198,6 +217,7 @@ def _load_certificate(path: str):
 
 
 def _not_valid_after_utc(cert):
+    """Return a certificate expiration timestamp normalized to UTC."""
     value = getattr(cert, "not_valid_after_utc", None)
     if value is not None:
         return value
@@ -208,6 +228,7 @@ def _not_valid_after_utc(cert):
 
 
 def _subject(subject_ordered) -> x509.Name:
+    """Build an X.509 name from ordered subject attributes."""
     attributes = []
     for item in subject_ordered or []:
         if len(item) != 1:
@@ -223,6 +244,7 @@ def _subject(subject_ordered) -> x509.Name:
 
 
 def _subject_from_params(params: dict) -> x509.Name:
+    """Build an X.509 subject from module parameters."""
     if params.get("subject_ordered"):
         return _subject(params["subject_ordered"])
 
@@ -251,6 +273,7 @@ def _subject_from_params(params: dict) -> x509.Name:
 
 
 def _basic_constraints(values):
+    """Build a BasicConstraints extension value from OpenSSL-like tokens."""
     ca = False
     path_length = None
     for value in values or []:
@@ -267,6 +290,7 @@ def _basic_constraints(values):
 
 
 def _key_usage(values):
+    """Build a KeyUsage extension value from role tokens."""
     names = {str(value) for value in values or []}
     key_agreement = "keyAgreement" in names
     return x509.KeyUsage(
@@ -283,6 +307,7 @@ def _key_usage(values):
 
 
 def _extended_key_usage(values):
+    """Build an ExtendedKeyUsage extension value from names or OIDs."""
     oids = []
     for value in values or []:
         text = str(value)
@@ -294,6 +319,7 @@ def _extended_key_usage(values):
 
 
 def _other_name_value(value: str, pkinit_realm: str | None) -> bytes:
+    """Encode supported otherName payload syntaxes."""
     if value.startswith("UTF8:"):
         return _der_utf8_string(value.split(":", 1)[1])
     if value.startswith("SEQUENCE:"):
@@ -304,6 +330,7 @@ def _other_name_value(value: str, pkinit_realm: str | None) -> bytes:
 
 
 def _subject_alt_name(values, pkinit_realm: str | None):
+    """Build a SubjectAlternativeName extension from OpenSSL-like values."""
     names: list[x509.GeneralName] = []
     for value in values or []:
         kind, payload = str(value).split(":", 1)
@@ -332,6 +359,7 @@ def _subject_alt_name(values, pkinit_realm: str | None):
 
 
 def _raw_extension_value(value: str) -> bytes:
+    """Encode supported raw extension value syntaxes as DER bytes."""
     if value.startswith("ASN1:BMPSTRING:"):
         return _der_bmp_string(value.split(":", 2)[2])
     if value.startswith("ASN1:UTF8String:"):
@@ -345,6 +373,7 @@ def _raw_extension_value(value: str) -> bytes:
 
 
 def _desired_extensions(params, public_key, signer_public_key):
+    """Build the desired certificate or CSR extension list."""
     extensions = [
         (
             x509.ExtensionOID.BASIC_CONSTRAINTS,
@@ -439,6 +468,7 @@ def _desired_extensions(params, public_key, signer_public_key):
 
 
 def _add_extensions(builder, extensions):
+    """Add extensions to a cryptography builder and reject duplicates."""
     seen = set()
     for oid, critical, value in extensions:
         if oid in seen:
@@ -449,10 +479,12 @@ def _add_extensions(builder, extensions):
 
 
 def _extension_maps(extensions):
+    """Return extensions keyed by dotted OID string."""
     return {ext.oid.dotted_string: ext for ext in extensions}
 
 
 def _name_token(name):
+    """Return a comparable token for a GeneralName."""
     if isinstance(name, x509.DNSName):
         return ("DNS", name.value)
     if isinstance(name, x509.RFC822Name):
@@ -471,6 +503,7 @@ def _name_token(name):
 
 
 def _distribution_point_token(point):
+    """Return a comparable token for a CRL distribution point."""
     full_name = tuple(_name_token(name) for name in point.full_name or [])
     crl_issuer = tuple(_name_token(name) for name in point.crl_issuer or [])
     reasons = tuple(sorted(reason.name for reason in point.reasons or []))
@@ -481,6 +514,7 @@ def _distribution_point_token(point):
 
 
 def _extension_token(extension):
+    """Return a comparable token for an X.509 extension."""
     value = extension.value
     if isinstance(value, x509.BasicConstraints):
         return ("basic_constraints", value.ca, value.path_length)
@@ -533,6 +567,7 @@ def _extension_token(extension):
 
 
 def _extensions_equal(existing, desired) -> bool:
+    """Compare existing cryptography extensions to desired extension tuples."""
     existing_map = _extension_maps(existing)
     desired_map = {
         oid.dotted_string: x509.Extension(oid, critical, value)
@@ -549,6 +584,7 @@ def _extensions_equal(existing, desired) -> bool:
 
 
 def _ensure_key(params):
+    """Ensure the private key exists with the requested RSA properties."""
     key = None
     changed = False
     if params["key_type"].upper() != "RSA":
@@ -592,6 +628,7 @@ def _ensure_key(params):
 
 
 def _ensure_csr(params, key, subject, csr_extensions):
+    """Ensure the CSR matches the requested subject, key, and extensions."""
     builder = x509.CertificateSigningRequestBuilder().subject_name(subject)
     builder = _add_extensions(builder, csr_extensions)
     csr = builder.sign(key, _digest(params["digest"]))
@@ -625,6 +662,7 @@ def _ensure_csr(params, key, subject, csr_extensions):
 
 
 def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signer_cert):
+    """Ensure the certificate matches the requested issuer and profile."""
     issuer = signer_cert.subject if signer_cert is not None else subject
     now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     builder = (
@@ -676,6 +714,7 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
 
 
 def _ensure_der(params, cert):
+    """Ensure the optional DER certificate export exists."""
     if not params["der_path"]:
         return False
     return write_file(
@@ -688,6 +727,7 @@ def _ensure_der(params, cert):
 
 
 def _ensure_chain(params):
+    """Ensure the optional end-entity chain copy exists."""
     if not params["chain_src_path"] or not params["chain_path"]:
         return False
     content = read_file(params["chain_src_path"])
@@ -701,10 +741,12 @@ def _ensure_chain(params):
 
 
 def _formats(params) -> list[str]:
+    """Return normalized output format names from module parameters."""
     return [str(item).lower() for item in params.get("formats", [])]
 
 
 def _merge_raw_extensions(defaults, overrides):
+    """Merge default raw extensions with caller overrides by OID."""
     overrides = list(overrides or [])
     override_oids = {str(item.get("oid")) for item in overrides}
     merged = [
@@ -717,6 +759,7 @@ def _merge_raw_extensions(defaults, overrides):
 
 
 def apply_profile_defaults(params: dict, defaults: dict) -> dict:
+    """Apply certificate profile defaults without overriding explicit values."""
     result = dict(params)
     for key in ("key_usage", "extended_key_usage"):
         value = defaults.get(key)
@@ -743,6 +786,7 @@ def apply_profile_defaults(params: dict, defaults: dict) -> dict:
 
 
 def _base_url(params: dict, name: str, key: str) -> str:
+    """Derive an AIA or CDP URL from explicit or base URL parameters."""
     value = str(params.get(key) or "").rstrip("/")
     if not value:
         base_url = str(params.get("base_url") or "").rstrip("/")
@@ -760,6 +804,7 @@ def _with_derived_paths(
     manage_directory: bool,
     manage_chain: bool,
 ) -> dict:
+    """Derive managed file paths and publication URLs from base parameters."""
     result = dict(params)
     base_dir = str(result["base_dir"]).rstrip("/")
     name = str(result["name"])
@@ -813,6 +858,7 @@ def x509_argument_spec(
     signer: bool = False,
     defaults: dict | None = None,
 ):
+    """Build the argument spec for CA certificate modules."""
     spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
         "base_url": {"type": "str", "default": ""},
@@ -874,6 +920,7 @@ def x509_argument_spec(
 
 
 def x509_certificate_argument_spec(*, defaults: dict | None = None):
+    """Build the argument spec for end-entity certificate modules."""
     spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
         "base_url": {"type": "str"},
@@ -911,6 +958,7 @@ def x509_certificate_argument_spec(*, defaults: dict | None = None):
 
 
 def x509_certificate_params(params: dict) -> dict:
+    """Merge certificate dictionaries with explicit module parameters."""
     result = {
         "formats": ["pem", "der"],
         "base_url": "",
@@ -957,6 +1005,7 @@ def ensure_x509(
     manage_directory: bool = False,
     manage_chain: bool = False,
 ) -> dict:
+    """Ensure X.509 key, CSR, certificate, exports, and chain artifacts."""
     params = _with_derived_paths(
         params,
         authority=authority,

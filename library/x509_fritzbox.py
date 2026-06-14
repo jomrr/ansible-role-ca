@@ -24,6 +24,7 @@ FRITZBOX_DEFAULTS = {
 
 
 def run_module():
+    """Run the Ansible module for FritzBox certificate profiles."""
     spec = x509_certificate_argument_spec()
     module = AnsibleModule(
         argument_spec=spec,
@@ -51,6 +52,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

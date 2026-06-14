@@ -19,6 +19,7 @@ ROOT_CA_DEFAULTS = {
 
 
 def run_module():
+    """Run the Ansible module for a self-signed Root CA."""
     module = AnsibleModule(
         argument_spec=x509_argument_spec(authority=True, defaults=ROOT_CA_DEFAULTS),
         supports_check_mode=False,
@@ -38,6 +39,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

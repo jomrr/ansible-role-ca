@@ -8,6 +8,7 @@ from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  
 
 
 def _read_sources(sources: list[str]) -> bytes:
+    """Read and concatenate source files with single trailing newlines."""
     parts = []
     for source in sources:
         parts.append(read_file(source).rstrip() + b"\n")
@@ -17,6 +18,7 @@ def _read_sources(sources: list[str]) -> bytes:
 def _bundle_paths(
     base_dir: str, name: str, output_dir: str | None, order: list[str]
 ) -> tuple[str, list[str]]:
+    """Derive the FritzBox bundle path and ordered input paths."""
     directory = (output_dir or f"{base_dir.rstrip('/')}/certs/{name}").rstrip("/")
     sources = {
         "private_key": f"{directory}/{name}.key",
@@ -27,6 +29,7 @@ def _bundle_paths(
 
 
 def _params(params: dict) -> dict:
+    """Merge optional certificate dictionary values into module params."""
     certificate = dict(params.get("certificate") or {})
     result = dict(params)
     if result.get("output_dir") is None and certificate.get("output_dir") is not None:
@@ -35,6 +38,7 @@ def _params(params: dict) -> dict:
 
 
 def run_module():
+    """Run the Ansible module for PEM bundles."""
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
@@ -78,6 +82,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

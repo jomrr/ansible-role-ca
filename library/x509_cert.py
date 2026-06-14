@@ -35,6 +35,7 @@ PROFILE_DEFAULTS = {
 
 
 def run_module():
+    """Run the Ansible module for standard end-entity certificates."""
     spec = x509_certificate_argument_spec()
     spec["profile"] = {
         "type": "str",
@@ -67,6 +68,7 @@ def run_module():
 
 
 def main():
+    """Execute the module entry point."""
     run_module()
 
 

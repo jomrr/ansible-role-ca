@@ -20,6 +20,7 @@ SECRET_ASSIGNMENT_RE = re.compile(
 
 
 def uid(owner: Any) -> int:
+    """Resolve an owner name or numeric string to a UID."""
     if owner is None:
         return -1
     value = str(owner)
@@ -29,6 +30,7 @@ def uid(owner: Any) -> int:
 
 
 def gid(group: Any) -> int:
+    """Resolve a group name or numeric string to a GID."""
     if group is None:
         return -1
     value = str(group)
@@ -38,12 +40,14 @@ def gid(group: Any) -> int:
 
 
 def _mode(mode: Any, fallback: int = 0o600) -> int:
+    """Convert an Ansible-style octal mode value to an integer."""
     if mode is None:
         return fallback
     return int(str(mode), 8)
 
 
 def _open_no_follow(path: str, flags: int) -> int:
+    """Open a path without following a final symlink."""
     try:
         return os.open(path, flags | NOFOLLOW)
     except OSError as exc:
@@ -53,15 +57,18 @@ def _open_no_follow(path: str, flags: int) -> int:
 
 
 def _read_file(path: str) -> bytes:
+    """Read a file while refusing symlink targets."""
     with os.fdopen(_open_no_follow(path, os.O_RDONLY), "rb") as handle:
         return handle.read()
 
 
 def read_file(path: str) -> bytes:
+    """Read file content through the shared symlink-safe helper."""
     return _read_file(path)
 
 
 def _fsync_directory(path: str) -> None:
+    """Flush directory metadata when the platform supports it."""
     directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
     try:
         directory_fd = os.open(path, directory_flags)
@@ -74,6 +81,7 @@ def _fsync_directory(path: str) -> None:
 
 
 def set_attrs(path: str, owner: Any, group: Any, mode: Any) -> bool:
+    """Apply owner, group, and mode to a path and report changes."""
     changed = False
     fd = _open_no_follow(path, os.O_RDONLY)
     try:
@@ -96,6 +104,7 @@ def set_attrs(path: str, owner: Any, group: Any, mode: Any) -> bool:
 
 
 def _secret_values(value: Any) -> set[str]:
+    """Collect secret-looking values from nested module parameters."""
     secrets: set[str] = set()
     if isinstance(value, dict):
         for key, item in value.items():
@@ -112,6 +121,7 @@ def _secret_values(value: Any) -> set[str]:
 
 
 def sanitize_error(exc: BaseException, params: Any | None = None) -> str:
+    """Return an exception message with module secrets masked."""
     message = str(exc) or exc.__class__.__name__
     for secret in sorted(_secret_values(params), key=len, reverse=True):
         message = message.replace(secret, MASK)
@@ -127,6 +137,7 @@ def write_file(
     *,
     force: bool = False,
 ) -> bool:
+    """Atomically write content and enforce file attributes."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     try:
