@@ -12,8 +12,10 @@ reference instead of generated `ansible-doc` pages.
 
 - The modules use Python `cryptography` instead of the OpenSSL command line,
   except for no-op file assembly modules that only concatenate existing files.
-- The modules are idempotent by comparing existing files with the desired key,
-  certificate, CRL, chain, bundle, or DH parameter content.
+- File-producing modules are idempotent by comparing existing files with the
+  desired key, certificate, CRL, chain, bundle, or DH parameter content.
+- `ca_fritzbox_deploy` performs a real upload and reports successful imports as
+  changed.
 - All modules currently set `supports_check_mode=False`.
 - `force: true` makes the module regenerate or rewrite managed artifacts.
 - File writes use an atomic temporary file and refuse to read, chmod, or replace
@@ -433,6 +435,43 @@ Parameters:
 | `group` | str | no | none | no | Group applied to the bundle file. |
 | `mode` | str | no | `0600` | no | Bundle file mode. |
 | `force` | bool | no | `false` | no | Rewrites the bundle even if content matches. |
+
+Returns:
+
+- `changed`
+- `path`
+
+## `ca_fritzbox_deploy`
+
+Uploads a FritzBox PEM import bundle to FRITZ!OS.
+
+Behavior:
+
+- Reads `<output_dir>/<name>-fritzbox.pem` unless `bundle_path` is set.
+- Validates that the bundle contains at least one PEM certificate and an
+  unencrypted RSA private key.
+- Logs in through `login_sid.lua` with the FRITZ!OS challenge-response flow,
+  including PBKDF2 challenges and the legacy MD5 response.
+- Uploads the bundle to `/cgi-bin/firmwarecfg` as multipart form data.
+- Logs out after the upload attempt when a session was acquired.
+- Marks successful uploads as changed. The module does not query and compare
+  the current FRITZ!Box certificate.
+
+Parameters:
+
+| Parameter | Type | Required | Default | Secret | Behavior |
+| --- | --- | --- | --- | --- | --- |
+| `base_dir` | path | yes | none | no | Base CA directory. Used to derive default `output_dir`. |
+| `certificate` | dict | no | `{}` | yes | Certificate model dictionary. May provide `output_dir` and `fritzbox_deploy`. |
+| `deploy` | dict | no | `{}` | yes | Deployment settings. Values override `certificate.fritzbox_deploy`. |
+| `name` | str | yes | none | no | Certificate short name and output file stem. |
+| `output_dir` | path | no | `<base_dir>/certs/<name>` | no | Directory containing the FritzBox bundle. |
+| `bundle_path` | path | no | `<output_dir>/<name>-fritzbox.pem` | no | Explicit FritzBox bundle path. |
+| `base_url` | str | yes | none | no | FRITZ!Box base URL, for example `https://fritz.box`. |
+| `username` | str | yes | none | no | FRITZ!OS user name. |
+| `password` | str | yes | none | yes | FRITZ!OS password. |
+| `timeout` | int | no | `30` | no | HTTP request timeout in seconds. |
+| `validate_certs` | bool | no | `true` | no | Validate HTTPS certificates for the FRITZ!Box connection. |
 
 Returns:
 

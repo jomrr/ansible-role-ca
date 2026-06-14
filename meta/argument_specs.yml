@@ -261,6 +261,43 @@ argument_specs:
             type: str
             required: false
             description: Friendly name for PFX/PKCS#12 export.
+          fritzbox_deploy:
+            type: dict
+            required: false
+            description:
+              - Optional FRITZ!OS deployment settings for FritzBox certificates.
+              - Deployment runs only when `enabled=true` and the effective formats include
+                `fritzbox`.
+              - Successful uploads are reported as changed because the role does not compare
+                the current FRITZ!Box certificate.
+            options:
+              enabled:
+                type: bool
+                required: false
+                default: false
+                description: Enable deployment to a FRITZ!Box.
+              base_url:
+                type: str
+                required: false
+                description: FRITZ!Box base URL, for example `https://fritz.box`.
+              username:
+                type: str
+                required: false
+                description: FRITZ!OS user name.
+              password:
+                type: str
+                required: false
+                description: FRITZ!OS password.
+              timeout:
+                type: int
+                required: false
+                default: 30
+                description: HTTP request timeout in seconds.
+              validate_certs:
+                type: bool
+                required: false
+                default: true
+                description: Validate HTTPS certificates for the FRITZ!Box connection.
       ca_crl_automation_enabled:
         type: bool
         required: false

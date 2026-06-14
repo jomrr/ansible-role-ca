@@ -17,6 +17,7 @@ The role currently ships these callable modules:
 - `ca_pkcs12_bundle`
 - `ca_fullchain_bundle`
 - `ca_fritzbox_bundle`
+- `ca_fritzbox_deploy`
 - `ca_dhparam`
 
 `module_utils/` and `filter_plugins/` contain internal helpers. They are not

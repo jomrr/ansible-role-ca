@@ -21,6 +21,7 @@ It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and 
 - TLS server and TLS client certificates from the Component CA
 - Samba AD Domain Controller/MSKDC certificates from the Component CA
 - FritzBox import bundles from the Component CA
+- Optional FritzBox certificate deployment to FRITZ!OS
 - Identity certificates for smartcard logon, S/MIME, and optional code signing
 - EAP-TLS client certificates from the Network CA
 - PEM and DER CRLs
@@ -32,7 +33,7 @@ It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and 
 - Publishing or serving AIA and CDP files
 - Online certificate enrollment protocols
 - OCSP responder services
-- Importing certificates into applications or hardware tokens
+- Importing certificates into applications or hardware tokens other than optional FritzBox deployment
 
 ## Requirements
 
@@ -40,6 +41,7 @@ It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and 
 - CA private key passphrases are required as `key_passphrase` values in `ca_authorities`; store real values in Ansible Vault.
 - PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus `ad_object_guid`.
+- FritzBox deployment requires network access to FRITZ!OS and a user with certificate import permissions.
 - CRL renewal systemd services read CA key passphrases from `/root/.profile` environment variables named `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE`, uppercased with non-alphanumeric characters replaced by underscores.
 
 ## Dependencies
@@ -101,6 +103,7 @@ The following variables are part of the public role interface.
 - Certificate private key passphrases are optional except for formats that require export passwords, such as PFX/PKCS#12.
 - Fullchain bundles contain the certificate followed by its issuing chain and do not include the private key.
 - FritzBox bundles are mode `0600` because they include the private key, certificate, and issuing chain.
+- FritzBox deployment uploads the bundle, including the private key, to the configured FRITZ!OS endpoint and requires FRITZ!OS credentials from inventory variables.
 - MSKDC certificates include `digitalSignature`, `serverAuth`, `clientAuth`, and KDC Authentication EKU `1.3.6.1.5.2.3.5` (OpenSSL renders it as `Signing KDC Response`); the Microsoft template-name extension is emitted as `1.3.6.1.4.1.311.20.2 = ASN1:BMPSTRING:DomainController`.
 - MSKDC certificates include a PKINIT SAN `otherName:1.3.6.1.5.2.2` containing the DER-encoded `KRB5PrincipalName` for `krbtgt/<REALM>@<REALM>`.
 - MSKDC certificates require the domain controller AD objectGUID through `ad_object_guid`; the role emits it as `1.3.6.1.4.1.311.25.1 = ASN1:FORMAT:HEX,OCTETSTRING:<guid-bytes>`.
@@ -121,6 +124,7 @@ The following variables are part of the public role interface.
 - Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
+- FritzBox deployment runs only for certificate entries with `fritzbox_deploy.enabled=true`; successful uploads report `changed` because the current FRITZ!Box certificate is not compared.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
 ## Supported Platforms

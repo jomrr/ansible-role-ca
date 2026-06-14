@@ -169,3 +169,46 @@
   changed_when: __ca_certificate_fritzbox_status.changed | default(false)
   failed_when: __ca_certificate_fritzbox_status.failed | default(false)
   no_log: true
+
+- name: "CA | Start FritzBox deploy jobs"
+  ca_fritzbox_deploy:
+    base_dir: "{{ ca_base_dir }}"
+    certificate: "{{ ca_certificate_result.ca_certificate_job.ca_certificate }}"
+    deploy: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.fritzbox_deploy }}"
+    name: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+  loop: "{{ __ca_certificate_material_status.results | default([]) }}"
+  loop_control:
+    loop_var: ca_certificate_result
+    label: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+  when:
+    - ca_certificate_result.fritzbox_bundle | default(false) | bool
+    - >-
+      ca_certificate_result.ca_certificate_job.ca_certificate.fritzbox_deploy.enabled
+      | default(false)
+      | bool
+  async: "{{ ca_certificate_async_timeout }}"
+  poll: 0
+  changed_when: false
+  register: __ca_certificate_fritzbox_deploy_jobs
+  no_log: true
+
+- name: "CA | Wait for FritzBox deploy jobs"
+  ansible.builtin.async_status:
+    jid: "{{ ca_certificate_job.ansible_job_id }}"
+  loop: >-
+    {{
+      __ca_certificate_fritzbox_deploy_jobs.results
+      | default([])
+      | selectattr('ansible_job_id', 'defined')
+      | list
+    }}
+  loop_control:
+    loop_var: ca_certificate_job
+    label: "{{ ca_certificate_job.ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+  register: __ca_certificate_fritzbox_deploy_status
+  until: __ca_certificate_fritzbox_deploy_status.finished
+  retries: "{{ ca_certificate_async_retries }}"
+  delay: "{{ ca_certificate_async_delay }}"
+  changed_when: __ca_certificate_fritzbox_deploy_status.changed | default(false)
+  failed_when: __ca_certificate_fritzbox_deploy_status.failed | default(false)
+  no_log: true
