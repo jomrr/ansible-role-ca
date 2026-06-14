@@ -14,8 +14,9 @@ reference instead of generated `ansible-doc` pages.
   except for no-op file assembly modules that only concatenate existing files.
 - File-producing modules are idempotent by comparing existing files with the
   desired key, certificate, CRL, chain, bundle, or DH parameter content.
-- `ca_fritzbox_deploy` performs a real upload and reports successful imports as
-  changed.
+- `ca_fritzbox_deploy` compares the desired certificate with the current
+  FRITZ!Box HTTPS certificate and uploads only when they differ, unless
+  `force=true`.
 - All modules currently set `supports_check_mode=False`.
 - `force: true` makes the module regenerate or rewrite managed artifacts.
 - File writes use an atomic temporary file and refuse to read, chmod, or replace
@@ -450,12 +451,15 @@ Behavior:
 - Reads `<output_dir>/<name>-fritzbox.pem` unless `bundle_path` is set.
 - Validates that the bundle contains at least one PEM certificate and an
   unencrypted RSA private key.
+- Reads the current certificate from the FRITZ!Box HTTPS endpoint and compares
+  its SHA-256 fingerprint with the desired leaf certificate.
+- Requires an HTTPS `base_url` for the default idempotent comparison.
 - Logs in through `login_sid.lua` with the FRITZ!OS challenge-response flow,
   including PBKDF2 challenges and the legacy MD5 response.
 - Uploads the bundle to `/cgi-bin/firmwarecfg` as multipart form data.
 - Logs out after the upload attempt when a session was acquired.
-- Marks successful uploads as changed. The module does not query and compare
-  the current FRITZ!Box certificate.
+- Skips login and upload when the current HTTPS certificate already matches.
+- `force=true` skips the comparison and always uploads.
 
 Parameters:
 
@@ -467,11 +471,12 @@ Parameters:
 | `name` | str | yes | none | no | Certificate short name and output file stem. |
 | `output_dir` | path | no | `<base_dir>/certs/<name>` | no | Directory containing the FritzBox bundle. |
 | `bundle_path` | path | no | `<output_dir>/<name>-fritzbox.pem` | no | Explicit FritzBox bundle path. |
-| `base_url` | str | yes | none | no | FRITZ!Box base URL, for example `https://fritz.box`. |
+| `base_url` | str | yes | none | no | FRITZ!Box base URL, for example `https://fritz.box`. HTTPS is required unless `force=true`. |
 | `username` | str | yes | none | no | FRITZ!OS user name. |
 | `password` | str | yes | none | yes | FRITZ!OS password. |
 | `timeout` | int | no | `30` | no | HTTP request timeout in seconds. |
 | `validate_certs` | bool | no | `true` | no | Validate HTTPS certificates for the FRITZ!Box connection. |
+| `force` | bool | no | `false` | no | Upload the bundle without comparing the current FRITZ!Box HTTPS certificate. |
 
 Returns:
 

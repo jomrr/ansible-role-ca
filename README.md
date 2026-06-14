@@ -124,7 +124,8 @@ The following variables are part of the public role interface.
 - Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
-- FritzBox deployment runs only for certificate entries with `fritzbox_deploy.enabled=true`; successful uploads report `changed` because the current FRITZ!Box certificate is not compared.
+- FritzBox deployment runs only for certificate entries with `fritzbox_deploy.enabled=true`; it compares the desired leaf certificate with the current FRITZ!Box HTTPS certificate and uploads only when they differ, unless `ca_force_reissue=true`.
+- FritzBox deployment needs an HTTPS `base_url` for the idempotent comparison; `ca_force_reissue=true` skips the comparison and uploads directly.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
 ## Supported Platforms

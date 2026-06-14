@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import re
 import secrets
+import socket
 import ssl
 import urllib.error
 import urllib.parse
@@ -19,7 +20,7 @@ from ansible.module_utils.ca_file import read_file, sanitize_error  # type: igno
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
-    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
 except Exception as exc:  # pragma: no cover - handled at runtime by Ansible
     CRYPTOGRAPHY_IMPORT_ERROR = exc
@@ -80,6 +81,14 @@ def _base_url(value: str) -> str:
     return url
 
 
+def _https_endpoint(base_url: str) -> tuple[str, int]:
+    """Return the HTTPS endpoint for the FRITZ!Box certificate comparison."""
+    parsed = urllib.parse.urlsplit(base_url)
+    if parsed.scheme != "https":
+        raise ValueError("FritzBox deployment idempotence requires an https base_url")
+    return parsed.hostname or "", parsed.port or 443
+
+
 def _url(base_url: str, path: str, query: dict[str, str] | None = None) -> str:
     """Build an absolute URL below the FRITZ!Box base URL."""
     parsed = urllib.parse.urlsplit(base_url)
@@ -95,10 +104,10 @@ def _decode_response(response: HTTPResponse, data: bytes) -> str:
     return data.decode(encoding, errors="replace")
 
 
-def _ssl_context(validate_certs: bool) -> ssl.SSLContext | None:
+def _ssl_context(validate_certs: bool) -> ssl.SSLContext:
     """Return an SSL context matching the certificate validation setting."""
     if validate_certs:
-        return None
+        return ssl.create_default_context()
     return ssl._create_unverified_context()  # noqa: S323
 
 
@@ -132,18 +141,26 @@ class FritzBoxClient:
         headers: dict[str, str] | None = None,
     ) -> str:
         """Execute one FRITZ!OS HTTP request and return decoded text."""
+        url = _url(self.base_url, path, query)
         request = urllib.request.Request(
-            _url(self.base_url, path, query),
+            url,
             data=data,
             headers=headers or {},
             method=method,
         )
         try:
-            with urllib.request.urlopen(  # noqa: S310
-                request,
-                timeout=self.timeout,
-                context=self.context,
-            ) as response:
+            if urllib.parse.urlsplit(url).scheme == "https":
+                response_context = urllib.request.urlopen(  # noqa: S310
+                    request,
+                    timeout=self.timeout,
+                    context=self.context,
+                )
+            else:
+                response_context = urllib.request.urlopen(  # noqa: S310
+                    request,
+                    timeout=self.timeout,
+                )
+            with response_context as response:
                 body = response.read()
                 return _decode_response(response, body)
         except urllib.error.HTTPError as exc:
@@ -212,6 +229,24 @@ class FritzBoxClient:
         if not _import_succeeded(response):
             raise RuntimeError("FRITZ!Box did not confirm certificate import")
 
+    def current_certificate(self) -> x509.Certificate:
+        """Return the certificate currently served by the FRITZ!Box HTTPS port."""
+        host, port = _https_endpoint(self.base_url)
+        if not host:
+            raise ValueError("base_url does not contain a host name")
+        try:
+            raw_socket = socket.create_connection((host, port), self.timeout)
+            with raw_socket:
+                with self.context.wrap_socket(raw_socket, server_hostname=host) as sock:
+                    der_certificate = sock.getpeercert(binary_form=True)
+        except OSError as exc:
+            raise RuntimeError(
+                f"Failed to read current FRITZ!Box certificate: {exc}"
+            ) from exc
+        if not der_certificate:
+            raise RuntimeError("FRITZ!Box did not present an HTTPS certificate")
+        return x509.load_der_x509_certificate(der_certificate)
+
 
 def _bundle_path(base_dir: str, name: str, output_dir: str | None) -> str:
     """Derive the FritzBox bundle path."""
@@ -235,6 +270,7 @@ def _params(params: dict) -> dict:
         "bundle_path",
         "timeout",
         "validate_certs",
+        "force",
     ):
         if deploy.get(key) is not None:
             result[key] = deploy[key]
@@ -252,6 +288,14 @@ def _params(params: dict) -> dict:
 def _load_bundle(path: str) -> bytes:
     """Read and normalize the FritzBox PEM bundle."""
     return read_file(path).strip() + b"\n"
+
+
+def _leaf_certificate(bundle: bytes) -> x509.Certificate:
+    """Return the first certificate from the FritzBox PEM bundle."""
+    match = CERTIFICATE_RE.search(bundle)
+    if match is None:
+        raise ValueError("FritzBox bundle does not contain a certificate")
+    return x509.load_pem_x509_certificate(match.group(0))
 
 
 def _private_key_pem(bundle: bytes) -> bytes:
@@ -288,6 +332,11 @@ def _validate_bundle(bundle: bytes) -> None:
         raise ValueError("FritzBox bundle private key is not readable") from exc
     if not isinstance(private_key, rsa.RSAPrivateKey):
         raise ValueError("FRITZ!OS certificate import requires an RSA private key")
+
+
+def _same_certificate(first: x509.Certificate, second: x509.Certificate) -> bool:
+    """Return whether two certificates have the same SHA-256 fingerprint."""
+    return first.fingerprint(hashes.SHA256()) == second.fingerprint(hashes.SHA256())
 
 
 def _multipart_body(boundary: str, sid: str, bundle: bytes) -> bytes:
@@ -330,6 +379,7 @@ def run_module():
             "password": {"type": "str", "no_log": True},
             "timeout": {"type": "int"},
             "validate_certs": {"type": "bool"},
+            "force": {"type": "bool", "default": False},
         },
         supports_check_mode=False,
     )
@@ -347,6 +397,7 @@ def run_module():
                 raise ValueError(f"FritzBox deployment requires {key}")
         bundle = _load_bundle(params["bundle_path"])
         _validate_bundle(bundle)
+        desired_certificate = _leaf_certificate(bundle)
         client = FritzBoxClient(
             base_url=params["base_url"],
             username=params["username"],
@@ -354,6 +405,11 @@ def run_module():
             timeout=params["timeout"],
             validate_certs=params["validate_certs"],
         )
+        if not params["force"] and _same_certificate(
+            desired_certificate,
+            client.current_certificate(),
+        ):
+            module.exit_json(changed=False, path=params["bundle_path"])
         client.login()
         client.import_certificate(bundle)
     except Exception as exc:

@@ -268,8 +268,8 @@ argument_specs:
               - Optional FRITZ!OS deployment settings for FritzBox certificates.
               - Deployment runs only when `enabled=true` and the effective formats include
                 `fritzbox`.
-              - Successful uploads are reported as changed because the role does not compare
-                the current FRITZ!Box certificate.
+              - The module compares the desired certificate with the current FRITZ!Box HTTPS
+                certificate and uploads only when they differ, unless `ca_force_reissue=true`.
             options:
               enabled:
                 type: bool
@@ -279,7 +279,10 @@ argument_specs:
               base_url:
                 type: str
                 required: false
-                description: FRITZ!Box base URL, for example `https://fritz.box`.
+                description:
+                  - FRITZ!Box base URL, for example `https://fritz.box`.
+                  - HTTPS is required for the default idempotent certificate comparison;
+                    `ca_force_reissue=true` skips that comparison and uploads directly.
               username:
                 type: str
                 required: false

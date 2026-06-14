@@ -176,6 +176,7 @@
     certificate: "{{ ca_certificate_result.ca_certificate_job.ca_certificate }}"
     deploy: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.fritzbox_deploy }}"
     name: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+    force: "{{ ca_force_reissue | bool }}"
   loop: "{{ __ca_certificate_material_status.results | default([]) }}"
   loop_control:
     loop_var: ca_certificate_result
