@@ -34,7 +34,6 @@
       ca_chain:
         base_dir: "{{ ca_base_dir }}"
         name: "{{ ca_authority.name }}"
-        parent: "{{ ca_authority.parent }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
         force: "{{ ca_force_reissue | bool }}"

@@ -248,19 +248,26 @@ def _certificate_summary(cert: x509.Certificate) -> dict[str, Any]:
     }
 
 
-def _authority_paths(base_dir: str, name: str) -> dict[str, str]:
+def _authority_paths(
+    base_dir: str,
+    name: str,
+    *,
+    include_chain: bool,
+) -> dict[str, str]:
     """Return derived authority artifact paths."""
     ca_file = f"{name}-ca"
-    return {
+    paths = {
         "private_key": f"{base_dir}/private/{ca_file}.key",
         "csr": f"{base_dir}/csr/{ca_file}.csr",
         "certificate_pem": f"{base_dir}/ca/{ca_file}.pem",
         "certificate_der": f"{base_dir}/ca/{ca_file}.der",
         "certificate_text": f"{base_dir}/ca/{ca_file}.txt",
-        "chain": f"{base_dir}/chains/{ca_file}-chain.pem",
         "crl_pem": f"{base_dir}/crl/{ca_file}.crl.pem",
         "crl_der": f"{base_dir}/crl/{ca_file}.crl",
     }
+    if include_chain:
+        paths["chain"] = f"{base_dir}/chains/{ca_file}-chain.pem"
+    return paths
 
 
 def _certificate_paths(base_dir: str, certificate: dict[str, Any]) -> dict[str, str]:
@@ -343,15 +350,17 @@ def record_authority_inventory(
     base_dir = str(params["base_dir"]).rstrip("/")
     name = str(params["name"])
     cert = _load_certificate(result["cert_path"])
-    paths = _authority_paths(base_dir, name)
+    parent = str(params.get("parent") or name)
+    self_signed = parent == name
+    paths = _authority_paths(base_dir, name, include_chain=not self_signed)
     certificate = _certificate_summary(cert)
     record = {
         "record_type": "authority",
         "schema_version": 1,
         "name": name,
         "common_name": str(params.get("common_name") or ""),
-        "parent": str(params.get("parent") or name),
-        "self_signed": str(params.get("parent") or name) == name,
+        "parent": parent,
+        "self_signed": self_signed,
         "days": params.get("days"),
         "certificate": certificate,
         "paths": paths,

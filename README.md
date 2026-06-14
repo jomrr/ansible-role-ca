@@ -7,7 +7,7 @@ Ansible role for managing a two-tier private CA with certificate issuance, CRLs,
 ## Purpose
 
 This role manages a private two-tier PKI with a Root CA and Component, Network, and Identity issuing CAs.
-It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and managed certificates from inventory variables.
+It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports, CRLs, and managed certificates from inventory variables.
 
 ## Scope
 
@@ -15,7 +15,7 @@ It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and 
 
 - Root CA and Component, Network, and Identity issuing CAs
 - PEM, DER, and text exports for all CA certificates
-- CA chain files
+- Issuing CA chain files
 - Declarative certificates in `ca_certificates`
 - Persistent non-secret CA inventory and state fragments below `<ca_base_dir>/inventory`
 - Optional certificate fullchain PEM bundles
@@ -88,7 +88,7 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/ca/*-ca.pem`
 - `<ca_base_dir>/ca/*-ca.der`
 - `<ca_base_dir>/ca/*-ca.txt`
-- `<ca_base_dir>/chains/*-ca-chain.pem`
+- `<ca_base_dir>/chains/*-ca-chain.pem for issuing CAs`
 - `<ca_base_dir>/crl/*-ca.crl`
 - `<ca_base_dir>/crl/*-ca.crl.pem`
 - `<ca_base_dir>/csr/*.csr`
@@ -122,6 +122,7 @@ The following variables are part of the public role interface.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
+- Self-signed root CAs do not get a separate chain file because it would be identical to the root certificate.
 - CRL renewal uses instantiated systemd timers named `<ca_name | lower>-crl-renew@<authority>.timer`, for example `example-crl-renew@root.timer`.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.

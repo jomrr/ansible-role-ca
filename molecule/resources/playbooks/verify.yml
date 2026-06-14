@@ -59,6 +59,16 @@
         that:
           - __ca_molecule_files.results | map(attribute='stat.exists') | min
 
+    - name: "CA | Check root CA chain is omitted"
+      ansible.builtin.stat:
+        path: "{{ ca_molecule_base }}/chains/root-ca-chain.pem"
+      register: __ca_molecule_root_chain
+
+    - name: "CA | Assert root CA chain is omitted"
+      ansible.builtin.assert:
+        that:
+          - not __ca_molecule_root_chain.stat.exists
+
     - name: "CA | Read CA inventory"
       ansible.builtin.slurp:
         src: "{{ ca_molecule_base }}/inventory/ca-inventory.json"
