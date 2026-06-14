@@ -11,10 +11,13 @@ the FRITZ!OS certificate import endpoint.
 - Validates that the bundle contains at least one certificate and one
   unencrypted RSA private key.
 - Defaults `url` to `https://fritz.box`.
+- Normalizes `url` to `scheme://host[:port]` and rejects embedded credentials.
 - Defaults `validate_certs` to `false`.
 - Always compares the desired leaf certificate with the current HTTPS
   certificate before deploying.
 - Deploys only when the certificates differ, unless `force: true` is set.
+- Deployment is serialized per normalized `url` with a local lock, so async jobs
+  cannot concurrently upload different certificates to the same FRITZ!Box.
 - The idempotence comparison requires an HTTPS `url`.
 - Supports both legacy MD5 challenge-response and FRITZ!OS PBKDF2 login
   challenge-response.
@@ -89,4 +92,3 @@ certificate:
     username: "{{ fritzbox_username }}"
     password: "{{ fritzbox_password }}"
 ```
-

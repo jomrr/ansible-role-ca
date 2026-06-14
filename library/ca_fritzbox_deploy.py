@@ -15,7 +15,12 @@ import xml.etree.ElementTree as ET
 from http.client import HTTPResponse
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import read_file, sanitize_error  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+    ca_lock_path,
+    file_lock,
+    read_file,
+    sanitize_error,
+)
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
@@ -78,7 +83,16 @@ def _deploy_url(value: str) -> str:
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("url must be an absolute http or https URL")
-    return url
+    if parsed.username or parsed.password:
+        raise ValueError("url must not contain credentials")
+    host = parsed.hostname
+    if not host:
+        raise ValueError("url must contain a host name")
+    hostname = host.lower()
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    netloc = f"{hostname}:{parsed.port}" if parsed.port is not None else hostname
+    return urllib.parse.urlunsplit((parsed.scheme.lower(), netloc, "", "", ""))
 
 
 def _https_endpoint(url: str) -> tuple[str, int]:
@@ -254,6 +268,11 @@ def _bundle_path(base_dir: str, name: str, output_dir: str | None) -> str:
     return f"{directory}/{name}-fritzbox.pem"
 
 
+def _deploy_lock_path(base_dir: str, url: str) -> str:
+    """Return the local lock path for one FRITZ!Box deployment target."""
+    return ca_lock_path(base_dir, "fritzbox-deploy", _deploy_url(url))
+
+
 def _params(params: dict) -> dict:
     """Merge certificate and deploy dictionaries into explicit module params."""
     certificate = dict(params.get("certificate") or {})
@@ -276,6 +295,7 @@ def _params(params: dict) -> dict:
             result[key] = deploy[key]
     if not result.get("url"):
         result["url"] = "https://fritz.box"
+    result["url"] = _deploy_url(result["url"])
     if result.get("timeout") is None:
         result["timeout"] = 30
     if result.get("validate_certs") is None:
@@ -407,13 +427,14 @@ def run_module():
             timeout=params["timeout"],
             validate_certs=params["validate_certs"],
         )
-        if not params["force"] and _same_certificate(
-            desired_certificate,
-            client.current_certificate(),
-        ):
-            module.exit_json(changed=False, path=params["bundle_path"])
-        client.login()
-        client.import_certificate(bundle)
+        with file_lock(_deploy_lock_path(params["base_dir"], params["url"])):
+            if not params["force"] and _same_certificate(
+                desired_certificate,
+                client.current_certificate(),
+            ):
+                module.exit_json(changed=False, path=params["bundle_path"])
+            client.login()
+            client.import_certificate(bundle)
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
     finally:

@@ -85,7 +85,9 @@ certificates can still be processed in parallel. Operations that read signer CA
 material also lock the signer authority, so issued certificates and CRLs cannot
 mix certificate and key material across concurrent authority renewal. Authority
 writes and CA chain generation also use an authority graph lock, so chain files
-are built from a consistent CA graph.
+are built from a consistent CA graph. FritzBox deployments use a per-target URL
+lock, so async deploy jobs cannot upload different certificates to the same
+device concurrently.
 
 Secret-looking values are masked from module error messages. Parameters marked
 as secret in the argument spec also use `no_log: true`.
