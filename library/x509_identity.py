@@ -16,7 +16,7 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
 
 PROFILE_DEFAULTS = {
     "identity": {
-        "digest": "sha512",
+        "digest": "sha384",
         "key_usage": ["digitalSignature", "keyEncipherment", "nonRepudiation"],
         "extended_key_usage": [
             "clientAuth",
@@ -25,7 +25,7 @@ PROFILE_DEFAULTS = {
         ],
     },
     "identity_full": {
-        "digest": "sha512",
+        "digest": "sha384",
         "key_usage": ["digitalSignature", "keyEncipherment", "nonRepudiation"],
         "extended_key_usage": [
             "clientAuth",

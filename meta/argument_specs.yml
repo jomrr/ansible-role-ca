@@ -92,7 +92,7 @@ argument_specs:
       ca_default_md:
         type: str
         required: false
-        default: sha512
+        default: sha384
         description: Default message digest for CRLs.
       ca_force_reissue:
         type: bool
@@ -135,6 +135,16 @@ argument_specs:
             type: dict
             required: false
             description: Optional authority subject attribute overrides merged with `ca_subject`.
+          key_type:
+            type: str
+            required: false
+            description: Optional authority key type. Supported values include `RSA`, `ECDSA`,
+              `P-256`, `P-384`, `Ed25519`, and `Ed448`; defaults to `RSA`.
+          key_size:
+            type: int
+            required: false
+            description: Optional authority key size. RSA defaults to `4096`; ECDSA accepts
+              `256` or `384`; Ed25519 and Ed448 do not use a key size.
           parent:
             type: str
             required: true
@@ -226,6 +236,16 @@ argument_specs:
             type: str
             required: false
             description: Optional certificate-specific output directory.
+          key_type:
+            type: str
+            required: false
+            description: Optional certificate key type. Supported values include `RSA`,
+              `ECDSA`, `P-256`, `P-384`, `Ed25519`, and `Ed448`; defaults to `RSA`.
+          key_size:
+            type: int
+            required: false
+            description: Optional certificate key size. RSA defaults to `4096`; ECDSA accepts
+              `256` or `384`; Ed25519 and Ed448 do not use a key size.
           key_passphrase:
             type: str
             required: false

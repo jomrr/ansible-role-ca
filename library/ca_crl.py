@@ -14,6 +14,7 @@ CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519, ed448
     from cryptography.x509.oid import NameOID
 except Exception as exc:  # pragma: no cover
     CRYPTOGRAPHY_IMPORT_ERROR = exc
@@ -62,6 +63,13 @@ def _digest(name: str) -> hashes.HashAlgorithm:
     if normalized not in digests:
         raise ValueError(f"Unsupported digest {name}")
     return digests[normalized]()
+
+
+def _signature_algorithm(private_key, digest: str):
+    """Return the CRL signing hash or None for EdDSA private keys."""
+    if isinstance(private_key, (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)):
+        return None
+    return _digest(digest)
 
 
 def _subject(subject_ordered) -> x509.Name:
@@ -189,11 +197,10 @@ def _build_crl(params):
             reason = REASON_FLAGS[str(entry["reason"])]
             revoked = revoked.add_extension(x509.CRLReason(reason), critical=False)
         builder = builder.add_revoked_certificate(revoked.build())
+    private_key = _load_key(params["privatekey_path"], params["privatekey_passphrase"])
     return builder.sign(
-        private_key=_load_key(
-            params["privatekey_path"], params["privatekey_passphrase"]
-        ),
-        algorithm=_digest(params["digest"]),
+        private_key=private_key,
+        algorithm=_signature_algorithm(private_key, params["digest"]),
     )
 
 
@@ -223,7 +230,7 @@ def run_module():
             "subject": {"type": "dict", "default": {}},
             "next_update_days": {"type": "int", "required": True},
             "revoked_certificates": {"type": "list", "elements": "dict", "default": []},
-            "digest": {"type": "str", "default": "sha512"},
+            "digest": {"type": "str", "default": "sha384"},
             "owner": {"type": "str"},
             "group": {"type": "str"},
             "mode": {"type": "str", "default": "0644"},

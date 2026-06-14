@@ -63,7 +63,7 @@ The following variables are part of the public role interface.
 | `ca_no_log` | `bool` | `false` | `True` | Suppress task output that can contain private key passphrases or PFX passphrases. |
 | `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: Yourdomain SE<br />organizational_unit: Yourdomain Certificate Authority | Default X.509 subject attributes added before the certificate common name. |
 | `ca_default_bits` | `int` | `false` | `4096` | DH parameter size when `ca_create_dhparams=true`. |
-| `ca_default_md` | `str` | `false` | `sha512` | Default message digest for CRLs. |
+| `ca_default_md` | `str` | `false` | `sha384` | Default message digest for CRLs. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
 | `ca_certificate_async_timeout` | `int` | `false` | `600` | Async timeout in seconds for end-entity certificate and bundle jobs. |
 | `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for end-entity certificate and bundle jobs. |
@@ -109,6 +109,7 @@ The following variables are part of the public role interface.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
+- Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
 - Default end-entity certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - FritzBox bundles are assembled in the default order `private_key`, `certificate`, `chain`.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.

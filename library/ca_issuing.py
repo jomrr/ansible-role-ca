@@ -14,7 +14,7 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
 ISSUING_CA_DEFAULTS = {
     "basic_constraints": ["CA:TRUE", "pathlen:0"],
     "key_usage": ["keyCertSign", "cRLSign"],
-    "digest": "sha512",
+    "digest": "sha384",
 }
 
 

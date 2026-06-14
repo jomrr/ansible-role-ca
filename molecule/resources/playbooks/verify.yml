@@ -23,6 +23,10 @@
         - "{{ ca_molecule_base }}/certs/web01/web01.pem"
         - "{{ ca_molecule_base }}/certs/web01/web01.der"
         - "{{ ca_molecule_base }}/certs/client01/client01.pem"
+        - "{{ ca_molecule_base }}/certs/ec-p256-client/ec-p256-client.pem"
+        - "{{ ca_molecule_base }}/certs/ec-p384-client/ec-p384-client.pem"
+        - "{{ ca_molecule_base }}/certs/ed25519-client/ed25519-client.pem"
+        - "{{ ca_molecule_base }}/certs/ed448-client/ed448-client.pem"
         - "{{ ca_molecule_base }}/certs/dc01/dc01.pem"
         - "{{ ca_molecule_base }}/certs/fritzbox01/fritzbox01-fritzbox.pem"
         - "{{ ca_molecule_base }}/certs/user-full/user-full.pfx"
@@ -37,7 +41,7 @@
     - name: "CA | Read default signature certificate text"
       ansible.builtin.command:
         cmd: "openssl x509 -in {{ item }} -noout -text"
-      register: __ca_molecule_sha512_certificate_text
+      register: __ca_molecule_sha384_certificate_text
       loop:
         - "{{ ca_molecule_base }}/ca/root-ca.pem"
         - "{{ ca_molecule_base }}/ca/component-ca.pem"
@@ -45,6 +49,10 @@
         - "{{ ca_molecule_base }}/ca/identity-ca.pem"
         - "{{ ca_molecule_base }}/certs/web01/web01.pem"
         - "{{ ca_molecule_base }}/certs/client01/client01.pem"
+        - "{{ ca_molecule_base }}/certs/ec-p256-client/ec-p256-client.pem"
+        - "{{ ca_molecule_base }}/certs/ec-p384-client/ec-p384-client.pem"
+        - "{{ ca_molecule_base }}/certs/ed25519-client/ed25519-client.pem"
+        - "{{ ca_molecule_base }}/certs/ed448-client/ed448-client.pem"
         - "{{ ca_molecule_base }}/certs/dc01/dc01.pem"
         - "{{ ca_molecule_base }}/certs/user-full/user-full.pem"
         - "{{ ca_molecule_base }}/certs/user-smime/user-smime.pem"
@@ -55,11 +63,61 @@
       ansible.builtin.assert:
         that:
           - >-
-            __ca_molecule_sha512_certificate_text.results
+            __ca_molecule_sha384_certificate_text.results
             | map(attribute='stdout')
-            | reject('search', 'Signature Algorithm: sha512WithRSAEncryption')
+            | reject('search', 'Signature Algorithm: sha384WithRSAEncryption')
             | list
             | length == 0
+
+    - name: "CA | Read ECDSA P-256 certificate text"
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ ca_molecule_base }}/certs/ec-p256-client/ec-p256-client.pem -noout -text"
+      register: __ca_molecule_ec_p256_text
+      changed_when: false
+
+    - name: "CA | Assert ECDSA P-256 certificate public key"
+      ansible.builtin.assert:
+        that:
+          - "'Public Key Algorithm: id-ecPublicKey' in __ca_molecule_ec_p256_text.stdout"
+          - >-
+            'ASN1 OID: prime256v1' in __ca_molecule_ec_p256_text.stdout
+            or 'NIST CURVE: P-256' in __ca_molecule_ec_p256_text.stdout
+
+    - name: "CA | Read ECDSA P-384 certificate text"
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ ca_molecule_base }}/certs/ec-p384-client/ec-p384-client.pem -noout -text"
+      register: __ca_molecule_ec_p384_text
+      changed_when: false
+
+    - name: "CA | Assert ECDSA P-384 certificate public key"
+      ansible.builtin.assert:
+        that:
+          - "'Public Key Algorithm: id-ecPublicKey' in __ca_molecule_ec_p384_text.stdout"
+          - >-
+            'ASN1 OID: secp384r1' in __ca_molecule_ec_p384_text.stdout
+            or 'NIST CURVE: P-384' in __ca_molecule_ec_p384_text.stdout
+
+    - name: "CA | Read Ed25519 certificate text"
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ ca_molecule_base }}/certs/ed25519-client/ed25519-client.pem -noout -text"
+      register: __ca_molecule_ed25519_text
+      changed_when: false
+
+    - name: "CA | Assert Ed25519 certificate public key"
+      ansible.builtin.assert:
+        that:
+          - "'Public Key Algorithm: ED25519' in __ca_molecule_ed25519_text.stdout"
+
+    - name: "CA | Read Ed448 certificate text"
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ ca_molecule_base }}/certs/ed448-client/ed448-client.pem -noout -text"
+      register: __ca_molecule_ed448_text
+      changed_when: false
+
+    - name: "CA | Assert Ed448 certificate public key"
+      ansible.builtin.assert:
+        that:
+          - "'Public Key Algorithm: ED448' in __ca_molecule_ed448_text.stdout"
 
     - name: "CA | Verify Component CA issued certificates"
       ansible.builtin.command:
@@ -67,6 +125,10 @@
       loop:
         - "{{ ca_molecule_base }}/certs/web01/web01.pem"
         - "{{ ca_molecule_base }}/certs/client01/client01.pem"
+        - "{{ ca_molecule_base }}/certs/ec-p256-client/ec-p256-client.pem"
+        - "{{ ca_molecule_base }}/certs/ec-p384-client/ec-p384-client.pem"
+        - "{{ ca_molecule_base }}/certs/ed25519-client/ed25519-client.pem"
+        - "{{ ca_molecule_base }}/certs/ed448-client/ed448-client.pem"
         - "{{ ca_molecule_base }}/certs/dc01/dc01.pem"
         - "{{ ca_molecule_base }}/certs/fritzbox01/fritzbox01.pem"
       changed_when: false
@@ -143,4 +205,4 @@
     - name: "CA | Assert default CRL signature digest"
       ansible.builtin.assert:
         that:
-          - "'Signature Algorithm: sha512WithRSAEncryption' in __ca_molecule_der_crl_text.stdout"
+          - "'Signature Algorithm: sha384WithRSAEncryption' in __ca_molecule_der_crl_text.stdout"

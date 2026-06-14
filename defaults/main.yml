@@ -19,7 +19,7 @@ ca_subject:
   organizational_unit: Yourdomain Certificate Authority
 
 ca_default_bits: 4096
-ca_default_md: sha512
+ca_default_md: sha384
 ca_force_reissue: false
 ca_certificate_async_timeout: 600
 ca_certificate_async_retries: 600

@@ -18,7 +18,7 @@ try:
     )
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, rsa
     from cryptography.x509.oid import (
         AuthorityInformationAccessOID,
         ExtendedKeyUsageOID,
@@ -146,6 +146,94 @@ def _digest(name: str) -> hashes.HashAlgorithm:
     if normalized not in digests:
         raise ValueError(f"Unsupported digest {name}")
     return digests[normalized]()
+
+
+def _key_type(value: Any) -> str:
+    """Normalize role key type aliases to an internal key type."""
+    normalized = re.sub(r"[^A-Za-z0-9]", "", str(value or "RSA")).upper()
+    aliases = {
+        "RSA": "RSA",
+        "EC": "ECDSA",
+        "ECDSA": "ECDSA",
+        "ECDSAP256": "ECDSA_P256",
+        "ECP256": "ECDSA_P256",
+        "P256": "ECDSA_P256",
+        "PRIME256V1": "ECDSA_P256",
+        "SECP256R1": "ECDSA_P256",
+        "ECDSAP384": "ECDSA_P384",
+        "ECP384": "ECDSA_P384",
+        "P384": "ECDSA_P384",
+        "SECP384R1": "ECDSA_P384",
+        "ED25519": "ED25519",
+        "EDDSA25519": "ED25519",
+        "ED448": "ED448",
+        "EDDSA448": "ED448",
+    }
+    if normalized not in aliases:
+        raise ValueError(f"Unsupported key_type {value}")
+    return aliases[normalized]
+
+
+def _ec_curve(size: Any):
+    """Return the supported ECDSA curve for a requested key size."""
+    curve_size = 256 if size in (None, "", 0, 4096) else int(size)
+    if curve_size == 256:
+        return ec.SECP256R1()
+    if curve_size == 384:
+        return ec.SECP384R1()
+    raise ValueError("ECDSA key_size must be 256 or 384")
+
+
+def _key_spec(params: dict) -> dict[str, Any]:
+    """Resolve module key parameters to a concrete key specification."""
+    key_type = _key_type(params.get("key_type"))
+    key_size = params.get("key_size")
+    if key_type == "RSA":
+        return {"type": "RSA", "size": int(key_size or 4096)}
+    if key_type == "ECDSA":
+        curve = _ec_curve(key_size)
+        return {"type": "ECDSA", "curve": curve}
+    if key_type == "ECDSA_P256":
+        return {"type": "ECDSA", "curve": ec.SECP256R1()}
+    if key_type == "ECDSA_P384":
+        return {"type": "ECDSA", "curve": ec.SECP384R1()}
+    return {"type": key_type}
+
+
+def _key_matches(key, spec: dict[str, Any]) -> bool:
+    """Return whether an existing private key matches the requested spec."""
+    if spec["type"] == "RSA":
+        return isinstance(key, rsa.RSAPrivateKey) and key.key_size == spec["size"]
+    if spec["type"] == "ECDSA":
+        return (
+            isinstance(key, ec.EllipticCurvePrivateKey)
+            and key.curve.name == spec["curve"].name
+        )
+    if spec["type"] == "ED25519":
+        return isinstance(key, ed25519.Ed25519PrivateKey)
+    if spec["type"] == "ED448":
+        return isinstance(key, ed448.Ed448PrivateKey)
+    return False
+
+
+def _generate_private_key(spec: dict[str, Any]):
+    """Generate a private key for a resolved key specification."""
+    if spec["type"] == "RSA":
+        return rsa.generate_private_key(public_exponent=65537, key_size=spec["size"])
+    if spec["type"] == "ECDSA":
+        return ec.generate_private_key(spec["curve"])
+    if spec["type"] == "ED25519":
+        return ed25519.Ed25519PrivateKey.generate()
+    if spec["type"] == "ED448":
+        return ed448.Ed448PrivateKey.generate()
+    raise ValueError(f"Unsupported key type {spec['type']}")
+
+
+def _signature_algorithm(private_key, digest: str):
+    """Return the signing hash or None for EdDSA private keys."""
+    if isinstance(private_key, (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)):
+        return None
+    return _digest(digest)
 
 
 def _ensure_directory(path: str | None, owner, group, mode) -> bool:
@@ -584,24 +672,19 @@ def _extensions_equal(existing, desired) -> bool:
 
 
 def _ensure_key(params):
-    """Ensure the private key exists with the requested RSA properties."""
+    """Ensure the private key exists with the requested key properties."""
+    spec = _key_spec(params)
     key = None
     changed = False
-    if params["key_type"].upper() != "RSA":
-        raise ValueError("CA X.509 modules currently support RSA private keys")
     if not params["force"]:
         try:
             key = _load_private_key(params["key_path"], params["key_passphrase"])
         except Exception:
             key = None
-        if key is not None and not isinstance(key, rsa.RSAPrivateKey):
-            key = None
-        if key is not None and key.key_size != params["key_size"]:
+        if key is not None and not _key_matches(key, spec):
             key = None
     if key is None:
-        key = rsa.generate_private_key(
-            public_exponent=65537, key_size=params["key_size"]
-        )
+        key = _generate_private_key(spec)
         changed = True
         content = _private_key_pem(key, params["key_passphrase"])
         changed = (
@@ -631,7 +714,7 @@ def _ensure_csr(params, key, subject, csr_extensions):
     """Ensure the CSR matches the requested subject, key, and extensions."""
     builder = x509.CertificateSigningRequestBuilder().subject_name(subject)
     builder = _add_extensions(builder, csr_extensions)
-    csr = builder.sign(key, _digest(params["digest"]))
+    csr = builder.sign(key, _signature_algorithm(key, params["digest"]))
     changed = params["force"]
     if not changed:
         try:
@@ -675,7 +758,10 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
         .not_valid_after(now + _dt.timedelta(days=int(params["days"])))
     )
     builder = _add_extensions(builder, cert_extensions)
-    cert = builder.sign(private_key=signer_key, algorithm=_digest(params["digest"]))
+    cert = builder.sign(
+        private_key=signer_key,
+        algorithm=_signature_algorithm(signer_key, params["digest"]),
+    )
 
     changed = params["force"]
     if not changed:
@@ -886,7 +972,7 @@ def x509_argument_spec(
         "raw_extensions": {"type": "list", "elements": "dict", "default": []},
         "pkinit": {"type": "dict", "default": {}},
         "days": {"type": "int", "required": True},
-        "digest": {"type": "str", "default": "sha512"},
+        "digest": {"type": "str", "default": "sha384"},
         "include_identifiers": {"type": "bool", "default": True},
         "owner": {"type": "str"},
         "group": {"type": "str"},
