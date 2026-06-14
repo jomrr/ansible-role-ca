@@ -114,6 +114,48 @@ argument_specs:
         default: 1
         description: Delay in seconds between async status checks for certificate and bundle
           jobs.
+      ca_renewal:
+        type: dict
+        required: false
+        default:
+          warn_before_days: 30
+          renew_before_days: 0
+          renew_at: ''
+          rekey: false
+        description:
+          - Default renewal policy for CA authorities and certificates.
+          - '`warn_before_days` marks renewal warning state in CA inventory but does not
+            renew by itself.'
+          - '`renew_before_days` renews when the existing certificate reaches that remaining-validity
+            window.'
+          - '`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ`
+            timestamp, but only for certificates issued before that timestamp.'
+          - '`rekey=true` generates a new private key when renewal is triggered; otherwise
+            renewal keeps the existing key.'
+          - Replaced generations are archived below `<ca_base_dir>/archive`; issuing CA
+            chains also get serial-specific files below `<ca_base_dir>/chains`.
+        options:
+          warn_before_days:
+            type: int
+            required: false
+            default: 30
+            description: Remaining-validity warning window in days.
+          renew_before_days:
+            type: int
+            required: false
+            default: 0
+            description: Remaining-validity renewal window in days. `0` disables automatic
+              window renewal.
+          renew_at:
+            type: str
+            required: false
+            default: ''
+            description: Optional scheduled renewal timestamp as ISO-8601 or `YYYYMMDDHHMMSSZ`.
+          rekey:
+            type: bool
+            required: false
+            default: false
+            description: Generate a new private key when renewal is due.
       ca_authorities:
         type: list
         elements: dict
@@ -164,6 +206,10 @@ argument_specs:
             type: str
             required: true
             description: Authority private key passphrase.
+          renewal:
+            type: dict
+            required: false
+            description: Authority renewal policy override merged with `ca_renewal`.
           crl_digest:
             type: str
             required: false
@@ -295,6 +341,10 @@ argument_specs:
             type: str
             required: false
             description: Friendly name for PFX/PKCS#12 export.
+          renewal:
+            type: dict
+            required: false
+            description: Certificate renewal policy override merged with `ca_renewal`.
           fritzbox_deploy:
             type: dict
             required: false

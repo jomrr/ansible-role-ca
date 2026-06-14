@@ -21,6 +21,7 @@
 - name: "CA | Assert authority definitions are complete"
   ansible.builtin.assert:
     that:
+      - ca_renewal is mapping
       - (ca_authorities | ca_authority_map | length) == (ca_authorities | length)
       - ca_authority.name is defined
       - ca_authority.parent is defined

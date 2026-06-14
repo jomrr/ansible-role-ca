@@ -79,6 +79,43 @@ PEM_CERT_RE = re.compile(
 )
 
 
+def _as_bool(value: Any) -> bool:
+    """Return a predictable boolean for module dictionaries."""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _as_int(value: Any, default: int = 0) -> int:
+    """Return an integer with an empty-value default."""
+    if value in (None, ""):
+        return default
+    return int(value)
+
+
+def _parse_datetime(value: Any) -> _dt.datetime | None:
+    """Parse an ISO-8601 or ASN.1-style UTC timestamp."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, _dt.datetime):
+        result = value
+    else:
+        text = str(value).strip()
+        if re.match(r"^\d{14}Z$", text):
+            result = _dt.datetime.strptime(text, "%Y%m%d%H%M%SZ")
+        else:
+            result = _dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+    if result.tzinfo is None:
+        return result.replace(tzinfo=_dt.timezone.utc)
+    return result.astimezone(_dt.timezone.utc)
+
+
+def _serial_hex(value: int) -> str:
+    """Return an even-length uppercase certificate serial."""
+    text = f"{value:X}"
+    return text if len(text) % 2 == 0 else f"0{text}"
+
+
 def _der_len(length: int) -> bytes:
     """Encode a DER length octet sequence."""
     if length < 128:
@@ -334,6 +371,134 @@ def _not_valid_after_utc(cert):
     if value.tzinfo is None:
         return value.replace(tzinfo=_dt.timezone.utc)
     return value.astimezone(_dt.timezone.utc)
+
+
+def _not_valid_before_utc(cert):
+    """Return a certificate not-before timestamp normalized to UTC."""
+    value = getattr(cert, "not_valid_before_utc", None)
+    if value is not None:
+        return value
+    value = cert.not_valid_before
+    if value.tzinfo is None:
+        return value.replace(tzinfo=_dt.timezone.utc)
+    return value.astimezone(_dt.timezone.utc)
+
+
+def _load_existing_certificate(path: str):
+    """Return an existing certificate or None when it cannot be loaded."""
+    try:
+        return load_certificate(path)
+    except Exception:
+        return None
+
+
+def _renewal_policy(params: dict) -> dict[str, Any]:
+    """Return normalized renewal policy values."""
+    renewal = dict(params.get("renewal") or {})
+    return {
+        "warn_before_days": _as_int(renewal.get("warn_before_days"), 0),
+        "renew_before_days": _as_int(renewal.get("renew_before_days"), 0),
+        "renew_at": str(renewal.get("renew_at") or ""),
+        "rekey": _as_bool(renewal.get("rekey", False)),
+    }
+
+
+def _renewal_decision(params: dict, existing_cert) -> dict[str, Any]:
+    """Return renewal and rekey decisions for an existing certificate."""
+    policy = _renewal_policy(params)
+    now = _dt.datetime.now(_dt.timezone.utc)
+    decision: dict[str, Any] = {
+        "renew": False,
+        "rekey": False,
+        "reason": "",
+        "warning": False,
+        "days_remaining": None,
+        "policy": policy,
+    }
+    if params.get("force"):
+        decision.update({"renew": True, "rekey": True, "reason": "force"})
+        return decision
+    if existing_cert is None:
+        decision["reason"] = "missing"
+        return decision
+
+    not_before = _not_valid_before_utc(existing_cert)
+    not_after = _not_valid_after_utc(existing_cert)
+    seconds_remaining = (not_after - now).total_seconds()
+    decision["days_remaining"] = max(0, int(seconds_remaining // 86400))
+
+    if policy["warn_before_days"] > 0:
+        warning_at = not_after - _dt.timedelta(days=policy["warn_before_days"])
+        decision["warning"] = now >= warning_at
+
+    if not_after <= now:
+        decision.update({"renew": True, "reason": "expired"})
+    else:
+        renew_at = _parse_datetime(policy["renew_at"])
+        if renew_at is not None and not_before < renew_at <= now:
+            decision.update({"renew": True, "reason": "scheduled"})
+        elif policy["renew_before_days"] > 0:
+            renew_window = not_after - _dt.timedelta(days=policy["renew_before_days"])
+            if now >= renew_window:
+                decision.update({"renew": True, "reason": "renewal_window"})
+
+    if decision["renew"] and policy["rekey"]:
+        decision["rekey"] = True
+    return decision
+
+
+def _archive_dir(params: dict, cert) -> str:
+    """Return the archive directory for one existing certificate generation."""
+    namespace = "authorities" if params.get("authority") else "certificates"
+    serial = _serial_hex(cert.serial_number)
+    return (
+        f"{str(params['base_dir']).rstrip('/')}/archive/"
+        f"{namespace}/{params['name']}/{serial}"
+    )
+
+
+def _archive_path(params: dict, cert, source_path: str) -> str:
+    """Return the archive path for an existing managed source path."""
+    return f"{_archive_dir(params, cert)}/{Path(source_path).name}"
+
+
+def _archive_file(params: dict, cert, source_path: str, mode: str) -> bool:
+    """Copy a current managed file into its generation archive if present."""
+    if cert is None or not source_path:
+        return False
+    try:
+        content = read_file(source_path)
+    except FileNotFoundError:
+        return False
+    return write_file(
+        _archive_path(params, cert, source_path),
+        content,
+        params["owner"],
+        params["group"],
+        mode,
+    )
+
+
+def _archive_existing_material(params: dict, cert, *, include_private_key: bool) -> bool:
+    """Archive the current generation before replacing it."""
+    if cert is None:
+        return False
+    changed = False
+    public_paths = (
+        params["cert_path"],
+        params["csr_path"],
+        params.get("der_path", ""),
+        params.get("txt_path", ""),
+        params.get("chain_path", ""),
+    )
+    for path in public_paths:
+        changed = _archive_file(params, cert, path, params["public_mode"]) or changed
+    if include_private_key:
+        changed = (
+            _archive_file(params, cert, params["key_path"], params["key_mode"])
+            or changed
+        )
+    return changed
 
 
 def _subject(subject_ordered) -> x509.Name:
@@ -692,19 +857,21 @@ def _extensions_equal(existing, desired) -> bool:
     return True
 
 
-def _ensure_key(params):
+def _ensure_key(params, *, rekey: bool, existing_cert):
     """Ensure the private key exists with the requested key properties."""
     spec = _key_spec(params)
     key = None
     changed = False
-    if not params["force"]:
+    if not params["force"] and not rekey:
         try:
             key = load_private_key(params["key_path"], params["key_passphrase"])
         except Exception:
             key = None
         if key is not None and not _key_matches(key, spec):
+            _archive_file(params, existing_cert, params["key_path"], params["key_mode"])
             key = None
     if key is None:
+        _archive_file(params, existing_cert, params["key_path"], params["key_mode"])
         key = _generate_private_key(spec)
         changed = True
         content = _private_key_pem(key, params["key_passphrase"])
@@ -765,7 +932,16 @@ def _ensure_csr(params, key, subject, csr_extensions):
     return csr, changed
 
 
-def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signer_cert):
+def _ensure_certificate(
+    params,
+    key,
+    subject,
+    cert_extensions,
+    signer_key,
+    signer_cert,
+    renewal_decision,
+    existing_cert,
+):
     """Ensure the certificate matches the requested issuer and profile."""
     issuer = signer_cert.subject if signer_cert is not None else subject
     now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
@@ -784,10 +960,10 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
         algorithm=signature_algorithm(signer_key, params["digest"]),
     )
 
-    changed = params["force"]
+    changed = params["force"] or renewal_decision["renew"]
     if not changed:
         try:
-            existing = load_certificate(params["cert_path"])
+            existing = existing_cert if existing_cert is not None else load_certificate(params["cert_path"])
             current_time = _dt.datetime.now(_dt.timezone.utc)
             if _not_valid_after_utc(existing) <= current_time:
                 changed = True
@@ -802,6 +978,11 @@ def _ensure_certificate(params, key, subject, cert_extensions, signer_key, signe
             changed = True
 
     if changed:
+        _archive_existing_material(
+            params,
+            existing_cert,
+            include_private_key=False,
+        )
         content = cert.public_bytes(serialization.Encoding.PEM)
     else:
         content = read_file(params["cert_path"])
@@ -872,6 +1053,8 @@ def _with_derived_paths(
     name = str(result["name"])
     formats = normalize_formats(result.get("formats"))
     result["formats"] = formats
+    result["base_dir"] = base_dir
+    result["authority"] = authority
 
     if authority:
         ca_file = f"{name}-ca"
@@ -954,6 +1137,7 @@ def ca_authority_argument_spec(
         "raw_extensions": {"type": "list", "elements": "dict", "default": []},
         "pkinit": {"type": "dict", "default": {}},
         "days": {"type": "int", "required": True},
+        "renewal": {"type": "dict", "default": {}},
         "digest": {"type": "str", "default": "sha384"},
         "include_identifiers": {"type": "bool", "default": True},
         "owner": {"type": "str"},
@@ -1008,6 +1192,7 @@ def certificate_params(
         "cdp_base_url": "",
         "raw_extensions": [],
         "pkinit": {},
+        "renewal": {},
         "include_identifiers": True,
         "key_mode": "0600",
         "public_mode": "0644",
@@ -1075,7 +1260,20 @@ def _ensure_x509_locked(
             params["group"],
             params["directory_mode"],
         )
-    key, key_changed = _ensure_key(params)
+    existing_cert = _load_existing_certificate(params["cert_path"])
+    renewal_decision = _renewal_decision(params, existing_cert)
+    archive_changed = False
+    if renewal_decision["rekey"]:
+        archive_changed = _archive_existing_material(
+            params,
+            existing_cert,
+            include_private_key=True,
+        )
+    key, key_changed = _ensure_key(
+        params,
+        rekey=renewal_decision["rekey"],
+        existing_cert=existing_cert,
+    )
     subject = subject_from_params(params)
     signer_key = key
     signer_cert = None
@@ -1092,7 +1290,14 @@ def _ensure_x509_locked(
     _, csr_changed = _ensure_csr(params, key, subject, csr_extensions)
     cert_extensions = _desired_extensions(params, key.public_key(), signer_public_key)
     cert, cert_changed = _ensure_certificate(
-        params, key, subject, cert_extensions, signer_key, signer_cert
+        params,
+        key,
+        subject,
+        cert_extensions,
+        signer_key,
+        signer_cert,
+        renewal_decision,
+        existing_cert,
     )
     der_changed = _ensure_der(params, cert)
     txt_changed = ensure_txt(params, cert)
@@ -1101,6 +1306,7 @@ def _ensure_x509_locked(
 
     return {
         "changed": directory_changed
+        or archive_changed
         or key_changed
         or csr_changed
         or cert_changed
@@ -1108,6 +1314,7 @@ def _ensure_x509_locked(
         or txt_changed
         or chain_changed,
         "directory_changed": directory_changed,
+        "archive_changed": archive_changed,
         "key_changed": key_changed,
         "csr_changed": csr_changed,
         "cert_changed": cert_changed,
@@ -1115,6 +1322,7 @@ def _ensure_x509_locked(
         "txt_changed": txt_changed,
         "chain_changed": chain_changed,
         "formats": params["formats"],
+        "renewal": renewal_decision,
         "csr_path": params["csr_path"],
         "cert_path": params["cert_path"],
         "txt_path": params["txt_path"],

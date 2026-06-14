@@ -60,7 +60,24 @@ digest-free signing mode; RSA and ECDSA default to `sha384`.
 
 File-producing modules are idempotent. They compare existing files with the
 desired content and only rewrite when the content or file attributes differ, or
-when `force: true` is set.
+when `force: true` is set. Certificate renewal should normally use the
+`renewal` policy instead of `force`.
+
+Renewal policy supports warning windows, automatic renewal windows, one-time
+scheduled renewal, and same-key versus re-key renewal:
+
+```yaml
+ca_renewal:
+  warn_before_days: 30
+  renew_before_days: 14
+  renew_at: ""
+  rekey: false
+```
+
+Per-authority and per-certificate `renewal` dictionaries override the global
+role defaults. `warn_before_days` only affects inventory state. `renew_before_days`
+and `renew_at` trigger renewal. `rekey: true` replaces the private key when
+renewal is due; otherwise the existing key is reused.
 
 Managed writes use atomic temporary files and advisory locks below
 `<base_dir>/.locks`. Lock names are scoped by object type and name, so unrelated
@@ -81,11 +98,13 @@ All public modules currently use `supports_check_mode: false`.
 | DER certificate | `<base_dir>/ca/<name>-ca.der` | `<output_dir>/<name>.der` |
 | Text certificate | `<base_dir>/ca/<name>-ca.txt` | `<output_dir>/<name>.txt` |
 | CA chain | `<base_dir>/chains/<name>-ca-chain.pem` for issuing CAs | copied to `<output_dir>/<name>-chain.pem` |
+| Versioned CA chain | `<base_dir>/chains/<name>-ca-chain-<serial>.pem` for issuing CAs | none |
 | Fullchain bundle | none | `<output_dir>/<name>-fullchain.pem` |
 | FritzBox bundle | none | `<output_dir>/<name>-fritzbox.pem` |
 | CRL PEM | `<base_dir>/crl/<name>-ca.crl.pem` | none |
 | CRL DER | `<base_dir>/crl/<name>-ca.crl` | none |
 | Inventory | `<base_dir>/inventory/ca-inventory.json` | `<base_dir>/inventory/ca-inventory.json` |
+| Archive | `<base_dir>/archive/authorities/<name>/<serial>/...` | `<base_dir>/archive/certificates/<name>/<serial>/...` |
 
 For certificates, `output_dir` defaults to `<base_dir>/certs/<name>`.
 

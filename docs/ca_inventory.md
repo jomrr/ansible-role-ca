@@ -30,6 +30,7 @@ users to call a separate inventory module.
 | State | Path |
 | --- | --- |
 | Authority record | `<base_dir>/inventory/state/authorities/<name>.json` |
+| Authority generation record | `<base_dir>/inventory/state/authority_certificates/<name>/<serial>.json` |
 | Issued certificate record | `<base_dir>/inventory/state/issued_certificates/<issuer>/<serial>.json` |
 | Current certificate pointer | `<base_dir>/inventory/state/current_certificates/<name>.json` |
 | CRL record | `<base_dir>/inventory/state/crls/<authority>/<format>.json` |
@@ -45,6 +46,7 @@ The composed inventory contains:
 - `base_dir`
 - `base_url`
 - `authorities`
+- `authority_certificates`, containing recorded CA certificate generations
 - `certificates`, containing only current issued certificates
 - `issued_certificates`, containing all recorded issued certificates
 - `revocations`
@@ -56,6 +58,19 @@ Issued certificate records include a computed `status`:
 - `not_yet_valid`
 - `expired`
 - `revoked`
+
+Authority and issued certificate records also include `renewal_status`:
+
+- `valid`
+- `scheduled`
+- `warning`
+- `renewal_due`
+- `scheduled_due`
+- `expired`
+
+`renewal_status` is computed from the public validity window and the stored
+renewal policy. It is separate from revocation status, so a revoked certificate
+can still carry renewal metadata without changing its revoked state.
 
 Revocation state is represented by declarative revocation event fragments keyed
 by issuer and serial number. When the same issuer and serial appear in CRL
@@ -84,7 +99,8 @@ Resolved revocation events can include `reason`, `revocation_date`,
 
 The inventory does not store private keys, passphrases, PKCS#12 passphrases, or
 FRITZ!OS credentials. It stores certificate metadata, public fingerprints,
-serial numbers, validity timestamps, selected extensions, and generated paths.
+serial numbers, validity timestamps, selected extensions, renewal policy and
+status, and generated paths.
 
 ## Internal Example
 

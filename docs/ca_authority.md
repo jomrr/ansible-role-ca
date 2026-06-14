@@ -19,6 +19,11 @@ text exports, and CA inventory state for a root or issuing CA.
 - AIA and CDP URLs are added when `base_url`, `aia_base_url`, or
   `cdp_base_url` are set.
 - PEM is always the canonical certificate format. `der` and `txt` add exports.
+- Renewal policy can mark warning state, renew inside a configured window, or
+  renew at a planned timestamp.
+- Renewal keeps the existing key by default. Set `renewal.rekey: true` to
+  generate a new private key when renewal is due.
+- Replaced generations are archived below `<base_dir>/archive/authorities`.
 
 ## Parameters
 
@@ -50,6 +55,7 @@ text exports, and CA inventory state for a root or issuing CA.
 | `raw_extensions` | list[dict] | no | `[]` | supported raw extension syntax | no | Additional unrecognized extensions. |
 | `pkinit` | dict | no | `{}` | internal PKINIT shape | no | Internal PKINIT context for SAN otherName encoding. |
 | `days` | int | yes | none | positive integer | no | Certificate validity in days. |
+| `renewal` | dict | no | `{}` | see below | no | Renewal and rekey policy. |
 | `digest` | str | no | `sha384` | `sha1`, `sha224`, `sha256`, `sha384`, `sha512` | no | Signature digest for RSA and ECDSA keys. |
 | `include_identifiers` | bool | no | `true` | `true`, `false` | no | Adds SKI and AKI extensions. |
 | `owner` | str | no | none | user name or UID | no | Owner for generated files. |
@@ -62,6 +68,15 @@ Supported Key Usage values are `digitalSignature`, `nonRepudiation`,
 `contentCommitment`, `keyEncipherment`, `dataEncipherment`, `keyAgreement`,
 `keyCertSign`, `cRLSign`, `encipherOnly`, and `decipherOnly`.
 
+### Renewal Policy
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `warn_before_days` | int | `0` | Adds warning state to inventory when remaining validity is inside this window. |
+| `renew_before_days` | int | `0` | Renews when remaining validity is inside this window. |
+| `renew_at` | str | `""` | Planned renewal timestamp as ISO-8601 or `YYYYMMDDHHMMSSZ`. It only affects certificates issued before that timestamp. |
+| `rekey` | bool | `false` | Generates a new private key when renewal is due. |
+
 ## Generated Files
 
 For `name: root` and `base_dir: /etc/pki/example`:
@@ -72,7 +87,9 @@ For `name: root` and `base_dir: /etc/pki/example`:
 - `/etc/pki/example/ca/root-ca.der` when `der` is requested
 - `/etc/pki/example/ca/root-ca.txt` when `txt` is requested
 - `/etc/pki/example/inventory/state/authorities/root.json`
+- `/etc/pki/example/inventory/state/authority_certificates/root/<serial>.json`
 - `/etc/pki/example/inventory/ca-inventory.json` when `ca_name` is set
+- `/etc/pki/example/archive/authorities/root/<serial>/*` for replaced generations
 
 `ca_authority` does not create chain files. Chain generation is handled by
 [`ca_chain`](ca_chain.md).
@@ -89,8 +106,10 @@ For `name: root` and `base_dir: /etc/pki/example`:
 | `der_changed` | bool | Whether the DER export changed. |
 | `txt_changed` | bool | Whether the text export changed. |
 | `chain_changed` | bool | Always `false` for authorities. |
+| `archive_changed` | bool | Whether replaced generation material was archived. |
 | `inventory_changed` | bool | Whether CA inventory state changed. |
 | `formats` | list[str] | Normalized certificate formats. |
+| `renewal` | dict | Renewal decision for this run. |
 | `csr_path` | str | CSR path. |
 | `cert_path` | str | PEM certificate path. |
 | `txt_path` | str | Text export path, or empty string. |
@@ -134,5 +153,7 @@ Create an issuing CA signed by the root CA:
     days: 1825
     key_passphrase: "{{ ca_component_passphrase }}"
     parent_key_passphrase: "{{ ca_root_passphrase }}"
+    renewal:
+      renew_before_days: 30
+      rekey: true
 ```
-

@@ -28,6 +28,8 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - PEM and DER CRLs
 - Declarative certificate revocation by certificate name, fingerprint, or serial number
 - CRL Number, Authority Key Identifier, reason, and optional Invalidity Date in CRLs
+- Renewal warning state, scheduled renewal, same-key renewal, and re-key renewal
+- Serial-specific issuing CA chain files for CA rollover and key changeover
 - Embedded AIA and CDP URLs
 - Optional per-authority CRL publish hooks after CRL changes
 - Optional systemd service and timer for CRL renewal
@@ -75,6 +77,7 @@ The following variables are part of the public role interface.
 | `ca_certificate_async_timeout` | `int` | `false` | `600` | Async timeout in seconds for certificate and bundle jobs. |
 | `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for certificate and bundle jobs. |
 | `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for certificate and bundle jobs. |
+| `ca_renewal` | `dict` | `false` | warn_before_days: 30<br />renew_before_days: 0<br />renew_at: ''<br />rekey: false | Default renewal policy for CA authorities and certificates.<br>`warn_before_days` marks renewal warning state in CA inventory but does not renew by itself.<br>`renew_before_days` renews when the existing certificate reaches that remaining-validity window.<br>`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ` timestamp, but only for certificates issued before that timestamp.<br>`rekey=true` generates a new private key when renewal is triggered; otherwise renewal keeps the existing key.<br>Replaced generations are archived below `<ca_base_dir>/archive`; issuing CA chains also get serial-specific files below `<ca_base_dir>/chains`. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_revocations` | `dict` | `false` | root: []<br />component: []<br />network: []<br />identity: [] | Revoked certificate entries keyed by issuing authority name.<br>Missing authority keys mean that no certificate is revoked for that authority.<br>Each list item must identify one certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.<br>Names and fingerprints are resolved from the managed CA inventory; serial numbers can be decimal, `0x` hex, or colon-separated hex.<br>Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.<br>Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`, `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`, and `aa_compromise`.<br>PEM and DER CRLs are regenerated from one shared CRL object, so both formats have identical CRL Number, AKI, timestamps, and revoked entries. |
 | `ca_certificates` | `list` | `false` | [] | Certificates to manage. |
@@ -98,6 +101,7 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/csr/*.csr`
 - `<ca_base_dir>/private/*-ca.key`
 - `<ca_base_dir>/certs/*`
+- `<ca_base_dir>/archive/* for replaced certificate generations`
 - `<ca_base_dir>/.locks/*`
 - `<ca_base_dir>/inventory/ca-inventory.json`
 - `<ca_base_dir>/inventory/state/*`
@@ -136,6 +140,13 @@ The following variables are part of the public role interface.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
 - Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
+- `ca_renewal.warn_before_days` only marks inventory `renewal_status`; it does not renew certificates.
+- `ca_renewal.renew_before_days` triggers renewal when an existing certificate reaches the configured remaining-validity window.
+- `ca_renewal.renew_at` triggers one planned renewal for certificates issued before that timestamp; after renewal, the same timestamp does not cause another renewal.
+- `ca_renewal.rekey=true` generates a new private key when renewal is due; otherwise renewal keeps the existing key.
+- Per-authority and per-certificate `renewal` dictionaries override the global `ca_renewal` defaults.
+- Replaced certificate generations are archived below `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted private key is archived with private file permissions.
+- Issuing CA chains are also written as `<ca>-ca-chain-<serial>.pem`, so old and new CA chains can exist in parallel during rollover.
 - The CA inventory is maintained by internal state hooks in the authority, certificate, and CRL modules; it contains non-secret metadata such as serial numbers, fingerprints, subjects, issuers, validity windows, current certificate pointers, issued certificate history, revocation events, CRL metadata, status, and managed artifact paths.
 - X.509 material, authority chains, certificate bundles, CRLs, and inventory composition use internal advisory locks below `<ca_base_dir>/.locks` so concurrent jobs for the same CA object cannot interleave their file writes.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
@@ -170,6 +181,10 @@ Creates the Root CA and the three issuing CAs without certificates.
       vars:
         ca_name: Example
         ca_base_url: http://pki.example.org
+        ca_renewal:
+          warn_before_days: 45
+          renew_before_days: 14
+          rekey: false
         ca_authorities:
           - name: root
             common_name: Example Root CA
@@ -185,6 +200,9 @@ Creates the Root CA and the three issuing CAs without certificates.
             default_days: 397
             crl_days: 30
             key_passphrase: vaulted-component-passphrase
+            renewal:
+              renew_at: "2027-01-01T00:00:00Z"
+              rekey: true
             crl_publish_hook:
               argv:
                 - /usr/local/sbin/publish-ca-crl

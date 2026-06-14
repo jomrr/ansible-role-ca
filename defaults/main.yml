@@ -24,6 +24,12 @@ ca_certificate_async_timeout: 600
 ca_certificate_async_retries: 600
 ca_certificate_async_delay: 1
 
+ca_renewal:
+  warn_before_days: 30
+  renew_before_days: 0
+  renew_at: ""
+  rekey: false
+
 # Managed CA topology. Store real key_passphrase values in Ansible Vault.
 # CRL renewal services read passphrases from root profile environment variables.
 ca_authorities:

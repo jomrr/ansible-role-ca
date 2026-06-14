@@ -29,6 +29,18 @@ def _chain_path(base_dir: str, name: str) -> str:
     return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain.pem"
 
 
+def _serial_hex(value: int) -> str:
+    """Return an even-length uppercase certificate serial."""
+    text = f"{value:X}"
+    return text if len(text) % 2 == 0 else f"0{text}"
+
+
+def _versioned_chain_path(base_dir: str, name: str, cert: x509.Certificate) -> str:
+    """Return the generation-specific CA chain output path."""
+    serial = _serial_hex(cert.serial_number)
+    return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain-{serial}.pem"
+
+
 def _authority_name(path: Path) -> str:
     """Return the authority short name from a CA certificate path."""
     return path.name[: -len("-ca.pem")]
@@ -135,6 +147,14 @@ def _remove_file(path: str) -> bool:
     return True
 
 
+def _existing_chain(path: str) -> list[x509.Certificate]:
+    """Load an existing chain or return an empty list when absent."""
+    try:
+        return load_certificates(path)
+    except FileNotFoundError:
+        return []
+
+
 def _chain_content(certificates: list[x509.Certificate]) -> bytes:
     """Return normalized PEM content for an ordered certificate chain."""
     if not certificates:
@@ -174,6 +194,20 @@ def run_module():
                 state = "absent"
             else:
                 content = _chain_content(certificates)
+                previous = _existing_chain(path)
+                changed = False
+                if previous:
+                    changed = write_file(
+                        _versioned_chain_path(
+                            params["base_dir"],
+                            params["name"],
+                            previous[0],
+                        ),
+                        _chain_content(previous),
+                        params["owner"],
+                        params["group"],
+                        params["mode"],
+                    )
                 changed = write_file(
                     path,
                     content,
@@ -181,7 +215,19 @@ def run_module():
                     params["group"],
                     params["mode"],
                     force=params["force"],
-                )
+                ) or changed
+                changed = write_file(
+                    _versioned_chain_path(
+                        params["base_dir"],
+                        params["name"],
+                        certificates[0],
+                    ),
+                    content,
+                    params["owner"],
+                    params["group"],
+                    params["mode"],
+                    force=params["force"],
+                ) or changed
                 state = "present"
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))

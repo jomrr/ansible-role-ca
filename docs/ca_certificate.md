@@ -22,6 +22,11 @@ uses the shared X.509 helper to create certificate artifacts.
 - Generates or reuses the private key and CSR.
 - Issues a PEM certificate and optional DER and text exports.
 - Copies the issuer chain into the certificate output directory.
+- Renewal policy can mark warning state, renew inside a configured window, or
+  renew at a planned timestamp.
+- Renewal keeps the existing key by default. Set `renewal.rekey: true` to
+  generate a new private key when renewal is due.
+- Replaced generations are archived below `<base_dir>/archive/certificates`.
 - Returns export hints used by the bundle modules.
 - Records certificate inventory state.
 
@@ -51,6 +56,7 @@ All profiles default to `digest: sha384`.
 | `authorities` | list[dict] | yes | none | authority dictionaries | yes | Authority list used to resolve issuer passphrase and `default_days`. |
 | `kerberos_realm` | str | no | `""` | Kerberos realm | no | Default realm for MSKDC certificates. |
 | `subject` | dict | no | `{}` | supported subject keys | no | Role-level subject defaults. |
+| `renewal` | dict | no | `{}` | see below | no | Module-level renewal policy defaults. Certificate-local `renewal` overrides these values. |
 | `owner` | str | no | none | user name or UID | no | Owner for generated files. |
 | `group` | str | no | none | group name or GID | no | Group for generated files. |
 | `force` | bool | no | `false` | `true`, `false` | no | Regenerates managed material even if current files match. |
@@ -72,6 +78,7 @@ These keys are accepted inside `certificate`.
 | `key_passphrase` | str | no | none | any string | yes | Optional certificate private key passphrase. |
 | `pfx_passphrase` | str | conditional | none | any string | yes | Required when `formats` contains `pfx` or `p12`, unless `passphrase` is used by the bundle task. |
 | `friendly_name` | str | no | `common_name` or `name` | any string | no | Friendly name for PKCS#12 exports. |
+| `renewal` | dict | no | module `renewal` | see below | no | Certificate-local renewal and rekey policy. |
 | `subject_ordered` | list[dict] | no | `[]` | supported subject keys | no | Full ordered subject override. |
 | `email` | str | no | none | email address | no | Subject `emailAddress`. |
 | `subject` | dict | no | `{}` | supported subject keys | no | Certificate-local subject values merged over module `subject`. |
@@ -100,6 +107,15 @@ Supported EKU aliases are `serverAuth`, `clientAuth`, `codeSigning`,
 `emailProtection`, `timeStamping`, `OCSPSigning`, and `smartcardLogon`.
 Dotted OIDs are accepted for additional EKUs.
 
+### Renewal Policy
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `warn_before_days` | int | `0` | Adds warning state to inventory when remaining validity is inside this window. |
+| `renew_before_days` | int | `0` | Renews when remaining validity is inside this window. |
+| `renew_at` | str | `""` | Planned renewal timestamp as ISO-8601 or `YYYYMMDDHHMMSSZ`. It only affects certificates issued before that timestamp. |
+| `rekey` | bool | `false` | Generates a new private key when renewal is due. |
+
 ## Generated Files
 
 For `name: web01`, `issuer: component`, and `base_dir: /etc/pki/example`:
@@ -112,6 +128,7 @@ For `name: web01`, `issuer: component`, and `base_dir: /etc/pki/example`:
 - `/etc/pki/example/certs/web01/web01-chain.pem`
 - Inventory fragments below `/etc/pki/example/inventory/state`
 - `/etc/pki/example/inventory/ca-inventory.json` when `ca_name` is set
+- `/etc/pki/example/archive/certificates/web01/<serial>/*` for replaced generations
 
 Bundle formats are produced by the dedicated bundle modules after
 `ca_certificate` returns its export hints.
@@ -124,6 +141,7 @@ Bundle formats are produced by the dedicated bundle modules after
 | `name` | str | Certificate name. |
 | `profile` | str | Resolved certificate profile. |
 | `directory_changed` | bool | Whether the output directory changed. |
+| `archive_changed` | bool | Whether replaced generation material was archived. |
 | `key_changed` | bool | Whether the private key changed. |
 | `csr_changed` | bool | Whether the CSR changed. |
 | `cert_changed` | bool | Whether the PEM certificate changed. |
@@ -132,6 +150,7 @@ Bundle formats are produced by the dedicated bundle modules after
 | `chain_changed` | bool | Whether the issuer chain copy changed. |
 | `inventory_changed` | bool | Whether CA inventory state changed. |
 | `formats` | list[str] | Normalized formats. |
+| `renewal` | dict | Renewal decision for this run. |
 | `pkcs12_formats` | list[str] | `pfx` and `p12` formats requested for follow-up bundle tasks. |
 | `fullchain_bundle` | bool | Whether a fullchain bundle should be generated. |
 | `fritzbox_bundle` | bool | Whether a FritzBox bundle should be generated. |
@@ -209,4 +228,3 @@ Issue a Samba AD domain controller certificate:
           - ad_object_guid
     authorities: "{{ ca_authorities }}"
 ```
-

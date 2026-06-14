@@ -264,6 +264,77 @@ def _certificate_summary(cert: x509.Certificate) -> dict[str, Any]:
     }
 
 
+def _bool(value: Any) -> bool:
+    """Return a predictable boolean for inventory policy values."""
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _renewal_policy(value: Any) -> dict[str, Any]:
+    """Return normalized non-secret renewal policy values."""
+    policy = value if isinstance(value, dict) else {}
+    return {
+        "warn_before_days": int(policy.get("warn_before_days") or 0),
+        "renew_before_days": int(policy.get("renew_before_days") or 0),
+        "renew_at": str(policy.get("renew_at") or ""),
+        "rekey": _bool(policy.get("rekey", False)),
+    }
+
+
+def _renewal_datetime(value: Any) -> _dt.datetime | None:
+    """Parse an optional renewal timestamp."""
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if re.match(r"^\d{14}Z$", text):
+        return _dt.datetime.strptime(text, "%Y%m%d%H%M%SZ").replace(
+            tzinfo=_dt.timezone.utc
+        )
+    return _parse_timestamp(text)
+
+
+def _renewal_status(certificate: dict[str, Any], policy_value: Any) -> dict[str, Any]:
+    """Return renewal status for a certificate summary and policy."""
+    policy = _renewal_policy(policy_value)
+    now = _dt.datetime.now(_dt.timezone.utc)
+    not_before = _parse_timestamp(certificate["not_valid_before"])
+    not_after = _parse_timestamp(certificate["not_valid_after"])
+    seconds_remaining = (not_after - now).total_seconds()
+    days_remaining = max(0, int(seconds_remaining // 86400))
+    renew_at = _renewal_datetime(policy["renew_at"])
+    scheduled = renew_at is not None and not_before < renew_at
+    scheduled_due = bool(scheduled and renew_at <= now)
+    renew_window = (
+        policy["renew_before_days"] > 0
+        and now >= not_after - _dt.timedelta(days=policy["renew_before_days"])
+    )
+    warning = (
+        policy["warn_before_days"] > 0
+        and now >= not_after - _dt.timedelta(days=policy["warn_before_days"])
+    )
+    state = "valid"
+    if not_after <= now:
+        state = "expired"
+    elif scheduled_due:
+        state = "scheduled_due"
+    elif renew_window:
+        state = "renewal_due"
+    elif warning:
+        state = "warning"
+    elif scheduled:
+        state = "scheduled"
+    return {
+        "state": state,
+        "days_remaining": days_remaining,
+        "warning": warning,
+        "renewal_due": state in {"expired", "scheduled_due", "renewal_due"},
+        "scheduled": bool(scheduled),
+        "rekey_on_renewal": policy["rekey"],
+        "policy": policy,
+    }
+
+
 def _authority_paths(
     base_dir: str,
     name: str,
@@ -552,15 +623,35 @@ def record_authority_inventory(
         "parent": parent,
         "self_signed": self_signed,
         "days": params.get("days"),
+        "renewal": _renewal_policy(params.get("renewal")),
+        "renewal_status": _renewal_status(
+            certificate,
+            params.get("renewal"),
+        ),
         "certificate": certificate,
         "paths": paths,
     }
-    return _write_json(
+    changed = _write_json(
         _record_path(base_dir, "authorities", name),
         record,
         params.get("owner"),
         params.get("group"),
         "0644",
+    )
+    return (
+        _write_json(
+            _record_path(
+                base_dir,
+                "authority_certificates",
+                name,
+                certificate["serial_number_hex"],
+            ),
+            record,
+            params.get("owner"),
+            params.get("group"),
+            "0644",
+        )
+        or changed
     )
 
 
@@ -586,6 +677,7 @@ def record_certificate_inventory(
         "issuer": issuer,
         "days": model.get("days"),
         "formats": [str(item).lower() for item in model.get("formats", [])],
+        "renewal": _renewal_policy(model.get("renewal")),
         "certificate": certificate,
         "paths": paths,
     }
@@ -795,6 +887,10 @@ def _with_status(
         == record.get("certificate", {}).get("serial_number_hex")
     )
     result["status"] = _status(record, revocations)
+    result["renewal_status"] = _renewal_status(
+        record["certificate"],
+        record.get("renewal"),
+    )
     return result
 
 
@@ -840,12 +936,20 @@ def compose_inventory(
             str(record.get("format", "")),
         ),
     )
+    authority_certificates = sorted(
+        _read_collection(base_dir, "authority_certificates"),
+        key=lambda record: (
+            str(record.get("name", "")),
+            str(record.get("certificate", {}).get("serial_number_hex", "")),
+        ),
+    )
     return {
         "schema_version": 1,
         "ca_name": ca_name,
         "base_dir": str(base_dir).rstrip("/"),
         "base_url": base_url,
         "authorities": authorities,
+        "authority_certificates": authority_certificates,
         "certificates": [record for record in issued if record["current"]],
         "issued_certificates": issued,
         "revocations": revocations,

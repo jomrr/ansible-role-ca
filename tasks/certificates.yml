@@ -12,6 +12,7 @@
     authorities: "{{ ca_authorities }}"
     kerberos_realm: "{{ ca_kerberos_realm }}"
     subject: "{{ ca_subject }}"
+    renewal: "{{ ca_renewal }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"

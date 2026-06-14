@@ -18,10 +18,13 @@
         - "{{ ca_molecule_base }}/ca/root-ca.txt"
         - "{{ ca_molecule_base }}/ca/component-ca.pem"
         - "{{ ca_molecule_base }}/ca/component-ca.txt"
+        - "{{ ca_molecule_base }}/chains/component-ca-chain.pem"
         - "{{ ca_molecule_base }}/ca/network-ca.pem"
         - "{{ ca_molecule_base }}/ca/network-ca.txt"
+        - "{{ ca_molecule_base }}/chains/network-ca-chain.pem"
         - "{{ ca_molecule_base }}/ca/identity-ca.pem"
         - "{{ ca_molecule_base }}/ca/identity-ca.txt"
+        - "{{ ca_molecule_base }}/chains/identity-ca-chain.pem"
         - "{{ ca_molecule_base }}/crl/component-ca.crl"
         - "{{ ca_molecule_base }}/crl/component-ca.crl.pem"
         - "{{ ca_molecule_base }}/inventory/ca-inventory.json"
@@ -82,6 +85,7 @@
           - __ca_molecule_inventory.schema_version == 1
           - __ca_molecule_inventory.ca_name == ca_name
           - __ca_molecule_inventory.authorities | length == 4
+          - __ca_molecule_inventory.authority_certificates | length == 4
           - __ca_molecule_inventory.certificates | length == 11
           - __ca_molecule_inventory.issued_certificates | length == 11
           - __ca_molecule_inventory.crls | length == 8
@@ -113,6 +117,12 @@
           - >-
             (
               __ca_molecule_inventory.certificates
+              | selectattr('name', 'equalto', 'client01')
+              | first
+            ).renewal_status.state == 'warning'
+          - >-
+            (
+              __ca_molecule_inventory.certificates
               | selectattr('name', 'equalto', 'web01')
               | first
             ).current
@@ -122,6 +132,30 @@
               | selectattr('name', 'equalto', 'web01')
               | first
             ).certificate.fingerprints.sha256 | length > 0
+
+    - name: "CA | Check versioned issuing CA chain"
+      vars:
+        __ca_molecule_inventory: "{{ __ca_molecule_inventory_raw.content | b64decode | from_json }}"
+        __ca_molecule_component_ca: >-
+          {{
+            __ca_molecule_inventory.authorities
+            | selectattr('name', 'equalto', 'component')
+            | first
+          }}
+      ansible.builtin.stat:
+        path: >-
+          {{
+            ca_molecule_base
+            ~ '/chains/component-ca-chain-'
+            ~ __ca_molecule_component_ca.certificate.serial_number_hex
+            ~ '.pem'
+          }}
+      register: __ca_molecule_component_chain_version
+
+    - name: "CA | Assert versioned issuing CA chain"
+      ansible.builtin.assert:
+        that:
+          - __ca_molecule_component_chain_version.stat.exists
 
     - name: "CA | Read default signature certificate text"
       ansible.builtin.command:

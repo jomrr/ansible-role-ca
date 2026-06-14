@@ -148,6 +148,8 @@ def _resolve_certificate(params: dict) -> tuple[dict, dict]:
 
     subject = dict(_as_dict(params.get("subject"), "subject"))
     subject.update(_as_dict(certificate.get("subject"), f"Certificate {name} subject"))
+    renewal = dict(_as_dict(params.get("renewal"), "renewal"))
+    renewal.update(_as_dict(certificate.get("renewal"), f"Certificate {name} renewal"))
 
     model = dict(certificate)
     model.update(
@@ -159,6 +161,7 @@ def _resolve_certificate(params: dict) -> tuple[dict, dict]:
             "days": days,
             "formats": formats,
             "subject": subject,
+            "renewal": renewal,
         }
     )
     if cert_type == "mskdc":
@@ -176,6 +179,7 @@ def _resolve_certificate(params: dict) -> tuple[dict, dict]:
         "issuer_key_passphrase": issuer_passphrase,
         "common_name": common_name,
         "days": days,
+        "renewal": renewal,
         "owner": params["owner"],
         "group": params["group"],
         "force": params["force"],
@@ -200,6 +204,7 @@ def run_module():
             },
             "kerberos_realm": {"type": "str", "default": ""},
             "subject": {"type": "dict", "default": {}},
+            "renewal": {"type": "dict", "default": {}},
             "owner": {"type": "str"},
             "group": {"type": "str"},
             "force": {"type": "bool", "default": False},

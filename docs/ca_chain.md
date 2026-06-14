@@ -13,6 +13,11 @@ identical to the root CA certificate.
 - The target authority is identified by `name`.
 - The module loads all `<base_dir>/ca/*-ca.pem` certificates.
 - The output path is `<base_dir>/chains/<name>-ca-chain.pem`.
+- The module also writes a generation-specific chain file
+  `<base_dir>/chains/<name>-ca-chain-<serial>.pem` for issuing CAs.
+- Before replacing the stable chain path, the previous chain is preserved under
+  its own serial-specific file. This keeps old and new issuing CA chains
+  available in parallel during CA rollover.
 - For an issuing CA, the chain contains the issuing CA certificate followed by
   its issuer certificates up to the self-signed root.
 - For a self-signed root CA, an existing chain file is removed and the module
@@ -35,6 +40,7 @@ identical to the root CA certificate.
 For `name: component` and `base_dir: /etc/pki/example`:
 
 - `/etc/pki/example/chains/component-ca-chain.pem`
+- `/etc/pki/example/chains/component-ca-chain-<serial>.pem`
 
 For `name: root`, no chain file is kept:
 
@@ -69,4 +75,3 @@ Ensure a root CA has no redundant chain file:
     base_dir: /etc/pki/example
     name: root
 ```
-
