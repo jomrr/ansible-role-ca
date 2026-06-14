@@ -49,6 +49,7 @@ inventory state, and validation.
 - [ca_inventory](ca_inventory.md)
 - [ca_profiles](ca_profiles.md)
 - [ca_text](ca_text.md)
+- [ca_validation](ca_validation.md)
 - [ca_x509](ca_x509.md)
 - [filter_plugins/ca.py](filter_plugins_ca.md)
 

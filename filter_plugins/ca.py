@@ -2,61 +2,32 @@
 
 from __future__ import annotations
 
-import re
+import importlib.util
+from pathlib import Path
 from typing import Any
 
 from ansible.errors import AnsibleFilterError  # type: ignore[import-not-found,import-untyped]
 
-
-SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-
-
-def _as_list(value: Any) -> list[Any]:
-    """Return a list value or raise a filter error."""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    raise AnsibleFilterError(f"Expected a list, got {type(value).__name__}")
-
-
-def _string(value: Any) -> str:
-    """Normalize optional values to strings for validation."""
-    if value is None:
-        return ""
-    return str(value)
-
-
-def _required(value: dict[str, Any], key: str, context: str) -> Any:
-    """Return a required dictionary value or raise a filter error."""
-    if key not in value or _string(value[key]) == "":
-        raise AnsibleFilterError(f"{context} requires {key}")
-    return value[key]
+try:
+    from ansible.module_utils.ca_validation import authority_map  # type: ignore[import-not-found,import-untyped]
+except ModuleNotFoundError:
+    spec = importlib.util.spec_from_file_location(
+        "ca_validation",
+        Path(__file__).resolve().parents[1] / "module_utils" / "ca_validation.py",
+    )
+    if spec is None or spec.loader is None:
+        raise
+    ca_validation = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ca_validation)
+    authority_map = ca_validation.authority_map
 
 
 def ca_authority_map(authorities: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Return authorities keyed by name and validate the public list shape."""
-
-    result = {}
-    for authority in _as_list(authorities):
-        if not isinstance(authority, dict):
-            raise AnsibleFilterError("Each ca_authorities item must be a dictionary")
-        name = _string(_required(authority, "name", "Authority")).strip()
-        if not SAFE_NAME_RE.match(name):
-            raise AnsibleFilterError(
-                f"Authority {name} has an unsafe name; use only letters, digits, dots, underscores, and hyphens"
-            )
-        if name in result:
-            raise AnsibleFilterError(f"Duplicate authority name {name}")
-        result[name] = authority
-
-    for name, authority in result.items():
-        parent = _string(_required(authority, "parent", f"Authority {name}")).strip()
-        if parent not in result:
-            raise AnsibleFilterError(
-                f"Authority {name} references unknown parent {parent}"
-            )
-    return result
+    try:
+        return authority_map(authorities)
+    except ValueError as exc:
+        raise AnsibleFilterError(str(exc)) from exc
 
 
 class FilterModule:

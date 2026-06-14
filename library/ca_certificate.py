@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
@@ -22,8 +21,13 @@ from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,impo
     normalize_formats,
     sanitize_error,
 )
+from ansible.module_utils.ca_validation import (  # type: ignore[import-not-found,import-untyped]
+    authority_map,
+    require_value,
+    safe_name,
+    string_value,
+)
 
-SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 SUPPORTED_FORMATS = {"pem", "der", "txt", "pfx", "p12", "fullchain", "fritzbox"}
 
 
@@ -45,43 +49,6 @@ def _as_dict(value: Any, context: str) -> dict[str, Any]:
     raise ValueError(f"{context} must be a dictionary")
 
 
-def _string(value: Any) -> str:
-    """Normalize optional values to strings for validation."""
-    if value is None:
-        return ""
-    return str(value)
-
-
-def _required(value: dict[str, Any], key: str, context: str) -> Any:
-    """Return a required dictionary value or raise a module error."""
-    if key not in value or _string(value[key]) == "":
-        raise ValueError(f"{context} requires {key}")
-    return value[key]
-
-
-def _authority_map(authorities: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Return authorities keyed by name and validate the public list shape."""
-    result = {}
-    for authority in _as_list(authorities):
-        if not isinstance(authority, dict):
-            raise ValueError("Each ca_authorities item must be a dictionary")
-        name = _string(_required(authority, "name", "Authority")).strip()
-        if not SAFE_NAME_RE.match(name):
-            raise ValueError(
-                f"Authority {name} has an unsafe name; use only letters, digits, "
-                "dots, underscores, and hyphens"
-            )
-        if name in result:
-            raise ValueError(f"Duplicate authority name {name}")
-        result[name] = authority
-
-    for name, authority in result.items():
-        parent = _string(_required(authority, "parent", f"Authority {name}")).strip()
-        if parent not in result:
-            raise ValueError(f"Authority {name} references unknown parent {parent}")
-    return result
-
-
 def _profile_formats(value: Any, profile: str) -> list[str]:
     """Resolve certificate output formats for a profile."""
     formats = (
@@ -98,17 +65,14 @@ def _profile_formats(value: Any, profile: str) -> list[str]:
 def _resolve_certificate(params: dict) -> tuple[dict, dict]:
     """Resolve a declarative role certificate into module parameters."""
     certificate = _as_dict(params.get("certificate"), "certificate")
-    name = _string(_required(certificate, "name", "Certificate")).strip()
-    cert_type = _string(_required(certificate, "type", f"Certificate {name}")).strip()
-    common_name = _string(
-        _required(certificate, "common_name", f"Certificate {name}")
+    name = safe_name(require_value(certificate, "name", "Certificate"), "Certificate")
+    cert_type = string_value(
+        require_value(certificate, "type", f"Certificate {name}")
+    ).strip()
+    common_name = string_value(
+        require_value(certificate, "common_name", f"Certificate {name}")
     ).strip()
 
-    if not SAFE_NAME_RE.match(name):
-        raise ValueError(
-            f"Certificate {name} has an unsafe name; use only letters, digits, "
-            "dots, underscores, and hyphens"
-        )
     if cert_type not in CERTIFICATE_PROFILE_DEFAULTS:
         raise ValueError(f"Certificate {name} uses unknown profile {cert_type}")
 
@@ -117,28 +81,32 @@ def _resolve_certificate(params: dict) -> tuple[dict, dict]:
         raise ValueError(f"Certificate {name} uses unknown type {cert_type}")
 
     profile = _as_dict(certificate_types[cert_type], f"Certificate type {cert_type}")
-    issuer = _string(_required(profile, "issuer", f"Certificate type {cert_type}"))
-    authorities = _authority_map(params["authorities"])
+    issuer = string_value(
+        require_value(profile, "issuer", f"Certificate type {cert_type}")
+    )
+    authorities = authority_map(params["authorities"])
     if issuer not in authorities:
-        raise ValueError(f"Certificate type {cert_type} references unknown issuer {issuer}")
+        raise ValueError(
+            f"Certificate type {cert_type} references unknown issuer {issuer}"
+        )
 
     issuer_authority = authorities[issuer]
-    issuer_passphrase = _string(
-        _required(issuer_authority, "key_passphrase", f"Authority {issuer}")
+    issuer_passphrase = string_value(
+        require_value(issuer_authority, "key_passphrase", f"Authority {issuer}")
     )
     default_days = issuer_authority.get("default_days")
     days = certificate.get("days", default_days)
-    if days is None or _string(days) == "":
+    if days is None or string_value(days) == "":
         raise ValueError(
             f"Certificate {name} needs days or issuer authority {issuer} "
             "needs default_days"
         )
 
     for field in _as_list(profile.get("required_fields")):
-        _required(certificate, _string(field), f"Certificate {name}")
+        require_value(certificate, string_value(field), f"Certificate {name}")
 
     formats = _profile_formats(certificate.get("formats"), cert_type)
-    if set(formats).intersection({"pfx", "p12"}) and not _string(
+    if set(formats).intersection({"pfx", "p12"}) and not string_value(
         certificate.get("pfx_passphrase") or certificate.get("passphrase")
     ):
         raise ValueError(
@@ -164,7 +132,7 @@ def _resolve_certificate(params: dict) -> tuple[dict, dict]:
         }
     )
     if cert_type == "mskdc":
-        model["krb5_realm"] = _string(
+        model["krb5_realm"] = string_value(
             certificate.get("krb5_realm") or params.get("kerberos_realm")
         ).strip().upper()
 
