@@ -40,6 +40,8 @@
     - name: "CA | Renew {{ '{{' }} ca_crl_authority {{ '}}' }} {{ '{{' }} ca_crl_format {{ '}}' }} CRL"
       ca_crl:
         base_dir: "{{ ca_base_dir }}"
+        base_url: "{{ ca_base_url }}"
+        ca_name: "{{ ca_name }}"
         name: "{{ '{{' }} ca_crl_authority {{ '}}' }}"
         format: "{{ '{{' }} ca_crl_format {{ '}}' }}"
         key_passphrase: "{{ '{{' }} lookup('ansible.builtin.env', ca_crl_authority_config.key_passphrase_env) {{ '}}' }}"

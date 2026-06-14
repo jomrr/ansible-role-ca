@@ -56,6 +56,24 @@
       or ca_certificate.pfx_passphrase is defined
     }}
 
+- name: "CA | Assert managed certificate names are unique"
+  ansible.builtin.assert:
+    that:
+      - >-
+        ca_certificates
+        | map(attribute='name')
+        | list
+        | length
+        ==
+        ca_certificates
+        | map(attribute='name')
+        | unique
+        | list
+        | length
+    fail_msg: "Every entry in ca_certificates needs a unique name."
+  when: ca_certificates | length > 0
+  no_log: "{{ ca_no_log | bool }}"
+
 - name: "CA | Initialize filesystem layout"
   ansible.builtin.import_tasks: init.yml
   tags: init

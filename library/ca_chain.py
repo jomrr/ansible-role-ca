@@ -4,7 +4,12 @@
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+    ca_lock_path,
+    file_lock,
+    sanitize_error,
+    write_file,
+)
 from ansible.module_utils.ca_x509 import load_certificates  # type: ignore[import-not-found,import-untyped]
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
@@ -63,15 +68,16 @@ def run_module():
         path, certificates = _paths(
             params["base_dir"], params["name"], params["parent"]
         )
-        content = _chain_content(certificates)
-        changed = write_file(
-            path,
-            content,
-            params["owner"],
-            params["group"],
-            params["mode"],
-            force=params["force"],
-        )
+        with file_lock(ca_lock_path(params["base_dir"], "authority", params["name"])):
+            content = _chain_content(certificates)
+            changed = write_file(
+                path,
+                content,
+                params["owner"],
+                params["group"],
+                params["mode"],
+                force=params["force"],
+            )
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
 

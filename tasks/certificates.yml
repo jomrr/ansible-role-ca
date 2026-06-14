@@ -6,6 +6,7 @@
   ca_certificate:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
+    ca_name: "{{ ca_name }}"
     certificate: "{{ ca_certificate }}"
     certificate_types: "{{ ca_certificate_types }}"
     authorities: "{{ ca_authorities }}"

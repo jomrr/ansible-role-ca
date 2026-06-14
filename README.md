@@ -17,6 +17,7 @@ It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and 
 - PEM, DER, and text exports for all CA certificates
 - CA chain files
 - Declarative certificates in `ca_certificates`
+- Persistent non-secret CA inventory and state fragments below `<ca_base_dir>/inventory`
 - Optional certificate fullchain PEM bundles
 - TLS server and TLS client certificates from the Component CA
 - Samba AD Domain Controller/MSKDC certificates from the Component CA
@@ -93,6 +94,9 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/csr/*.csr`
 - `<ca_base_dir>/private/*-ca.key`
 - `<ca_base_dir>/certs/*`
+- `<ca_base_dir>/.locks/*`
+- `<ca_base_dir>/inventory/ca-inventory.json`
+- `<ca_base_dir>/inventory/state/*`
 - `/etc/systemd/system/<ca_name | lower>-crl-renew@.service` when `ca_crl_automation_enabled=true`
 - `/etc/systemd/system/<ca_name | lower>-crl-renew@.timer` when `ca_crl_automation_enabled=true`
 
@@ -123,6 +127,8 @@ The following variables are part of the public role interface.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
 - Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
+- The CA inventory is maintained by internal state hooks in the authority, certificate, and CRL modules; it contains non-secret metadata such as serial numbers, fingerprints, subjects, issuers, validity windows, current certificate pointers, issued certificate history, revocation events, CRL metadata, status, and managed artifact paths.
+- X.509 material, authority chains, certificate bundles, CRLs, and inventory composition use internal advisory locks below `<ca_base_dir>/.locks` so concurrent jobs for the same CA object cannot interleave their file writes.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
 - FritzBox deployment runs only for certificate entries with `fritzbox_deploy.enabled=true`; it compares the desired leaf certificate with the current FRITZ!Box HTTPS certificate and uploads only when they differ, unless `ca_force_reissue=true`.
 - FritzBox deployment needs an HTTPS `base_url` for the idempotent comparison; `ca_force_reissue=true` skips the comparison and uploads directly.

@@ -5,6 +5,8 @@
 - name: "CA | Manage CRLs for {{ ca_authority.name }}"
   ca_crl:
     base_dir: "{{ ca_base_dir }}"
+    base_url: "{{ ca_base_url }}"
+    ca_name: "{{ ca_name }}"
     name: "{{ ca_authority.name }}"
     format: "{{ item }}"
     key_passphrase: "{{ ca_authority.key_passphrase }}"

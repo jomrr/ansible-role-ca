@@ -8,6 +8,7 @@
       ca_authority:
         base_dir: "{{ ca_base_dir }}"
         base_url: "{{ ca_base_url }}"
+        ca_name: "{{ ca_name }}"
         name: "{{ ca_authority.name }}"
         parent: "{{ ca_authority.parent }}"
         key_type: "{{ ca_authority.key_type | default(omit) }}"

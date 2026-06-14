@@ -7,7 +7,17 @@ import datetime as _dt
 import re
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+    ca_lock_path,
+    file_lock,
+    read_file,
+    sanitize_error,
+    write_file,
+)
+from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
+    compose_inventory_if_configured,
+    record_crl_inventory,
+)
 from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     load_private_key,
     signature_algorithm,
@@ -153,6 +163,8 @@ def run_module():
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
+            "base_url": {"type": "str", "default": ""},
+            "ca_name": {"type": "str", "default": ""},
             "name": {"type": "str", "required": True},
             "format": {"type": "str", "choices": ["pem", "der"], "default": "pem"},
             "key_passphrase": {"type": "str", "required": True, "no_log": True},
@@ -175,42 +187,54 @@ def run_module():
         )
 
     params = _with_derived_paths(module.params)
+    inventory_changed = False
     try:
-        params["privatekey_passphrase"] = params["key_passphrase"]
-        crl = _build_crl(params)
-        changed = params["force"]
-        if not changed:
-            try:
-                existing = _load_crl(params["path"])
-                current_time = _dt.datetime.now(_dt.timezone.utc)
-                changed = (
-                    existing.issuer != subject_from_params(params)
-                    or existing.signature_algorithm_oid != crl.signature_algorithm_oid
-                    or _next_update_utc(existing) <= current_time
-                    or _revoked_signature(existing)
-                    != _desired_revoked(params["revoked_certificates"])
-                )
-            except Exception:
-                changed = True
-        encoding = (
-            serialization.Encoding.DER
-            if params["format"] == "der"
-            else serialization.Encoding.PEM
-        )
-        content = crl.public_bytes(encoding) if changed else read_file(params["path"])
-        changed = (
-            write_file(
-                params["path"],
-                content,
-                params["owner"],
-                params["group"],
-                params["mode"],
+        with file_lock(ca_lock_path(params["base_dir"], "crl", params["name"])):
+            params["privatekey_passphrase"] = params["key_passphrase"]
+            crl = _build_crl(params)
+            changed = params["force"]
+            if not changed:
+                try:
+                    existing = _load_crl(params["path"])
+                    current_time = _dt.datetime.now(_dt.timezone.utc)
+                    changed = (
+                        existing.issuer != subject_from_params(params)
+                        or existing.signature_algorithm_oid
+                        != crl.signature_algorithm_oid
+                        or _next_update_utc(existing) <= current_time
+                        or _revoked_signature(existing)
+                        != _desired_revoked(params["revoked_certificates"])
+                    )
+                    if not changed:
+                        crl = existing
+                except Exception:
+                    changed = True
+            encoding = (
+                serialization.Encoding.DER
+                if params["format"] == "der"
+                else serialization.Encoding.PEM
             )
-            or changed
-        )
+            content = (
+                crl.public_bytes(encoding) if changed else read_file(params["path"])
+            )
+            changed = (
+                write_file(
+                    params["path"],
+                    content,
+                    params["owner"],
+                    params["group"],
+                    params["mode"],
+                )
+                or changed
+            )
+            inventory_changed = record_crl_inventory(params, crl)
+            inventory_changed = (
+                compose_inventory_if_configured(params) or inventory_changed
+            )
+            changed = changed or inventory_changed
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
-    module.exit_json(changed=changed)
+    module.exit_json(changed=changed, inventory_changed=inventory_changed)
 
 
 def main():

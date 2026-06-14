@@ -4,7 +4,13 @@
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+    ca_lock_path,
+    file_lock,
+    read_file,
+    sanitize_error,
+    write_file,
+)
 
 
 def _read_sources(sources: list[str]) -> bytes:
@@ -61,15 +67,16 @@ def run_module():
             params["name"],
             params["output_dir"],
         )
-        content = _read_sources(sources)
-        changed = write_file(
-            path,
-            content,
-            params["owner"],
-            params["group"],
-            params["mode"],
-            force=params["force"],
-        )
+        with file_lock(ca_lock_path(params["base_dir"], "certificate", params["name"])):
+            content = _read_sources(sources)
+            changed = write_file(
+                path,
+                content,
+                params["owner"],
+                params["group"],
+                params["mode"],
+                force=params["force"],
+            )
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
 

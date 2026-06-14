@@ -42,6 +42,7 @@
   loop:
     - library/ca_crl.py
     - module_utils/ca_file.py
+    - module_utils/ca_inventory.py
     - module_utils/ca_profiles.py
     - module_utils/ca_text.py
     - module_utils/ca_x509.py

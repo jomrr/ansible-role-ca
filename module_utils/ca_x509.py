@@ -11,6 +11,8 @@ from typing import Any
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+        ca_lock_path,
+        file_lock,
         read_file,
         sanitize_error,
         set_attrs,
@@ -873,6 +875,7 @@ def _with_derived_paths(
 
     if authority:
         ca_file = f"{name}-ca"
+        result["lock_path"] = ca_lock_path(base_dir, "authority", name)
         result["key_path"] = f"{base_dir}/private/{ca_file}.key"
         result["csr_path"] = f"{base_dir}/csr/{ca_file}.csr"
         result["cert_path"] = f"{base_dir}/ca/{ca_file}.pem"
@@ -894,6 +897,7 @@ def _with_derived_paths(
     output_dir = str(result.get("output_dir") or f"{base_dir}/certs/{name}").rstrip("/")
     issuer = str(result["issuer"])
     issuer_file = f"{issuer}-ca"
+    result["lock_path"] = ca_lock_path(base_dir, "certificate", name)
     result["output_dir"] = output_dir
     result["key_path"] = f"{output_dir}/{name}.key"
     result["csr_path"] = f"{base_dir}/csr/{name}.csr"
@@ -921,6 +925,7 @@ def ca_authority_argument_spec(
     spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
         "base_url": {"type": "str", "default": ""},
+        "ca_name": {"type": "str", "default": ""},
         "name": {"type": "str", "required": True},
         "parent": {"type": "str", "default": ""},
         "formats": {
@@ -1044,6 +1049,23 @@ def ensure_x509(
         manage_directory=manage_directory,
         manage_chain=manage_chain,
     )
+    with file_lock(params["lock_path"]):
+        return _ensure_x509_locked(
+            params,
+            signed=signed,
+            manage_directory=manage_directory,
+            manage_chain=manage_chain,
+        )
+
+
+def _ensure_x509_locked(
+    params: dict,
+    *,
+    signed: bool,
+    manage_directory: bool,
+    manage_chain: bool,
+) -> dict:
+    """Ensure one X.509 object while holding its object lock."""
     directory_changed = False
     chain_changed = False
     if manage_directory:

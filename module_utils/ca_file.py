@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import errno
+import fcntl
 import grp
 import os
 import pwd
 import re
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,39 @@ SECRET_KEY_RE = re.compile(r"(?i)(passphrase|password|secret|token)")
 SECRET_ASSIGNMENT_RE = re.compile(
     r"(?i)\b(passphrase|password|secret|token)\b\s*[:=]\s*([^\s,;]+)"
 )
+SAFE_PATH_COMPONENT_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+
+
+def safe_path_component(value: Any) -> str:
+    """Return a filesystem-safe path component for internal artifacts."""
+    text = SAFE_PATH_COMPONENT_RE.sub("_", str(value).strip())
+    return text.strip("._") or "unnamed"
+
+
+def ca_lock_path(base_dir: str, namespace: str, name: str) -> str:
+    """Return a shared lock path for one managed CA object."""
+    stem = f"{safe_path_component(namespace)}-{safe_path_component(name)}"
+    return f"{str(base_dir).rstrip('/')}/.locks/{stem}.lock"
+
+
+@contextmanager
+def file_lock(path: str):
+    """Hold an exclusive advisory lock for one managed file operation."""
+    lock_path = Path(path)
+    if lock_path.parent.is_symlink():
+        raise ValueError(f"Refusing to use symlinked lock directory: {lock_path.parent}")
+    lock_path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    os.chmod(lock_path.parent, 0o700)
+    fd = _open_no_follow(str(lock_path), os.O_CREAT | os.O_RDWR)
+    try:
+        os.fchmod(fd, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
 
 def uid(owner: Any) -> int:

@@ -24,9 +24,11 @@
         - "{{ ca_molecule_base }}/ca/identity-ca.txt"
         - "{{ ca_molecule_base }}/crl/component-ca.crl"
         - "{{ ca_molecule_base }}/crl/component-ca.crl.pem"
+        - "{{ ca_molecule_base }}/inventory/ca-inventory.json"
         - "{{ ca_molecule_base }}/automation/crl-renew.yml"
         - "{{ ca_molecule_base }}/automation/library/ca_crl.py"
         - "{{ ca_molecule_base }}/automation/module_utils/ca_file.py"
+        - "{{ ca_molecule_base }}/automation/module_utils/ca_inventory.py"
         - "{{ ca_molecule_base }}/automation/module_utils/ca_profiles.py"
         - "{{ ca_molecule_base }}/automation/module_utils/ca_text.py"
         - "{{ ca_molecule_base }}/automation/module_utils/ca_x509.py"
@@ -56,6 +58,47 @@
       ansible.builtin.assert:
         that:
           - __ca_molecule_files.results | map(attribute='stat.exists') | min
+
+    - name: "CA | Read CA inventory"
+      ansible.builtin.slurp:
+        src: "{{ ca_molecule_base }}/inventory/ca-inventory.json"
+      register: __ca_molecule_inventory_raw
+
+    - name: "CA | Assert CA inventory"
+      vars:
+        __ca_molecule_inventory: "{{ __ca_molecule_inventory_raw.content | b64decode | from_json }}"
+      ansible.builtin.assert:
+        that:
+          - __ca_molecule_inventory.schema_version == 1
+          - __ca_molecule_inventory.ca_name == ca_name
+          - __ca_molecule_inventory.authorities | length == 4
+          - __ca_molecule_inventory.certificates | length == 11
+          - __ca_molecule_inventory.issued_certificates | length == 11
+          - __ca_molecule_inventory.crls | length == 8
+          - >-
+            (
+              __ca_molecule_inventory.certificates
+              | selectattr('name', 'equalto', 'web01')
+              | first
+            ).issuer == 'component'
+          - >-
+            (
+              __ca_molecule_inventory.certificates
+              | selectattr('name', 'equalto', 'web01')
+              | first
+            ).status.state == 'valid'
+          - >-
+            (
+              __ca_molecule_inventory.certificates
+              | selectattr('name', 'equalto', 'web01')
+              | first
+            ).current
+          - >-
+            (
+              __ca_molecule_inventory.certificates
+              | selectattr('name', 'equalto', 'web01')
+              | first
+            ).certificate.fingerprints.sha256 | length > 0
 
     - name: "CA | Read default signature certificate text"
       ansible.builtin.command:

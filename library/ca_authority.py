@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
+    compose_inventory_if_configured,
+    record_authority_inventory,
+)
 from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
     ca_authority_argument_spec,
@@ -72,6 +76,10 @@ def run_module():
     try:
         params, signed = _authority_params(module.params)
         result = ensure_x509(params, signed=signed, authority=True)
+        inventory_changed = record_authority_inventory(params, result)
+        inventory_changed = compose_inventory_if_configured(params) or inventory_changed
+        result["inventory_changed"] = inventory_changed
+        result["changed"] = result["changed"] or inventory_changed
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
 

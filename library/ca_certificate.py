@@ -7,6 +7,10 @@ import re
 from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
+    compose_inventory_if_configured,
+    record_certificate_inventory,
+)
 from ansible.module_utils.ca_profiles import (  # type: ignore[import-not-found,import-untyped]
     CERTIFICATE_DEFAULT_FORMATS,
     CERTIFICATE_PROFILE_DEFAULTS,
@@ -165,6 +169,7 @@ def _resolve_certificate(params: dict) -> tuple[dict, dict]:
     module_params = {
         "base_dir": params["base_dir"],
         "base_url": params["base_url"],
+        "ca_name": params["ca_name"],
         "certificate": model,
         "name": name,
         "issuer": issuer,
@@ -184,6 +189,7 @@ def run_module():
         argument_spec={
             "base_dir": {"type": "path", "required": True},
             "base_url": {"type": "str", "default": ""},
+            "ca_name": {"type": "str", "default": ""},
             "certificate": {"type": "dict", "required": True, "no_log": True},
             "certificate_types": {"type": "dict", "required": True},
             "authorities": {
@@ -223,6 +229,10 @@ def run_module():
         ]
         result["fullchain_bundle"] = "fullchain" in formats
         result["fritzbox_bundle"] = "fritzbox" in formats
+        inventory_changed = record_certificate_inventory(params, model, result)
+        inventory_changed = compose_inventory_if_configured(params) or inventory_changed
+        result["inventory_changed"] = inventory_changed
+        result["changed"] = result["changed"] or inventory_changed
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
 

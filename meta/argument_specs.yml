@@ -7,8 +7,8 @@ argument_specs:
     short_description: Manage a two-tier private certificate authority.
     description:
       - Creates and manages a Root CA plus Component, Network, and Identity issuing CAs.
-      - Issues declared certificates, CRLs, embeds AIA/CDP URLs, and optionally manages
-        CRL renewal automation.
+      - Issues declared certificates, CRLs, embeds AIA/CDP URLs, writes a non-secret CA
+        inventory, and optionally manages CRL renewal automation.
       - Built-in CA topology and certificate profiles are role vars; certificate format
         defaults live in the modules; FritzBox bundle order is fixed in the module; validity
         periods are the intended override points.

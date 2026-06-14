@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+    ca_lock_path,
+    file_lock,
     read_file,
     sanitize_error,
     set_attrs,
@@ -122,36 +124,37 @@ def run_module():
         paths = _paths(
             params["base_dir"], params["name"], params["output_dir"], params["format"]
         )
-        key = load_private_key(paths["key"], params["key_passphrase"])
-        cert = load_certificates(paths["cert"])[0]
-        extra_certs = load_certificates(paths["chain"])
-        changed = params["force"]
-        if not changed:
-            changed = not _existing_matches(
-                paths["path"], params["passphrase"], key, cert, extra_certs
-            )
-        if changed:
-            content = pkcs12.serialize_key_and_certificates(
-                name=params["friendly_name"].encode(),
-                key=key,
-                cert=cert,
-                cas=extra_certs,
-                encryption_algorithm=serialization.BestAvailableEncryption(
-                    params["passphrase"].encode()
-                ),
-            )
-            changed = write_file(
-                paths["path"],
-                content,
-                params["owner"],
-                params["group"],
-                params["mode"],
-                force=True,
-            )
-        else:
-            changed = set_attrs(
-                paths["path"], params["owner"], params["group"], params["mode"]
-            )
+        with file_lock(ca_lock_path(params["base_dir"], "certificate", params["name"])):
+            key = load_private_key(paths["key"], params["key_passphrase"])
+            cert = load_certificates(paths["cert"])[0]
+            extra_certs = load_certificates(paths["chain"])
+            changed = params["force"]
+            if not changed:
+                changed = not _existing_matches(
+                    paths["path"], params["passphrase"], key, cert, extra_certs
+                )
+            if changed:
+                content = pkcs12.serialize_key_and_certificates(
+                    name=params["friendly_name"].encode(),
+                    key=key,
+                    cert=cert,
+                    cas=extra_certs,
+                    encryption_algorithm=serialization.BestAvailableEncryption(
+                        params["passphrase"].encode()
+                    ),
+                )
+                changed = write_file(
+                    paths["path"],
+                    content,
+                    params["owner"],
+                    params["group"],
+                    params["mode"],
+                    force=True,
+                )
+            else:
+                changed = set_attrs(
+                    paths["path"], params["owner"], params["group"], params["mode"]
+                )
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
     module.exit_json(changed=changed, path=paths["path"])

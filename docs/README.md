@@ -20,9 +20,10 @@ The role currently ships these callable modules:
 - `ca_fritzbox_deploy`
 - `ca_dhparam`
 
-`module_utils/` and `filter_plugins/` contain internal helpers. They are not
-documented as user-facing modules here, but their behavior is reflected where it
-affects module parameters or generated artifacts.
+`module_utils/` and `filter_plugins/` contain internal helpers, including the
+CA inventory state hooks. They are not documented as user-facing modules here,
+but their behavior is reflected where it affects module parameters or generated
+artifacts.
 
 See [modules.md](modules.md) for the module reference.
 
