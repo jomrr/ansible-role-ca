@@ -119,6 +119,7 @@ provisioner:
             san:
               - "email:user-smime@molecule.test"
               - "otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user-smime@molecule.test"
+            pfx_passphrase: "molecule-smime-pfx-passphrase"
           - name: "wifi-user"
             type: "eap_tls_client"
             common_name: "wifi-user@molecule.test"

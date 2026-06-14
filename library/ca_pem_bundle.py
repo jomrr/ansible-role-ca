@@ -6,6 +6,8 @@ from __future__ import annotations
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import read_file, sanitize_error, write_file  # type: ignore[import-not-found,import-untyped]
 
+FRITZBOX_BUNDLE_ORDER = ["certificate", "chain", "private_key"]
+
 
 def _read_sources(sources: list[str]) -> bytes:
     """Read and concatenate source files with single trailing newlines."""
@@ -16,7 +18,7 @@ def _read_sources(sources: list[str]) -> bytes:
 
 
 def _bundle_paths(
-    base_dir: str, name: str, output_dir: str | None, order: list[str]
+    base_dir: str, name: str, output_dir: str | None
 ) -> tuple[str, list[str]]:
     """Derive the FritzBox bundle path and ordered input paths."""
     directory = (output_dir or f"{base_dir.rstrip('/')}/certs/{name}").rstrip("/")
@@ -25,7 +27,10 @@ def _bundle_paths(
         "certificate": f"{directory}/{name}.pem",
         "chain": f"{directory}/{name}-chain.pem",
     }
-    return f"{directory}/{name}-fritzbox.pem", [sources[item] for item in order]
+    return (
+        f"{directory}/{name}-fritzbox.pem",
+        [sources[item] for item in FRITZBOX_BUNDLE_ORDER],
+    )
 
 
 def _params(params: dict) -> dict:
@@ -45,11 +50,6 @@ def run_module():
             "certificate": {"type": "dict", "no_log": True},
             "name": {"type": "str", "required": True},
             "output_dir": {"type": "path"},
-            "order": {
-                "type": "list",
-                "elements": "str",
-                "default": ["private_key", "certificate", "chain"],
-            },
             "owner": {"type": "str"},
             "group": {"type": "str"},
             "mode": {"type": "str", "default": "0600"},
@@ -64,7 +64,6 @@ def run_module():
             params["base_dir"],
             params["name"],
             params["output_dir"],
-            params["order"],
         )
         content = _read_sources(sources)
         changed = write_file(

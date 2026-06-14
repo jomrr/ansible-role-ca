@@ -1037,6 +1037,7 @@ def x509_certificate_argument_spec(*, defaults: dict | None = None):
             "required": True,
             "no_log": True,
         },
+        "formats": {"type": "list", "elements": "str"},
         "output_dir": {"type": "path"},
         "key_type": {"type": "str"},
         "key_size": {"type": "int"},
@@ -1062,10 +1063,18 @@ def x509_certificate_argument_spec(*, defaults: dict | None = None):
     return spec
 
 
-def x509_certificate_params(params: dict) -> dict:
+def _normalized_formats(formats: Any) -> list[str]:
+    """Return normalized certificate output format names."""
+    if isinstance(formats, str):
+        raise ValueError("formats must be a list")
+    return [str(item).lower() for item in (formats or [])]
+
+
+def x509_certificate_params(
+    params: dict, *, default_formats: list[str] | None = None
+) -> dict:
     """Merge certificate dictionaries with explicit module parameters."""
     result = {
-        "formats": ["pem", "der"],
         "base_url": "",
         "output_dir": None,
         "key_type": "RSA",
@@ -1091,13 +1100,19 @@ def x509_certificate_params(params: dict) -> dict:
         "directory_mode": "0755",
     }
     certificate = dict(params.get("certificate") or {})
+    certificate_formats = certificate.pop("formats", None)
+    module_formats = params.get("formats")
     module_params = {
         key: value
         for key, value in params.items()
-        if key != "certificate" and value is not None
+        if key not in ("certificate", "formats") and value is not None
     }
     result.update(certificate)
     result.update(module_params)
+    formats = module_formats if module_formats is not None else certificate_formats
+    if formats is None:
+        formats = default_formats if default_formats is not None else ["pem", "der"]
+    result["formats"] = _normalized_formats(formats)
     result["signer_key_passphrase"] = result.pop("issuer_key_passphrase")
     return result
 
@@ -1163,6 +1178,7 @@ def ensure_x509(
         "cert_changed": cert_changed,
         "der_changed": der_changed,
         "chain_changed": chain_changed,
+        "formats": params["formats"],
         "csr_path": params["csr_path"],
         "cert_path": params["cert_path"],
     }

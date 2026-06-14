@@ -113,8 +113,9 @@ The following variables are part of the public role interface.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
+- Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der`; Identity uses `pem,der,pfx`; FritzBox uses `pem,der,fritzbox`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
-- FritzBox bundles are assembled in the default order `private_key`, `certificate`, `chain`.
+- FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.
 
 ## Supported Platforms

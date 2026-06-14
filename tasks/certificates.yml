@@ -157,16 +157,16 @@
 - name: "CA | Start PKCS#12 bundle jobs"
   ca_pkcs12:
     base_dir: "{{ ca_base_dir }}"
-    certificate: "{{ ca_certificate_export.0 }}"
-    name: "{{ ca_certificate_export.0.name }}"
+    certificate: "{{ ca_certificate_export.0.ca_certificate_job.ca_certificate }}"
+    name: "{{ ca_certificate_export.0.ca_certificate_job.ca_certificate.name }}"
     format: "{{ ca_certificate_export.1 }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ __ca_certificate_models | subelements('formats') }}"
+  loop: "{{ __ca_certificate_material_status.results | default([]) | subelements('formats') }}"
   loop_control:
     loop_var: ca_certificate_export
-    label: "{{ ca_certificate_export.0.name }}.{{ ca_certificate_export.1 }}"
+    label: "{{ ca_certificate_export.0.ca_certificate_job.ca_certificate.name }}.{{ ca_certificate_export.1 }}"
   when: ca_certificate_export.1 in ['pfx', 'p12']
   async: "{{ ca_certificate_async_timeout }}"
   poll: 0
@@ -177,17 +177,27 @@
 - name: "CA | Start FritzBox bundle jobs"
   ca_pem_bundle:
     base_dir: "{{ ca_base_dir }}"
-    certificate: "{{ ca_certificate }}"
-    name: "{{ ca_certificate.name }}"
-    order: "{{ ca_fritzbox_bundle_order }}"
+    certificate: "{{ ca_certificate_result.ca_certificate_job.ca_certificate }}"
+    name: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ __ca_certificate_models }}"
+  loop: "{{ __ca_certificate_material_status.results | default([]) }}"
   loop_control:
-    loop_var: ca_certificate
-    label: "{{ ca_certificate.name }}"
-  when: "'fritzbox' in ca_certificate.formats"
+    loop_var: ca_certificate_result
+    label: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+  when: >-
+    'fritzbox' in (ca_certificate_result.formats | default([]))
+    or
+    (
+      ca_certificate_result.ca_certificate_job.ca_certificate.type == 'fritzbox'
+      and
+      (
+        ca_certificate_result.ca_certificate_job.ca_certificate.formats is not defined
+        or
+        'fritzbox' in ca_certificate_result.ca_certificate_job.ca_certificate.formats
+      )
+    )
   async: "{{ ca_certificate_async_timeout }}"
   poll: 0
   changed_when: false
@@ -195,8 +205,8 @@
   no_log: >-
     {{
       ca_no_log | bool
-      or ca_certificate.key_passphrase is defined
-      or ca_certificate.pfx_passphrase is defined
+      or ca_certificate_result.ca_certificate_job.ca_certificate.key_passphrase is defined
+      or ca_certificate_result.ca_certificate_job.ca_certificate.pfx_passphrase is defined
     }}
 
 - name: "CA | Wait for PKCS#12 bundle jobs"
@@ -211,7 +221,7 @@
     }}
   loop_control:
     loop_var: ca_certificate_job
-    label: "{{ ca_certificate_job.ca_certificate_export.0.name }}.{{ ca_certificate_job.ca_certificate_export.1 }}"
+    label: "{{ ca_certificate_job.ca_certificate_export.0.ca_certificate_job.ca_certificate.name }}.{{ ca_certificate_job.ca_certificate_export.1 }}"
   register: __ca_certificate_pfx_status
   until: __ca_certificate_pfx_status.finished
   retries: "{{ ca_certificate_async_retries }}"
@@ -232,7 +242,7 @@
     }}
   loop_control:
     loop_var: ca_certificate_job
-    label: "{{ ca_certificate_job.ca_certificate.name }}"
+    label: "{{ ca_certificate_job.ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
   register: __ca_certificate_fritzbox_status
   until: __ca_certificate_fritzbox_status.finished
   retries: "{{ ca_certificate_async_retries }}"

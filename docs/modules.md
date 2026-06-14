@@ -98,6 +98,7 @@ These parameters are used by `x509_cert`, `x509_identity`, `x509_mskdc`, and
 | `name` | str | yes | none | no | Certificate short name and derived file stem. |
 | `issuer` | str | yes | none | no | Issuing CA short name. The module reads `<base_dir>/ca/<issuer>-ca.pem` and `<base_dir>/private/<issuer>-ca.key`. |
 | `issuer_key_passphrase` | str | yes | none | yes | Passphrase for the issuer private key. |
+| `formats` | list[str] | no | module default | no | Output formats requested by the module. `pem` is always written, `der` adds a DER copy, `pfx`/`p12` and `fritzbox` are consumed by role export tasks. |
 | `output_dir` | path | no | `<base_dir>/certs/<name>` | no | Directory for the private key, PEM certificate, DER certificate, and copied chain. |
 | `key_type` | str | no | `RSA` | no | Private key algorithm. Supported values include `RSA`, `ECDSA`, `EC`, `P256`, `P384`, `ECDSA_P256`, `ECDSA_P384`, `Ed25519`, and `Ed448`. |
 | `key_size` | int | no | `4096` | no | RSA key size in bits, or ECDSA curve selector `256` or `384`. Ignored for Ed25519 and Ed448. |
@@ -118,7 +119,7 @@ These parameters are used by `x509_cert`, `x509_identity`, `x509_mskdc`, and
 | `force` | bool | no | `false` | no | Regenerates managed material even if existing files match. |
 
 The `certificate` dictionary can also carry advanced X.509 model keys that are
-not explicit top-level module arguments: `formats`, `digest`, `basic_constraints`,
+not explicit top-level module arguments: `digest`, `basic_constraints`,
 `key_usage_critical`, `extended_key_usage_critical`, `san_critical`, `pkinit`,
 `include_identifiers`, `key_mode`, `public_mode`, and `directory_mode`.
 
@@ -156,6 +157,7 @@ Returns:
 - `cert_changed`
 - `der_changed`
 - `chain_changed`
+- `formats`
 - `csr_path`
 - `cert_path`
 
@@ -191,6 +193,7 @@ Returns:
 - `cert_changed`
 - `der_changed`
 - `chain_changed`
+- `formats`
 - `csr_path`
 - `cert_path`
 
@@ -201,6 +204,7 @@ Manages a standard certificate signed by an issuing CA.
 Behavior:
 
 - Supports the `tls_server`, `tls_client`, and `eap_tls_client` profiles.
+- Defaults `formats` to `pem,der`.
 - `tls_server` defaults to DNS SAN from `common_name`, Key Usage
   `digitalSignature,keyEncipherment`, and EKU `serverAuth`.
 - `tls_client` defaults to Key Usage `digitalSignature,keyEncipherment` and EKU
@@ -223,6 +227,7 @@ Returns:
 - `cert_changed`
 - `der_changed`
 - `chain_changed`
+- `formats`
 - `csr_path`
 - `cert_path`
 
@@ -233,6 +238,7 @@ Manages an identity certificate signed by an issuing CA.
 Behavior:
 
 - Supports the `identity` and `identity_full` profiles.
+- Defaults `formats` to `pem,der,pfx`.
 - `identity` defaults to Key Usage
   `digitalSignature,keyEncipherment,nonRepudiation` and EKUs `clientAuth`,
   `emailProtection`, and smartcard logon OID `1.3.6.1.4.1.311.20.2.2`.
@@ -254,6 +260,7 @@ Returns:
 - `cert_changed`
 - `der_changed`
 - `chain_changed`
+- `formats`
 - `csr_path`
 - `cert_path`
 
@@ -264,6 +271,7 @@ Manages an MSKDC/Samba AD domain controller certificate signed by an issuing CA.
 Behavior:
 
 - Defaults to DNS SAN from `common_name`.
+- Defaults `formats` to `pem,der`.
 - Defaults Key Usage to `digitalSignature,keyEncipherment`.
 - Defaults EKU to `serverAuth`, `clientAuth`, and KDC Authentication OID
   `1.3.6.1.5.2.3.5`.
@@ -291,6 +299,7 @@ Returns:
 - `cert_changed`
 - `der_changed`
 - `chain_changed`
+- `formats`
 - `csr_path`
 - `cert_path`
 
@@ -301,6 +310,7 @@ Manages a FritzBox-compatible certificate signed by an issuing CA.
 Behavior:
 
 - Defaults to DNS SAN from `common_name`.
+- Defaults `formats` to `pem,der,fritzbox`.
 - Defaults Key Usage to `digitalSignature,keyEncipherment`.
 - Defaults EKU to `serverAuth,clientAuth`.
 - Uses `CA:FALSE` Basic Constraints through the common certificate default.
@@ -322,6 +332,7 @@ Returns:
 - `cert_changed`
 - `der_changed`
 - `chain_changed`
+- `formats`
 - `csr_path`
 - `cert_path`
 
@@ -438,9 +449,9 @@ Assembles an ordered PEM bundle from existing files.
 
 Behavior:
 
-- Defaults to the FritzBox import order: private key, certificate, chain.
-- Reads source files from `<output_dir>/<name>.key`,
-  `<output_dir>/<name>.pem`, and `<output_dir>/<name>-chain.pem`.
+- Uses the fixed FritzBox import order: certificate, chain, private key.
+- Reads source files from `<output_dir>/<name>.pem`,
+  `<output_dir>/<name>-chain.pem`, and `<output_dir>/<name>.key`.
 - Writes `<output_dir>/<name>-fritzbox.pem`.
 - The module concatenates normalized file content. It does not parse or validate
   the PEM objects.
@@ -453,7 +464,6 @@ Parameters:
 | `certificate` | dict | no | `{}` | yes | Certificate model dictionary. May provide `output_dir`. |
 | `name` | str | yes | none | no | Certificate short name and output file stem. |
 | `output_dir` | path | no | `<base_dir>/certs/<name>` | no | Directory containing source files and receiving the bundle. |
-| `order` | list[str] | no | `["private_key", "certificate", "chain"]` | no | Source order. Valid source names are `private_key`, `certificate`, and `chain`. |
 | `owner` | str | no | none | no | Owner applied to the bundle file. |
 | `group` | str | no | none | no | Group applied to the bundle file. |
 | `mode` | str | no | `0600` | no | Bundle file mode. |

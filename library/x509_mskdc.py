@@ -36,6 +36,7 @@ MSKDC_DEFAULTS = {
         }
     ],
 }
+DEFAULT_FORMATS = ["pem", "der"]
 
 
 def _ad_guid_hex(value) -> str:
@@ -112,7 +113,10 @@ def run_module():
         )
 
     try:
-        params = x509_certificate_params(module.params)
+        params = x509_certificate_params(
+            module.params,
+            default_formats=DEFAULT_FORMATS,
+        )
         params = _apply_mskdc_extensions(params)
         params = apply_profile_defaults(params, MSKDC_DEFAULTS)
         result = ensure_x509(

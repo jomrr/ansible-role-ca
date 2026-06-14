@@ -2,6 +2,15 @@
 # role: ansible-role-ca
 # file: tasks/automation.yml
 
+- name: "CA | Create CRL renewal automation directory"
+  ansible.builtin.file:
+    path: "{{ ca_base_dir }}/automation"
+    state: directory
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    mode: "0750"
+  when: ca_crl_automation_enabled | bool
+
 - name: "CA | Render CRL renewal playbook"
   ansible.builtin.template:
     src: automation/crl-renew.yml.j2

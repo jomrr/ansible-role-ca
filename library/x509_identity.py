@@ -35,6 +35,7 @@ PROFILE_DEFAULTS = {
         ],
     },
 }
+DEFAULT_FORMATS = ["pem", "der", "pfx"]
 
 
 def run_module():
@@ -56,7 +57,10 @@ def run_module():
         )
 
     try:
-        params = x509_certificate_params(module.params)
+        params = x509_certificate_params(
+            module.params,
+            default_formats=DEFAULT_FORMATS,
+        )
         params = apply_profile_defaults(
             params,
             PROFILE_DEFAULTS[params["profile"]],

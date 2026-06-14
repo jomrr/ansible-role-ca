@@ -9,8 +9,9 @@ argument_specs:
       - Creates and manages a Root CA plus Component, Network, and Identity issuing CAs.
       - Issues declared certificates, CRLs, embeds AIA/CDP URLs, and optionally manages
         CRL renewal automation.
-      - Built-in CA topology, certificate profiles, and FritzBox bundle order are role vars;
-        validity periods are the intended override points.
+      - Built-in CA topology and certificate profiles are role vars; certificate format
+        defaults live in the modules; FritzBox bundle order is fixed in the module; validity
+        periods are the intended override points.
     options:
       ca_name:
         type: str
@@ -193,6 +194,14 @@ argument_specs:
               - identity
               - eap_tls_client
             description: Built-in certificate profile to use.
+          formats:
+            type: list
+            elements: str
+            required: false
+            description:
+              - Optional output format override passed to the certificate module.
+              - Defaults are module-owned. Standard certificates and MSKDC default to `pem,der`;
+                Identity defaults to `pem,der,pfx`; FritzBox defaults to `pem,der,fritzbox`.
           common_name:
             type: str
             required: true

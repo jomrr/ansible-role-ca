@@ -15,6 +15,7 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
 
 
 FRITZBOX_DIGESTS = {"sha1", "sha224", "sha256", "sha384"}
+DEFAULT_FORMATS = ["pem", "der", "fritzbox"]
 FRITZBOX_DEFAULTS = {
     "default_dns_san": True,
     "digest": "sha384",
@@ -36,7 +37,10 @@ def run_module():
             msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
         )
 
-    params = x509_certificate_params(module.params)
+    params = x509_certificate_params(
+        module.params,
+        default_formats=DEFAULT_FORMATS,
+    )
     params = apply_profile_defaults(params, FRITZBOX_DEFAULTS)
     digest = str(params["digest"]).replace("-", "").lower()
     if digest not in FRITZBOX_DIGESTS:

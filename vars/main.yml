@@ -2,52 +2,20 @@
 # role: ansible-role-ca
 # file: vars/main.yml
 
-ca_base_directories:
-  - { path: "{{ ca_base_dir }}", mode: "0755" }
-  - { path: "{{ ca_base_dir }}/automation", mode: "0750" }
-  - { path: "{{ ca_base_dir }}/ca", mode: "0755" }
-  - { path: "{{ ca_base_dir }}/certs", mode: "0755" }
-  - { path: "{{ ca_base_dir }}/chains", mode: "0755" }
-  - { path: "{{ ca_base_dir }}/crl", mode: "0755" }
-  - { path: "{{ ca_base_dir }}/csr", mode: "0755" }
-  - { path: "{{ ca_base_dir }}/private", mode: "0700" }
-
-ca_default_certificate_formats:
-  - pem
-  - der
-
-ca_fritzbox_bundle_order:
-  - private_key
-  - certificate
-  - chain
-
 ca_certificate_types:
   tls_server:
     issuer: component
-    formats: "{{ ca_default_certificate_formats }}"
   tls_client:
     issuer: component
-    formats: "{{ ca_default_certificate_formats }}"
   mskdc:
     issuer: component
     required_fields:
       - ad_object_guid
-    formats: "{{ ca_default_certificate_formats }}"
   fritzbox:
     issuer: component
-    formats:
-      - pem
-      - der
-      - fritzbox
   identity_full:
     issuer: identity
-    formats:
-      - pem
-      - der
-      - pfx
   identity:
     issuer: identity
-    formats: "{{ ca_default_certificate_formats }}"
   eap_tls_client:
     issuer: network
-    formats: "{{ ca_default_certificate_formats }}"

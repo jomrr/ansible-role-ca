@@ -112,21 +112,23 @@ def ca_certificate_model(
     for field in _as_list(profile.get("required_fields")):
         _required(certificate, _string(field), f"Certificate {name}")
 
-    formats = [str(item).lower() for item in _as_list(profile.get("formats"))]
-    unsupported_formats = sorted(
-        set(formats).difference({"pem", "der", "pfx", "p12", "fritzbox"})
-    )
-    if unsupported_formats:
-        raise AnsibleFilterError(
-            f"Certificate {name} has unsupported formats: {', '.join(unsupported_formats)}"
+    formats = None
+    if "formats" in certificate:
+        formats = [str(item).lower() for item in _as_list(certificate.get("formats"))]
+        unsupported_formats = sorted(
+            set(formats).difference({"pem", "der", "pfx", "p12", "fritzbox"})
         )
+        if unsupported_formats:
+            raise AnsibleFilterError(
+                f"Certificate {name} has unsupported formats: {', '.join(unsupported_formats)}"
+            )
 
-    if set(formats).intersection({"pfx", "p12"}) and not _string(
-        certificate.get("pfx_passphrase")
-    ):
-        raise AnsibleFilterError(
-            f"Certificate {name} uses PFX/PKCS#12 output and requires pfx_passphrase"
-        )
+        if set(formats).intersection({"pfx", "p12"}) and not _string(
+            certificate.get("pfx_passphrase")
+        ):
+            raise AnsibleFilterError(
+                f"Certificate {name} uses PFX/PKCS#12 output and requires pfx_passphrase"
+            )
 
     san = [str(item) for item in _as_list(certificate.get("san"))]
     raw_extensions = deepcopy(_as_list(certificate.get("raw_extensions")))
@@ -146,7 +148,6 @@ def ca_certificate_model(
             "type": cert_type,
             "common_name": common_name,
             "issuer": issuer,
-            "formats": formats,
             "days": certificate.get("days", default_days),
             "san": san,
             "key_passphrase": _string(certificate.get("key_passphrase")),
@@ -155,6 +156,9 @@ def ca_certificate_model(
             "subject": subject_values,
         }
     )
+
+    if formats is not None:
+        model["formats"] = formats
 
     if raw_extensions:
         model["raw_extensions"] = raw_extensions

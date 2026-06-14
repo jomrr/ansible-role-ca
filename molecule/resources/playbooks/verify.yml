@@ -37,6 +37,7 @@
         - "{{ ca_molecule_base }}/certs/fritzbox01/fritzbox01-fritzbox.pem"
         - "{{ ca_molecule_base }}/certs/user-full/user-full.pfx"
         - "{{ ca_molecule_base }}/certs/user-smime/user-smime.pem"
+        - "{{ ca_molecule_base }}/certs/user-smime/user-smime.pfx"
         - "{{ ca_molecule_base }}/certs/wifi-user/wifi-user.pem"
 
     - name: "CA | Assert managed files exist"
@@ -173,16 +174,24 @@
           - "'1.3.6.1.4.1.311.20.2' in __ca_molecule_mskdc_text.stdout"
           - "'1.3.6.1.4.1.311.25.1' in __ca_molecule_mskdc_text.stdout"
 
-    - name: "CA | Check FritzBox bundle starts with private key"
+    - name: "CA | Read FritzBox bundle PEM markers"
       ansible.builtin.command:
-        cmd: "head -n 1 {{ ca_molecule_base }}/certs/fritzbox01/fritzbox01-fritzbox.pem"
-      register: __ca_molecule_fritzbox_head
+        cmd: "grep -E '^-----BEGIN (CERTIFICATE|.*PRIVATE KEY)-----' {{ ca_molecule_base }}/certs/fritzbox01/fritzbox01-fritzbox.pem"
+      register: __ca_molecule_fritzbox_markers
       changed_when: false
 
     - name: "CA | Assert FritzBox bundle order"
       ansible.builtin.assert:
         that:
-          - "'PRIVATE KEY' in __ca_molecule_fritzbox_head.stdout"
+          - __ca_molecule_fritzbox_markers.stdout_lines | first == '-----BEGIN CERTIFICATE-----'
+          - __ca_molecule_fritzbox_markers.stdout_lines | last is search('PRIVATE KEY')
+          - >-
+            (
+              __ca_molecule_fritzbox_markers.stdout_lines[:-1]
+              | select('equalto', '-----BEGIN CERTIFICATE-----')
+              | list
+              | length
+            ) >= 2
 
     - name: "CA | Read FritzBox certificate text"
       ansible.builtin.command:
@@ -199,7 +208,12 @@
 
     - name: "CA | Parse Identity PFX"
       ansible.builtin.command:
-        cmd: "openssl pkcs12 -in {{ ca_molecule_base }}/certs/user-full/user-full.pfx -passin pass:molecule-pfx-passphrase -noout -info"
+        cmd: "openssl pkcs12 -in {{ ca_molecule_base }}/certs/{{ item.name }}/{{ item.name }}.pfx -passin pass:{{ item.passphrase }} -noout -info"
+      loop:
+        - name: user-full
+          passphrase: molecule-pfx-passphrase
+        - name: user-smime
+          passphrase: molecule-smime-pfx-passphrase
       changed_when: false
 
     - name: "CA | Parse DER CRL"

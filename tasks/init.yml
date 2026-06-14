@@ -2,14 +2,16 @@
 # role: ansible-role-ca
 # file: tasks/init.yml
 
-- name: "CA | Create base directories"
+- name: "CA | Create passphrase directories"
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     mode: "{{ item.mode }}"
-  loop: "{{ ca_base_directories }}"
+  loop:
+    - { path: "{{ ca_base_dir }}", mode: "0755" }
+    - { path: "{{ ca_base_dir }}/private", mode: "0700" }
   loop_control:
     label: "{{ item.path }}"
   tags: init-dirs
