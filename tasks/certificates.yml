@@ -3,7 +3,7 @@
 # file: tasks/certificates.yml
 
 - name: "CA | Start certificate material jobs"
-  x509_certificate:
+  ca_certificate:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
     certificate: "{{ ca_certificate }}"

@@ -1,10 +1,11 @@
 [Unit]
-Description=Renew {{ ca_name }} CA CRLs
+Description=Renew {{ ca_name }} CA CRL for %i
 
 [Timer]
 OnCalendar={{ ca_crl_automation_on_calendar }}
 RandomizedDelaySec={{ ca_crl_automation_randomized_delay_sec }}
 Persistent={{ ca_crl_automation_persistent | ternary('true', 'false') }}
+Unit={{ ca_name | lower }}-crl-renew@%i.service
 
 [Install]
 WantedBy=timers.target

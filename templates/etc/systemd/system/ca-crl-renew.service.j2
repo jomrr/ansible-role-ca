@@ -1,9 +1,11 @@
 [Unit]
-Description=Renew {{ ca_name }} CA CRLs
+Description=Renew {{ ca_name }} CA CRL for %i
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
+User=root
+WorkingDirectory={{ ca_base_dir }}/automation
 Environment=ANSIBLE_LIBRARY={{ ca_base_dir }}/automation/library
-ExecStart={{ ca_crl_automation_ansible_playbook }} {{ ca_base_dir }}/automation/crl-renew.yml
+ExecStart=/bin/bash -lc 'set -a; test ! -f /root/.profile || . /root/.profile; set +a; exec {{ ca_crl_automation_ansible_playbook }} {{ ca_base_dir }}/automation/crl-renew.yml -e ca_crl_authority=%i'

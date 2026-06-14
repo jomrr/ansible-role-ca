@@ -2,7 +2,7 @@
 # role: ansible-role-ca
 # file: tasks/init.yml
 
-- name: "CA | Create passphrase directories"
+- name: "CA | Create CA private directory"
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
@@ -15,17 +15,3 @@
   loop_control:
     label: "{{ item.path }}"
   tags: init-dirs
-
-- name: "CA | Store CA private key passphrase files"
-  ansible.builtin.copy:
-    content: "{{ ca_authority.key_passphrase }}\n"
-    dest: "{{ ca_base_dir }}/private/{{ ca_authority.name }}-ca.pass"
-    owner: "{{ ca_owner }}"
-    group: "{{ ca_group }}"
-    mode: "0600"
-  loop: "{{ ca_authorities }}"
-  loop_control:
-    loop_var: ca_authority
-    label: "{{ ca_authority.name }}"
-  no_log: true
-  tags: init-passphrases

@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Dispatch managed certificates to the built-in X.509 profiles."""
+"""Dispatch managed CA role certificates to the built-in X.509 profiles."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,
 )
 
 SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-SUPPORTED_FORMATS = {"pem", "der", "pfx", "p12", "fritzbox"}
+SUPPORTED_FORMATS = {"pem", "der", "txt", "pfx", "p12", "fritzbox"}
 
 
 def _as_list(value: Any) -> list[Any]:

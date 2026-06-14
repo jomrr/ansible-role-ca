@@ -140,6 +140,8 @@ def write_file(
     """Atomically write content and enforce file attributes."""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    if target.is_symlink():
+        raise ValueError(f"Refusing to replace symlink: {path}")
     try:
         changed = force or _read_file(path) != content
     except FileNotFoundError:

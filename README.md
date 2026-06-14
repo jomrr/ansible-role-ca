@@ -7,14 +7,14 @@ Ansible role for managing a two-tier private CA with certificate issuance, CRLs,
 ## Purpose
 
 This role manages a private two-tier PKI with a Root CA and Component, Network, and Identity issuing CAs.
-It creates CA keys, CSRs, certificates, chains, DER exports, CRLs, and managed certificates from inventory variables.
+It creates CA keys, CSRs, certificates, chains, DER and text exports, CRLs, and managed certificates from inventory variables.
 
 ## Scope
 
 ### Managed
 
 - Root CA and Component, Network, and Identity issuing CAs
-- PEM and DER exports for all CA certificates
+- PEM, DER, and text exports for all CA certificates
 - CA chain files
 - Declarative certificates in `ca_certificates`
 - TLS server and TLS client certificates from the Component CA
@@ -39,6 +39,7 @@ It creates CA keys, CSRs, certificates, chains, DER exports, CRLs, and managed c
 - CA private key passphrases are required as `key_passphrase` values in `ca_authorities`; store real values in Ansible Vault.
 - PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus `ad_object_guid`.
+- CRL renewal systemd services read CA key passphrases from `/root/.profile` environment variables named `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE`, uppercased with non-alphanumeric characters replaced by underscores.
 
 ## Dependencies
 
@@ -69,8 +70,8 @@ The following variables are part of the public role interface.
 | `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for certificate and bundle jobs. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_certificates` | `list` | `false` | [] | Certificates to manage. |
-| `ca_crl_automation_enabled` | `bool` | `false` | `False` | Manage and enable the CRL renewal timer. |
-| `ca_crl_automation_ansible_playbook` | `str` | `false` | `ansible-playbook` | Command used by the CRL renewal service. |
+| `ca_crl_automation_enabled` | `bool` | `false` | `False` | Manage and enable CRL renewal timer instances.<br>The role enables `<ca_name \| lower>-crl-renew@<authority>.timer` for every authority.<br>The service sources `/root/.profile` and expects `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE` environment variables, uppercased with non-alphanumeric characters replaced by underscores. |
+| `ca_crl_automation_ansible_playbook` | `str` | `false` | `ansible-playbook` | Command used by the CRL renewal service template. |
 | `ca_crl_automation_on_calendar` | `str` | `false` | `daily` | systemd timer OnCalendar value. |
 | `ca_crl_automation_randomized_delay_sec` | `str` | `false` | `15m` | systemd timer randomized delay. |
 | `ca_crl_automation_persistent` | `bool` | `false` | `True` | systemd timer Persistent value. |
@@ -82,20 +83,20 @@ The following variables are part of the public role interface.
 - `/etc/ssl/<ca_name | lower> on Debian and Suse-family systems`
 - `<ca_base_dir>/ca/*-ca.pem`
 - `<ca_base_dir>/ca/*-ca.der`
+- `<ca_base_dir>/ca/*-ca.txt`
 - `<ca_base_dir>/chains/*-ca-chain.pem`
 - `<ca_base_dir>/crl/*-ca.crl`
 - `<ca_base_dir>/crl/*-ca.crl.pem`
 - `<ca_base_dir>/csr/*.csr`
 - `<ca_base_dir>/private/*-ca.key`
-- `<ca_base_dir>/private/*-ca.pass`
 - `<ca_base_dir>/certs/*`
-- `/etc/systemd/system/<ca_name | lower>-ca-crl-renew.service` when `ca_crl_automation_enabled=true`
-- `/etc/systemd/system/<ca_name | lower>-ca-crl-renew.timer` when `ca_crl_automation_enabled=true`
+- `/etc/systemd/system/<ca_name | lower>-crl-renew@.service` when `ca_crl_automation_enabled=true`
+- `/etc/systemd/system/<ca_name | lower>-crl-renew@.timer` when `ca_crl_automation_enabled=true`
 
 ## Security Notes
 
 - CA private keys are passphrase-protected and their passphrases are supplied by inventory variables.
-- Generated CA passphrase files and private keys are mode `0600`.
+- CRL renewal timers source `/root/.profile`; define variables such as `CA_EXAMPLE_ROOT_KEY_PASSPHRASE` there for systemd-triggered renewal.
 - Certificate private key passphrases are optional except for formats that require export passwords, such as PFX/PKCS#12.
 - FritzBox bundles are mode `0600` because they include the private key, certificate, and issuing chain.
 - MSKDC certificates include `digitalSignature`, `serverAuth`, `clientAuth`, and KDC Authentication EKU `1.3.6.1.5.2.3.5` (OpenSSL renders it as `Signing KDC Response`); the Microsoft template-name extension is emitted as `1.3.6.1.4.1.311.20.2 = ASN1:BMPSTRING:DomainController`.
@@ -112,8 +113,9 @@ The following variables are part of the public role interface.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
+- CRL renewal uses instantiated systemd timers named `<ca_name | lower>-crl-renew@<authority>.timer`, for example `example-crl-renew@root.timer`.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
-- Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der`; Identity uses `pem,der,pfx`; FritzBox uses `pem,der,fritzbox`.
+- Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
 - Existing certificates are reissued when their key, CSR, certificate profile, or declared extensions change, or when `ca_force_reissue=true`.

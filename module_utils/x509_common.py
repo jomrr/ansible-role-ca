@@ -44,6 +44,8 @@ __all__ = [
     "load_certificates",
     "load_private_key",
     "normalize_formats",
+    "run_ca_authority_module",
+    "run_x509_certificate_module",
     "sanitize_error",
     "signature_algorithm",
     "subject_from_params",
@@ -154,13 +156,13 @@ CERTIFICATE_PROFILE_DEFAULTS = {
     "fritzbox": FRITZBOX_CERTIFICATE_DEFAULTS,
 }
 CERTIFICATE_DEFAULT_FORMATS = {
-    "tls_server": ["pem", "der"],
-    "tls_client": ["pem", "der"],
-    "eap_tls_client": ["pem", "der"],
-    "mskdc": ["pem", "der"],
-    "identity": ["pem", "der", "pfx"],
-    "identity_full": ["pem", "der", "pfx"],
-    "fritzbox": ["pem", "der", "fritzbox"],
+    "tls_server": ["pem", "der", "txt"],
+    "tls_client": ["pem", "der", "txt"],
+    "eap_tls_client": ["pem", "der", "txt"],
+    "mskdc": ["pem", "der", "txt"],
+    "identity": ["pem", "der", "txt", "pfx"],
+    "identity_full": ["pem", "der", "txt", "pfx"],
+    "fritzbox": ["pem", "der", "txt", "fritzbox"],
 }
 FRITZBOX_DIGESTS = {"sha1", "sha224", "sha256", "sha384"}
 
@@ -417,6 +419,17 @@ def _not_valid_after_utc(cert):
     if value is not None:
         return value
     value = cert.not_valid_after
+    if value.tzinfo is None:
+        return value.replace(tzinfo=_dt.timezone.utc)
+    return value.astimezone(_dt.timezone.utc)
+
+
+def _not_valid_before_utc(cert):
+    """Return a certificate start timestamp normalized to UTC."""
+    value = getattr(cert, "not_valid_before_utc", None)
+    if value is not None:
+        return value
+    value = cert.not_valid_before
     if value.tzinfo is None:
         return value.replace(tzinfo=_dt.timezone.utc)
     return value.astimezone(_dt.timezone.utc)
@@ -919,6 +932,177 @@ def _ensure_der(params, cert):
     )
 
 
+def _hex(value: bytes | None) -> str:
+    """Return colon-separated uppercase hex."""
+    if value is None:
+        return ""
+    return ":".join(f"{byte:02X}" for byte in value)
+
+
+def _oid_name(oid) -> str:
+    """Return a readable OID name with a dotted-string fallback."""
+    name = getattr(oid, "_name", "") or ""
+    return name if name and name != "Unknown OID" else oid.dotted_string
+
+
+def _datetime_text(value: _dt.datetime) -> str:
+    """Return a stable UTC timestamp for certificate text exports."""
+    return value.astimezone(_dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def _public_key_text(public_key) -> list[str]:
+    """Return readable subject public key information."""
+    if isinstance(public_key, rsa.RSAPublicKey):
+        return [
+            "            Public Key Algorithm: rsaEncryption",
+            f"            Public-Key: ({public_key.key_size} bit)",
+        ]
+    if isinstance(public_key, ec.EllipticCurvePublicKey):
+        return [
+            "            Public Key Algorithm: id-ecPublicKey",
+            f"            Curve: {public_key.curve.name}",
+            f"            Public-Key: ({public_key.key_size} bit)",
+        ]
+    if isinstance(public_key, ed25519.Ed25519PublicKey):
+        return ["            Public Key Algorithm: ED25519"]
+    if isinstance(public_key, ed448.Ed448PublicKey):
+        return ["            Public Key Algorithm: ED448"]
+    return [f"            Public Key Algorithm: {public_key.__class__.__name__}"]
+
+
+def _key_usage_text(value) -> str:
+    """Return readable Key Usage values."""
+    usages = []
+    if value.digital_signature:
+        usages.append("Digital Signature")
+    if value.content_commitment:
+        usages.append("Non Repudiation")
+    if value.key_encipherment:
+        usages.append("Key Encipherment")
+    if value.data_encipherment:
+        usages.append("Data Encipherment")
+    if value.key_agreement:
+        usages.append("Key Agreement")
+    if value.key_cert_sign:
+        usages.append("Certificate Sign")
+    if value.crl_sign:
+        usages.append("CRL Sign")
+    if value.key_agreement and value.encipher_only:
+        usages.append("Encipher Only")
+    if value.key_agreement and value.decipher_only:
+        usages.append("Decipher Only")
+    return ", ".join(usages)
+
+
+def _general_name_text(name) -> str:
+    """Return readable GeneralName text."""
+    if isinstance(name, x509.DNSName):
+        return f"DNS:{name.value}"
+    if isinstance(name, x509.RFC822Name):
+        return f"email:{name.value}"
+    if isinstance(name, x509.UniformResourceIdentifier):
+        return f"URI:{name.value}"
+    if isinstance(name, x509.IPAddress):
+        return f"IP:{name.value}"
+    if isinstance(name, x509.RegisteredID):
+        return f"RID:{name.value.dotted_string}"
+    if isinstance(name, x509.OtherName):
+        return f"otherName:{name.type_id.dotted_string};DER:{_hex(name.value)}"
+    if isinstance(name, x509.DirectoryName):
+        return f"DirName:{name.value.rfc4514_string()}"
+    return repr(name)
+
+
+def _extension_value_text(value) -> list[str]:
+    """Return readable text lines for a certificate extension value."""
+    if isinstance(value, x509.BasicConstraints):
+        parts = [f"CA:{str(value.ca).upper()}"]
+        if value.path_length is not None:
+            parts.append(f"pathlen:{value.path_length}")
+        return [", ".join(parts)]
+    if isinstance(value, x509.KeyUsage):
+        return [_key_usage_text(value)]
+    if isinstance(value, x509.ExtendedKeyUsage):
+        return [", ".join(_oid_name(oid) for oid in value)]
+    if isinstance(value, x509.SubjectAlternativeName):
+        return [", ".join(_general_name_text(name) for name in value)]
+    if isinstance(value, x509.AuthorityInformationAccess):
+        return [
+            f"{_oid_name(item.access_method)} - {_general_name_text(item.access_location)}"
+            for item in value
+        ]
+    if isinstance(value, x509.CRLDistributionPoints):
+        lines = []
+        for point in value:
+            if point.full_name:
+                names = ", ".join(_general_name_text(name) for name in point.full_name)
+                lines.append(f"Full Name: {names}")
+            if point.crl_issuer:
+                issuers = ", ".join(
+                    _general_name_text(name) for name in point.crl_issuer
+                )
+                lines.append(f"CRL Issuer: {issuers}")
+        return lines
+    if isinstance(value, x509.SubjectKeyIdentifier):
+        return [_hex(value.digest)]
+    if isinstance(value, x509.AuthorityKeyIdentifier):
+        lines = []
+        if value.key_identifier:
+            lines.append(f"keyid:{_hex(value.key_identifier)}")
+        if value.authority_cert_issuer:
+            issuers = ", ".join(
+                _general_name_text(name) for name in value.authority_cert_issuer
+            )
+            lines.append(f"issuer:{issuers}")
+        if value.authority_cert_serial_number is not None:
+            lines.append(f"serial:{value.authority_cert_serial_number}")
+        return lines
+    if isinstance(value, x509.UnrecognizedExtension):
+        return [f"DER:{_hex(value.value)}"]
+    return [repr(value)]
+
+
+def _certificate_text(cert) -> bytes:
+    """Return a deterministic text representation of a certificate."""
+    lines = [
+        "Certificate:",
+        "    Data:",
+        f"        Version: {cert.version.name}",
+        f"        Serial Number: {cert.serial_number}",
+        f"        Signature Algorithm: {_oid_name(cert.signature_algorithm_oid)}",
+        f"        Issuer: {cert.issuer.rfc4514_string()}",
+        "        Validity:",
+        f"            Not Before: {_datetime_text(_not_valid_before_utc(cert))}",
+        f"            Not After : {_datetime_text(_not_valid_after_utc(cert))}",
+        f"        Subject: {cert.subject.rfc4514_string()}",
+        "        Subject Public Key Info:",
+    ]
+    lines.extend(_public_key_text(cert.public_key()))
+    if cert.extensions:
+        lines.append("        X509v3 extensions:")
+        for extension in cert.extensions:
+            suffix = "critical" if extension.critical else ""
+            lines.append(f"            {_oid_name(extension.oid)}: {suffix}".rstrip())
+            lines.extend(
+                f"                {line}" for line in _extension_value_text(extension.value)
+            )
+    lines.append(f"    Signature Algorithm: {_oid_name(cert.signature_algorithm_oid)}")
+    return ("\n".join(lines) + "\n").encode()
+
+
+def _ensure_txt(params, cert):
+    """Ensure the optional text certificate export exists."""
+    if not params["txt_path"]:
+        return False
+    return write_file(
+        params["txt_path"],
+        _certificate_text(cert),
+        params["owner"],
+        params["group"],
+        params["public_mode"],
+    )
+
+
 def _ensure_chain(params):
     """Ensure the optional certificate chain copy exists."""
     if not params["chain_src_path"] or not params["chain_path"]:
@@ -1083,6 +1267,7 @@ def _with_derived_paths(
         result["csr_path"] = f"{base_dir}/csr/{ca_file}.csr"
         result["cert_path"] = f"{base_dir}/ca/{ca_file}.pem"
         result["der_path"] = f"{base_dir}/ca/{ca_file}.der" if "der" in formats else ""
+        result["txt_path"] = f"{base_dir}/ca/{ca_file}.txt" if "txt" in formats else ""
         if signed:
             parent = str(result["parent"])
             parent_file = f"{parent}-ca"
@@ -1104,6 +1289,7 @@ def _with_derived_paths(
     result["csr_path"] = f"{base_dir}/csr/{name}.csr"
     result["cert_path"] = f"{output_dir}/{name}.pem"
     result["der_path"] = f"{output_dir}/{name}.der" if "der" in formats else ""
+    result["txt_path"] = f"{output_dir}/{name}.txt" if "txt" in formats else ""
     result["directory_path"] = output_dir if manage_directory else None
     if signed:
         result["signer_cert_path"] = f"{base_dir}/ca/{issuer_file}.pem"
@@ -1127,7 +1313,11 @@ def ca_authority_argument_spec(
         "base_dir": {"type": "path", "required": True},
         "base_url": {"type": "str", "default": ""},
         "name": {"type": "str", "required": True},
-        "formats": {"type": "list", "elements": "str", "default": ["pem", "der"]},
+        "formats": {
+            "type": "list",
+            "elements": "str",
+            "default": ["pem", "der", "txt"],
+        },
         "key_type": {"type": "str", "default": "RSA"},
         "key_size": {"type": "int", "default": 4096},
         "subject_ordered": {"type": "list", "elements": "dict", "default": []},
@@ -1174,6 +1364,38 @@ def ca_authority_argument_spec(
         if key in spec:
             spec[key]["default"] = value
     return spec
+
+
+def _fail_on_crypto_import_error(module) -> None:
+    """Abort an Ansible module when required crypto imports are unavailable."""
+    if CRYPTOGRAPHY_IMPORT_ERROR is not None:
+        module.fail_json(
+            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
+        )
+
+
+def run_ca_authority_module(*, defaults: dict, signed: bool = False) -> None:
+    """Run a CA authority module using shared X.509 authority handling."""
+    from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+
+    module = AnsibleModule(
+        argument_spec=ca_authority_argument_spec(
+            signed=signed,
+            defaults=defaults,
+        ),
+        supports_check_mode=False,
+    )
+    _fail_on_crypto_import_error(module)
+
+    try:
+        params = dict(module.params)
+        if signed:
+            params["signer_key_passphrase"] = params["parent_key_passphrase"]
+        result = ensure_x509(params, signed=signed, authority=True)
+    except Exception as exc:
+        module.fail_json(msg=sanitize_error(exc, module.params))
+
+    module.exit_json(**result)
 
 
 def x509_certificate_argument_spec(*, defaults: dict | None = None):
@@ -1263,10 +1485,55 @@ def x509_certificate_params(
     result.update(module_params)
     formats = module_formats if module_formats is not None else certificate_formats
     if formats is None:
-        formats = default_formats if default_formats is not None else ["pem", "der"]
+        formats = (
+            default_formats if default_formats is not None else ["pem", "der", "txt"]
+        )
     result["formats"] = normalize_formats(formats)
     result["signer_key_passphrase"] = result.pop("issuer_key_passphrase")
     return result
+
+
+def run_x509_certificate_module(
+    *,
+    fixed_profile: str | None = None,
+    profile_defaults: dict | None = None,
+    default_profile: str | None = None,
+    extra_spec: dict | None = None,
+) -> None:
+    """Run a certificate module using shared X.509 certificate handling."""
+    from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+
+    spec = x509_certificate_argument_spec()
+    if profile_defaults is not None:
+        choices = sorted(profile_defaults)
+        spec["profile"] = {
+            "type": "str",
+            "choices": choices,
+            "default": default_profile or choices[0],
+        }
+    if extra_spec:
+        spec.update(extra_spec)
+
+    module = AnsibleModule(argument_spec=spec, supports_check_mode=False)
+    _fail_on_crypto_import_error(module)
+
+    try:
+        profile = fixed_profile or module.params["profile"]
+        params = x509_certificate_params(
+            module.params,
+            default_formats=CERTIFICATE_DEFAULT_FORMATS[profile],
+        )
+        params = apply_certificate_profile(params, profile)
+        result = ensure_x509(
+            params,
+            signed=True,
+            manage_directory=True,
+            manage_chain=True,
+        )
+    except Exception as exc:
+        module.fail_json(msg=sanitize_error(exc, module.params))
+
+    module.exit_json(**result)
 
 
 def ensure_x509(
@@ -1314,6 +1581,7 @@ def ensure_x509(
         params, key, subject, cert_extensions, signer_key, signer_cert
     )
     der_changed = _ensure_der(params, cert)
+    txt_changed = _ensure_txt(params, cert)
     if manage_chain:
         chain_changed = _ensure_chain(params)
 
@@ -1323,14 +1591,17 @@ def ensure_x509(
         or csr_changed
         or cert_changed
         or der_changed
+        or txt_changed
         or chain_changed,
         "directory_changed": directory_changed,
         "key_changed": key_changed,
         "csr_changed": csr_changed,
         "cert_changed": cert_changed,
         "der_changed": der_changed,
+        "txt_changed": txt_changed,
         "chain_changed": chain_changed,
         "formats": params["formats"],
         "csr_path": params["csr_path"],
         "cert_path": params["cert_path"],
+        "txt_path": params["txt_path"],
     }

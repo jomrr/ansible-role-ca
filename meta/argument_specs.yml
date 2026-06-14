@@ -200,8 +200,8 @@ argument_specs:
             required: false
             description:
               - Optional output format override passed to the certificate module.
-              - Defaults are module-owned. Standard certificates and MSKDC default to `pem,der`;
-                Identity defaults to `pem,der,pfx`; FritzBox defaults to `pem,der,fritzbox`.
+              - Defaults are module-owned. Standard certificates and MSKDC default to `pem,der,txt`;
+                Identity defaults to `pem,der,txt,pfx`; FritzBox defaults to `pem,der,txt,fritzbox`.
           common_name:
             type: str
             required: true
@@ -264,12 +264,17 @@ argument_specs:
         type: bool
         required: false
         default: false
-        description: Manage and enable the CRL renewal timer.
+        description:
+          - Manage and enable CRL renewal timer instances.
+          - The role enables `<ca_name | lower>-crl-renew@<authority>.timer` for every authority.
+          - The service sources `/root/.profile` and expects `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE`
+            environment variables, uppercased with non-alphanumeric characters replaced
+            by underscores.
       ca_crl_automation_ansible_playbook:
         type: str
         required: false
         default: ansible-playbook
-        description: Command used by the CRL renewal service.
+        description: Command used by the CRL renewal service template.
       ca_crl_automation_on_calendar:
         type: str
         required: false

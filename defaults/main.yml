@@ -25,6 +25,7 @@ ca_certificate_async_retries: 600
 ca_certificate_async_delay: 1
 
 # Managed CA topology. Store real key_passphrase values in Ansible Vault.
+# CRL renewal services read passphrases from root profile environment variables.
 ca_authorities:
   - name: root
     common_name: "{{ ca_name }} Root CA"

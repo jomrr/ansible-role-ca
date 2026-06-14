@@ -3,16 +3,9 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
-    CERTIFICATE_DEFAULT_FORMATS,
-    CRYPTOGRAPHY_IMPORT_ERROR,
     IDENTITY_CERTIFICATE_DEFAULTS,
-    apply_certificate_profile,
-    ensure_x509,
-    sanitize_error,
-    x509_certificate_argument_spec,
-    x509_certificate_params,
+    run_x509_certificate_module,
 )
 
 
@@ -21,35 +14,10 @@ PROFILE_DEFAULTS = IDENTITY_CERTIFICATE_DEFAULTS
 
 def run_module():
     """Run the Ansible module for identity certificate profiles."""
-    spec = x509_certificate_argument_spec()
-    spec["profile"] = {
-        "type": "str",
-        "choices": sorted(PROFILE_DEFAULTS),
-        "default": "identity",
-    }
-    module = AnsibleModule(
-        argument_spec=spec,
-        supports_check_mode=False,
+    run_x509_certificate_module(
+        profile_defaults=PROFILE_DEFAULTS,
+        default_profile="identity",
     )
-
-    if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(
-            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
-        )
-
-    try:
-        params = x509_certificate_params(
-            module.params,
-            default_formats=CERTIFICATE_DEFAULT_FORMATS[module.params["profile"]],
-        )
-        params = apply_certificate_profile(params, params["profile"])
-        result = ensure_x509(
-            params, signed=True, manage_directory=True, manage_chain=True
-        )
-    except Exception as exc:
-        module.fail_json(msg=sanitize_error(exc, module.params))
-
-    module.exit_json(**result)
 
 
 def main():

@@ -48,7 +48,7 @@
 - name: "CA | Render CRL renewal systemd service"
   ansible.builtin.template:
     src: etc/systemd/system/ca-crl-renew.service.j2
-    dest: "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.service"
+    dest: "/etc/systemd/system/{{ ca_name | lower }}-crl-renew@.service"
     owner: root
     group: root
     mode: "0644"
@@ -57,26 +57,52 @@
 - name: "CA | Render CRL renewal systemd timer"
   ansible.builtin.template:
     src: etc/systemd/system/ca-crl-renew.timer.j2
-    dest: "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.timer"
+    dest: "/etc/systemd/system/{{ ca_name | lower }}-crl-renew@.timer"
     owner: root
     group: root
     mode: "0644"
   when: ca_crl_automation_enabled | bool
 
-- name: "CA | Enable CRL renewal timer"
-  ansible.builtin.systemd_service:
-    name: "{{ ca_name | lower }}-ca-crl-renew.timer"
-    enabled: true
-    state: started
-    daemon_reload: true
-  when: ca_crl_automation_enabled | bool
-
-- name: "CA | Disable CRL renewal timer"
+- name: "CA | Disable legacy CRL renewal timer"
   ansible.builtin.systemd_service:
     name: "{{ ca_name | lower }}-ca-crl-renew.timer"
     enabled: false
     state: stopped
     daemon_reload: true
+  failed_when: false
+  when: ca_crl_automation_enabled | bool
+
+- name: "CA | Remove legacy CRL renewal systemd units"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.service"
+    - "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.timer"
+  when: ca_crl_automation_enabled | bool
+
+- name: "CA | Enable CRL renewal timer"
+  ansible.builtin.systemd_service:
+    name: "{{ ca_name | lower }}-crl-renew@{{ ca_authority.name }}.timer"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop: "{{ ca_authorities }}"
+  loop_control:
+    loop_var: ca_authority
+    label: "{{ ca_authority.name }}"
+  when: ca_crl_automation_enabled | bool
+
+- name: "CA | Disable CRL renewal timer"
+  ansible.builtin.systemd_service:
+    name: "{{ ca_name | lower }}-crl-renew@{{ ca_authority.name }}.timer"
+    enabled: false
+    state: stopped
+    daemon_reload: true
+  loop: "{{ ca_authorities }}"
+  loop_control:
+    loop_var: ca_authority
+    label: "{{ ca_authority.name }}"
   failed_when: false
   when: not ca_crl_automation_enabled | bool
 
@@ -85,6 +111,8 @@
     path: "{{ item }}"
     state: absent
   loop:
+    - "/etc/systemd/system/{{ ca_name | lower }}-crl-renew@.service"
+    - "/etc/systemd/system/{{ ca_name | lower }}-crl-renew@.timer"
     - "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.service"
     - "/etc/systemd/system/{{ ca_name | lower }}-ca-crl-renew.timer"
   when: not ca_crl_automation_enabled | bool

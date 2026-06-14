@@ -12,6 +12,7 @@ The role currently ships these callable modules:
 
 - `ca_root`
 - `ca_issuing`
+- `ca_certificate`
 - `x509_cert`
 - `x509_identity`
 - `x509_mskdc`

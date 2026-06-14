@@ -69,6 +69,17 @@ def _parse_revocation_date(value):
     return _dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
+def _next_update_utc(crl):
+    """Return a CRL next-update timestamp normalized to UTC."""
+    value = getattr(crl, "next_update_utc", None)
+    if value is not None:
+        return value
+    value = crl.next_update
+    if value.tzinfo is None:
+        return value.replace(tzinfo=_dt.timezone.utc)
+    return value.astimezone(_dt.timezone.utc)
+
+
 def _revoked_signature(crl):
     """Return comparable revoked certificate entries from an existing CRL."""
     result = []
@@ -171,10 +182,13 @@ def run_module():
         if not changed:
             try:
                 existing = _load_crl(params["path"])
-                changed = existing.issuer != subject_from_params(
-                    params
-                ) or _revoked_signature(existing) != _desired_revoked(
-                    params["revoked_certificates"]
+                current_time = _dt.datetime.now(_dt.timezone.utc)
+                changed = (
+                    existing.issuer != subject_from_params(params)
+                    or existing.signature_algorithm_oid != crl.signature_algorithm_oid
+                    or _next_update_utc(existing) <= current_time
+                    or _revoked_signature(existing)
+                    != _desired_revoked(params["revoked_certificates"])
                 )
             except Exception:
                 changed = True

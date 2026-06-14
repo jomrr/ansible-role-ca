@@ -3,12 +3,8 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.x509_common import (  # type: ignore[import-not-found,import-untyped]
-    CRYPTOGRAPHY_IMPORT_ERROR,
-    ca_authority_argument_spec,
-    ensure_x509,
-    sanitize_error,
+    run_ca_authority_module,
 )
 
 ROOT_CA_DEFAULTS = {
@@ -20,22 +16,7 @@ ROOT_CA_DEFAULTS = {
 
 def run_module():
     """Run the Ansible module for a self-signed Root CA."""
-    module = AnsibleModule(
-        argument_spec=ca_authority_argument_spec(defaults=ROOT_CA_DEFAULTS),
-        supports_check_mode=False,
-    )
-
-    if CRYPTOGRAPHY_IMPORT_ERROR is not None:
-        module.fail_json(
-            msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
-        )
-
-    try:
-        result = ensure_x509(module.params, signed=False, authority=True)
-    except Exception as exc:
-        module.fail_json(msg=sanitize_error(exc, module.params))
-
-    module.exit_json(**result)
+    run_ca_authority_module(defaults=ROOT_CA_DEFAULTS)
 
 
 def main():
