@@ -10,11 +10,6 @@ from ansible.errors import AnsibleFilterError
 
 
 SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-KRB5_REALM_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
-GUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-)
-GUID_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -43,32 +38,6 @@ def _required(value: dict[str, Any], key: str, context: str) -> Any:
     if key not in value or _string(value[key]) == "":
         raise AnsibleFilterError(f"{context} requires {key}")
     return value[key]
-
-
-def _ad_guid_hex(value: Any) -> str:
-    guid = _string(value).lower().strip().strip("{}")
-    guid_hex = re.sub(r"[-: ]", "", guid)
-
-    if GUID_RE.match(guid):
-        return (
-            guid[6:8]
-            + guid[4:6]
-            + guid[2:4]
-            + guid[0:2]
-            + guid[11:13]
-            + guid[9:11]
-            + guid[16:18]
-            + guid[14:16]
-            + guid[19:23]
-            + guid[24:36]
-        ).upper()
-
-    if GUID_HEX_RE.match(guid_hex):
-        return guid_hex.upper()
-
-    raise AnsibleFilterError(
-        "mskdc certificate requires ad_object_guid as canonical GUID or raw 16-byte hex"
-    )
 
 
 def ca_authority_map(authorities: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -153,33 +122,14 @@ def ca_certificate_model(
 
     san = [str(item) for item in _as_list(certificate.get("san"))]
     raw_extensions = deepcopy(_as_list(certificate.get("raw_extensions")))
-    pkinit = {"prefix": "", "realm": ""}
-
-    if cert_type == "mskdc":
-        raw_extensions.append(
-            {
-                "oid": "1.3.6.1.4.1.311.25.1",
-                "value": (
-                    "ASN1:FORMAT:HEX,OCTETSTRING:"
-                    + _ad_guid_hex(certificate.get("ad_object_guid"))
-                ),
-            }
-        )
-        realm = (
-            _string(certificate.get("krb5_realm") or kerberos_realm)
-            .strip()
-            .upper()
-        )
-        if not KRB5_REALM_RE.match(realm):
-            raise AnsibleFilterError(
-                f"Certificate {name} requires a valid krb5_realm for PKINIT"
-            )
-        prefix = re.sub(r"[^A-Za-z0-9_]", "_", f"pkinit_{name}")
-        san.append(f"otherName:1.3.6.1.5.2.2;SEQUENCE:{prefix}_principal")
-        pkinit = {"prefix": prefix, "realm": realm}
+    krb5_realm = (
+        _string(certificate.get("krb5_realm") or kerberos_realm).strip().upper()
+    )
 
     subject_values = deepcopy(_as_dict(subject, "ca_subject"))
-    subject_values.update(_as_dict(certificate.get("subject"), f"Certificate {name} subject"))
+    subject_values.update(
+        _as_dict(certificate.get("subject"), f"Certificate {name} subject")
+    )
 
     model = deepcopy(certificate)
     model.update(
@@ -192,18 +142,10 @@ def ca_certificate_model(
             "days": certificate.get(
                 "days", profile.get("days", default_certificate_days)
             ),
-            "digest": certificate.get("digest", profile.get("digest", "")),
             "san": san,
-            "csr_san": [
-                item
-                for item in san
-                if ";FORMAT:" not in item and ";SEQUENCE:" not in item
-            ],
-            "privatekey_passphrase": _string(
-                certificate.get("privatekey_passphrase")
-            ),
+            "key_passphrase": _string(certificate.get("key_passphrase")),
             "pfx_passphrase": _string(certificate.get("pfx_passphrase")),
-            "pkinit": pkinit,
+            "krb5_realm": krb5_realm,
             "subject": subject_values,
         }
     )

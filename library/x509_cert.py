@@ -8,21 +8,25 @@ from ansible.module_utils.x509_common import (
     CRYPTOGRAPHY_IMPORT_ERROR,
     apply_profile_defaults,
     ensure_x509,
-    x509_argument_spec,
+    x509_certificate_argument_spec,
+    x509_certificate_params,
 )
 
 
 PROFILE_DEFAULTS = {
     "tls_server": {
         "default_dns_san": True,
+        "digest": "sha256",
         "key_usage": ["digitalSignature", "keyEncipherment"],
         "extended_key_usage": ["serverAuth"],
     },
     "tls_client": {
+        "digest": "sha256",
         "key_usage": ["digitalSignature", "keyEncipherment"],
         "extended_key_usage": ["clientAuth"],
     },
     "eap_tls_client": {
+        "digest": "sha256",
         "key_usage": ["digitalSignature", "keyEncipherment"],
         "extended_key_usage": ["clientAuth"],
     },
@@ -30,8 +34,7 @@ PROFILE_DEFAULTS = {
 
 
 def run_module():
-    spec = x509_argument_spec(directory=True, signer=True)
-    spec["issuer_key_passphrase"] = spec.pop("signer_key_passphrase")
+    spec = x509_certificate_argument_spec()
     spec["profile"] = {
         "type": "str",
         "choices": sorted(PROFILE_DEFAULTS),
@@ -46,8 +49,7 @@ def run_module():
         module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
 
     try:
-        params = dict(module.params)
-        params["signer_key_passphrase"] = params.pop("issuer_key_passphrase")
+        params = x509_certificate_params(module.params)
         params = apply_profile_defaults(
             params,
             PROFILE_DEFAULTS[params["profile"]],

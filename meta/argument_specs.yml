@@ -266,7 +266,7 @@ argument_specs:
             type: str
             required: false
             description: Optional certificate-specific output directory.
-          privatekey_passphrase:
+          key_passphrase:
             type: str
             required: false
             description: Optional private key passphrase for the end-entity key.

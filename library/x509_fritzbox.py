@@ -8,7 +8,8 @@ from ansible.module_utils.x509_common import (
     CRYPTOGRAPHY_IMPORT_ERROR,
     apply_profile_defaults,
     ensure_x509,
-    x509_argument_spec,
+    x509_certificate_argument_spec,
+    x509_certificate_params,
 )
 
 
@@ -22,12 +23,7 @@ FRITZBOX_DEFAULTS = {
 
 
 def run_module():
-    spec = x509_argument_spec(
-        directory=True,
-        signer=True,
-        defaults={"digest": "sha384"},
-    )
-    spec["issuer_key_passphrase"] = spec.pop("signer_key_passphrase")
+    spec = x509_certificate_argument_spec()
     module = AnsibleModule(
         argument_spec=spec,
         supports_check_mode=False,
@@ -36,13 +32,11 @@ def run_module():
     if CRYPTOGRAPHY_IMPORT_ERROR is not None:
         module.fail_json(msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}")
 
-    params = dict(module.params)
-    params["signer_key_passphrase"] = params.pop("issuer_key_passphrase")
+    params = x509_certificate_params(module.params)
+    params = apply_profile_defaults(params, FRITZBOX_DEFAULTS)
     digest = str(params["digest"]).replace("-", "").lower()
     if digest not in FRITZBOX_DIGESTS:
         module.fail_json(msg="FritzBox certificates support digests up to sha384")
-    params = apply_profile_defaults(params, FRITZBOX_DEFAULTS)
-    params["basic_constraints"] = ["CA:FALSE"]
     try:
         result = ensure_x509(params, signed=True, manage_directory=True, manage_chain=True)
     except Exception as exc:

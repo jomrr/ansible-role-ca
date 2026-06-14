@@ -867,6 +867,59 @@ def x509_argument_spec(
     return spec
 
 
+def x509_certificate_argument_spec(*, defaults: dict | None = None):
+    spec = {
+        "base_dir": {"type": "path", "required": True},
+        "name": {"type": "str", "required": True},
+        "issuer": {"type": "str", "required": True},
+        "issuer_key_passphrase": {
+            "type": "str",
+            "required": True,
+            "no_log": True,
+        },
+        "output_dir": {"type": "path"},
+        "key_type": {"type": "str", "default": "RSA"},
+        "key_size": {"type": "int", "default": 4096},
+        "key_passphrase": {"type": "str", "no_log": True},
+        "subject_ordered": {"type": "list", "elements": "dict", "default": []},
+        "common_name": {"type": "str", "required": True},
+        "email": {"type": "str"},
+        "subject": {"type": "dict", "default": {}},
+        "key_usage": {"type": "list", "elements": "str", "default": []},
+        "extended_key_usage": {"type": "list", "elements": "str", "default": []},
+        "san": {"type": "list", "elements": "str", "default": []},
+        "aia_base_url": {"type": "str", "default": ""},
+        "cdp_base_url": {"type": "str", "default": ""},
+        "raw_extensions": {"type": "list", "elements": "dict", "default": []},
+        "days": {"type": "int", "required": True},
+        "owner": {"type": "str"},
+        "group": {"type": "str"},
+        "force": {"type": "bool", "default": False},
+    }
+    for key, value in (defaults or {}).items():
+        if key in spec:
+            spec[key]["default"] = value
+    return spec
+
+
+def x509_certificate_params(params: dict) -> dict:
+    result = {
+        "formats": ["pem", "der"],
+        "basic_constraints": ["CA:FALSE"],
+        "key_usage_critical": True,
+        "extended_key_usage_critical": False,
+        "san_critical": False,
+        "pkinit": {},
+        "include_identifiers": True,
+        "key_mode": "0600",
+        "public_mode": "0644",
+        "directory_mode": "0755",
+    }
+    result.update(params)
+    result["signer_key_passphrase"] = result.pop("issuer_key_passphrase")
+    return result
+
+
 def ensure_x509(
     params: dict,
     *,
