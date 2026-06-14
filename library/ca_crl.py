@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import datetime as _dt
-import re
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
@@ -17,6 +16,13 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
 from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
     resolve_revocation_entries,
     update_crl_inventory,
+)
+from ansible.module_utils.ca_serial import parse_serial  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_time import (  # type: ignore[import-not-found,import-untyped]
+    now_utc,
+    object_datetime,
+    parse_datetime,
+    timestamp_iso,
 )
 from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     load_certificate,
@@ -68,48 +74,14 @@ def _load_crl(path: str):
         return x509.load_der_x509_crl(data)
 
 
-def _parse_serial(value) -> int:
-    """Parse decimal, hexadecimal, or colon-separated serial numbers."""
-    if isinstance(value, int):
-        return value
-    text = str(value)
-    if ":" in text:
-        return int(re.sub(r"[^0-9A-Fa-f]", "", text), 16)
-    if text.lower().startswith("0x"):
-        return int(text, 16)
-    return int(text)
-
-
 def _parse_revocation_date(value):
     """Parse a revocation timestamp or return the current UTC time."""
     if not value:
-        return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
-    if isinstance(value, _dt.datetime):
-        if value.tzinfo is None:
-            return value.replace(tzinfo=_dt.timezone.utc)
-        return value.astimezone(_dt.timezone.utc)
-    text = str(value)
-    if re.match(r"^\d{14}Z$", text):
-        return _dt.datetime.strptime(text, "%Y%m%d%H%M%SZ").replace(
-            tzinfo=_dt.timezone.utc
-        )
-    return _dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
-
-
-def _timestamp(value) -> str:
-    """Return a comparable UTC timestamp string."""
-    return value.astimezone(_dt.timezone.utc).replace(microsecond=0).isoformat()
-
-
-def _next_update_utc(crl):
-    """Return a CRL next-update timestamp normalized to UTC."""
-    value = getattr(crl, "next_update_utc", None)
-    if value is not None:
-        return value
-    value = crl.next_update
-    if value.tzinfo is None:
-        return value.replace(tzinfo=_dt.timezone.utc)
-    return value.astimezone(_dt.timezone.utc)
+        return now_utc(strip_microseconds=True)
+    parsed = parse_datetime(value)
+    if parsed is None:
+        raise ValueError("revocation date must not be empty")
+    return parsed
 
 
 def _revoked_signature(crl):
@@ -127,12 +99,9 @@ def _revoked_signature(crl):
             invalidity_ext = revoked.extensions.get_extension_for_class(
                 x509.InvalidityDate
             )
-            value = getattr(invalidity_ext.value, "invalidity_date_utc", None)
-            if value is None:
-                value = invalidity_ext.value.invalidity_date
-                if value.tzinfo is None:
-                    value = value.replace(tzinfo=_dt.timezone.utc)
-            invalidity_date = _timestamp(value)
+            invalidity_date = timestamp_iso(
+                object_datetime(invalidity_ext.value, "invalidity_date")
+            )
         except x509.ExtensionNotFound:
             pass
         result.append((revoked.serial_number, reason, invalidity_date))
@@ -143,11 +112,11 @@ def _desired_revoked(entries):
     """Return comparable revoked certificate entries from module params."""
     result = []
     for entry in entries or []:
-        serial = _parse_serial(entry.get("serial_number", entry.get("serial")))
+        serial = parse_serial(entry.get("serial_number", entry.get("serial")))
         reason = str(entry.get("reason") or "")
         invalidity_date = ""
         if entry.get("invalidity_date"):
-            invalidity_date = _timestamp(
+            invalidity_date = timestamp_iso(
                 _parse_revocation_date(entry["invalidity_date"])
             )
         result.append((serial, reason, invalidity_date))
@@ -222,7 +191,7 @@ def _needs_rebuild(
     """Return whether existing CRLs differ from desired CRL state."""
     if not _same_existing_number(existing_crls):
         return True
-    current_time = _dt.datetime.now(_dt.timezone.utc)
+    current_time = now_utc()
     issuer = subject_from_params(params)
     for crl in existing_crls.values():
         if crl is None:
@@ -231,7 +200,7 @@ def _needs_rebuild(
             return True
         if crl.signature_algorithm_oid != comparison_crl.signature_algorithm_oid:
             return True
-        if _next_update_utc(crl) <= current_time:
+        if object_datetime(crl, "next_update") <= current_time:
             return True
         if _authority_key_identifier(crl) != desired_authority_key:
             return True
@@ -242,7 +211,7 @@ def _needs_rebuild(
 
 def _build_crl(params, *, crl_number: int, ca_cert, private_key):
     """Build and sign a CRL from module parameters."""
-    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    now = now_utc(strip_microseconds=True)
     builder = (
         x509.CertificateRevocationListBuilder()
         .issuer_name(subject_from_params(params))
@@ -260,7 +229,7 @@ def _build_crl(params, *, crl_number: int, ca_cert, private_key):
         revoked = (
             x509.RevokedCertificateBuilder()
             .serial_number(
-                _parse_serial(entry.get("serial_number", entry.get("serial")))
+                parse_serial(entry.get("serial_number", entry.get("serial")))
             )
             .revocation_date(_parse_revocation_date(entry.get("revocation_date")))
         )

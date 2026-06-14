@@ -5,6 +5,9 @@ Internal deterministic certificate text exports.
 `module_utils/ca_text.py` is not an Ansible module. It creates stable text
 representations of X.509 certificates when the `txt` format is requested.
 
+It uses `ca_time` for validity timestamps and `ca_serial` for hexadecimal
+extension output.
+
 ## Public Helper
 
 | Helper | Purpose |
@@ -50,4 +53,3 @@ txt_changed = ensure_txt(params, cert)
 ## Used By
 
 - `ca_x509`
-

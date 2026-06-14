@@ -5,6 +5,9 @@ Manage one CA certificate revocation list.
 `ca_crl` creates PEM and DER CRL exports from one shared CRL object for a CA
 authority and records CRL and revocation state in the internal CA inventory.
 
+Serial parsing and timestamp normalization are delegated to the internal
+`ca_serial` and `ca_time` helpers.
+
 ## Behavior
 
 - Reads the CA private key from `<base_dir>/private/<name>-ca.key`.

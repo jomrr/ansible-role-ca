@@ -6,6 +6,9 @@ Internal CA inventory state hooks.
 non-secret state fragments whenever authorities, certificates, or CRLs are
 managed, and composes those fragments into a central inventory JSON file.
 
+Serial parsing, timestamp normalization, and renewal status calculation are
+delegated to `ca_serial`, `ca_time`, and `ca_renewal`.
+
 ## Purpose
 
 The CA inventory is the role's internal state ledger. It records what was

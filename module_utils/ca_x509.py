@@ -18,7 +18,14 @@ try:
         set_attrs,
         write_file,
     )
+    from ansible.module_utils.ca_renewal import renewal_decision  # type: ignore[import-not-found,import-untyped]
+    from ansible.module_utils.ca_serial import serial_hex  # type: ignore[import-not-found,import-untyped]
     from ansible.module_utils.ca_text import ensure_txt  # type: ignore[import-not-found,import-untyped]
+    from ansible.module_utils.ca_time import (  # type: ignore[import-not-found,import-untyped]
+        certificate_not_valid_after,
+        certificate_not_valid_before,
+        now_utc,
+    )
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, rsa
@@ -77,43 +84,6 @@ PEM_CERT_RE = re.compile(
     rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----\s*",
     re.DOTALL,
 )
-
-
-def _as_bool(value: Any) -> bool:
-    """Return a predictable boolean for module dictionaries."""
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _as_int(value: Any, default: int = 0) -> int:
-    """Return an integer with an empty-value default."""
-    if value in (None, ""):
-        return default
-    return int(value)
-
-
-def _parse_datetime(value: Any) -> _dt.datetime | None:
-    """Parse an ISO-8601 or ASN.1-style UTC timestamp."""
-    if value in (None, ""):
-        return None
-    if isinstance(value, _dt.datetime):
-        result = value
-    else:
-        text = str(value).strip()
-        if re.match(r"^\d{14}Z$", text):
-            result = _dt.datetime.strptime(text, "%Y%m%d%H%M%SZ")
-        else:
-            result = _dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
-    if result.tzinfo is None:
-        return result.replace(tzinfo=_dt.timezone.utc)
-    return result.astimezone(_dt.timezone.utc)
-
-
-def _serial_hex(value: int) -> str:
-    """Return an even-length uppercase certificate serial."""
-    text = f"{value:X}"
-    return text if len(text) % 2 == 0 else f"0{text}"
 
 
 def _der_len(length: int) -> bytes:
@@ -362,28 +332,6 @@ def load_certificates(path: str):
     return [x509.load_der_x509_certificate(data)]
 
 
-def _not_valid_after_utc(cert):
-    """Return a certificate expiration timestamp normalized to UTC."""
-    value = getattr(cert, "not_valid_after_utc", None)
-    if value is not None:
-        return value
-    value = cert.not_valid_after
-    if value.tzinfo is None:
-        return value.replace(tzinfo=_dt.timezone.utc)
-    return value.astimezone(_dt.timezone.utc)
-
-
-def _not_valid_before_utc(cert):
-    """Return a certificate not-before timestamp normalized to UTC."""
-    value = getattr(cert, "not_valid_before_utc", None)
-    if value is not None:
-        return value
-    value = cert.not_valid_before
-    if value.tzinfo is None:
-        return value.replace(tzinfo=_dt.timezone.utc)
-    return value.astimezone(_dt.timezone.utc)
-
-
 def _load_existing_certificate(path: str):
     """Return an existing certificate or None when it cannot be loaded."""
     try:
@@ -392,65 +340,27 @@ def _load_existing_certificate(path: str):
         return None
 
 
-def _renewal_policy(params: dict) -> dict[str, Any]:
-    """Return normalized renewal policy values."""
-    renewal = dict(params.get("renewal") or {})
-    return {
-        "warn_before_days": _as_int(renewal.get("warn_before_days"), 0),
-        "renew_before_days": _as_int(renewal.get("renew_before_days"), 0),
-        "renew_at": str(renewal.get("renew_at") or ""),
-        "rekey": _as_bool(renewal.get("rekey", False)),
-    }
-
-
 def _renewal_decision(params: dict, existing_cert) -> dict[str, Any]:
     """Return renewal and rekey decisions for an existing certificate."""
-    policy = _renewal_policy(params)
-    now = _dt.datetime.now(_dt.timezone.utc)
-    decision: dict[str, Any] = {
-        "renew": False,
-        "rekey": False,
-        "reason": "",
-        "warning": False,
-        "days_remaining": None,
-        "policy": policy,
-    }
-    if params.get("force"):
-        decision.update({"renew": True, "rekey": True, "reason": "force"})
-        return decision
     if existing_cert is None:
-        decision["reason"] = "missing"
-        return decision
-
-    not_before = _not_valid_before_utc(existing_cert)
-    not_after = _not_valid_after_utc(existing_cert)
-    seconds_remaining = (not_after - now).total_seconds()
-    decision["days_remaining"] = max(0, int(seconds_remaining // 86400))
-
-    if policy["warn_before_days"] > 0:
-        warning_at = not_after - _dt.timedelta(days=policy["warn_before_days"])
-        decision["warning"] = now >= warning_at
-
-    if not_after <= now:
-        decision.update({"renew": True, "reason": "expired"})
-    else:
-        renew_at = _parse_datetime(policy["renew_at"])
-        if renew_at is not None and not_before < renew_at <= now:
-            decision.update({"renew": True, "reason": "scheduled"})
-        elif policy["renew_before_days"] > 0:
-            renew_window = not_after - _dt.timedelta(days=policy["renew_before_days"])
-            if now >= renew_window:
-                decision.update({"renew": True, "reason": "renewal_window"})
-
-    if decision["renew"] and policy["rekey"]:
-        decision["rekey"] = True
-    return decision
+        return renewal_decision(
+            force=bool(params.get("force")),
+            not_before=None,
+            not_after=None,
+            policy_value=params.get("renewal"),
+        )
+    return renewal_decision(
+        force=bool(params.get("force")),
+        not_before=certificate_not_valid_before(existing_cert),
+        not_after=certificate_not_valid_after(existing_cert),
+        policy_value=params.get("renewal"),
+    )
 
 
 def _archive_dir(params: dict, cert) -> str:
     """Return the archive directory for one existing certificate generation."""
     namespace = "authorities" if params.get("authority") else "certificates"
-    serial = _serial_hex(cert.serial_number)
+    serial = serial_hex(cert.serial_number)
     return (
         f"{str(params['base_dir']).rstrip('/')}/archive/"
         f"{namespace}/{params['name']}/{serial}"
@@ -944,7 +854,7 @@ def _ensure_certificate(
 ):
     """Ensure the certificate matches the requested issuer and profile."""
     issuer = signer_cert.subject if signer_cert is not None else subject
-    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    now = now_utc(strip_microseconds=True)
     builder = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -964,8 +874,8 @@ def _ensure_certificate(
     if not changed:
         try:
             existing = existing_cert if existing_cert is not None else load_certificate(params["cert_path"])
-            current_time = _dt.datetime.now(_dt.timezone.utc)
-            if _not_valid_after_utc(existing) <= current_time:
+            current_time = now_utc()
+            if certificate_not_valid_after(existing) <= current_time:
                 changed = True
             else:
                 changed = (

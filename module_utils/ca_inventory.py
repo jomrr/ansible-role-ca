@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import datetime as _dt
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +12,24 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     read_file,
     safe_path_component,
     write_file,
+)
+from ansible.module_utils.ca_renewal import (  # type: ignore[import-not-found,import-untyped]
+    renewal_policy,
+    renewal_status,
+)
+from ansible.module_utils.ca_serial import (  # type: ignore[import-not-found,import-untyped]
+    colon_hex,
+    normalize_hex,
+    parse_serial,
+    serial_hex,
+)
+from ansible.module_utils.ca_time import (  # type: ignore[import-not-found,import-untyped]
+    certificate_not_valid_after,
+    certificate_not_valid_before,
+    now_utc,
+    object_datetime,
+    parse_datetime,
+    timestamp_z,
 )
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
@@ -25,8 +41,6 @@ except Exception as exc:  # pragma: no cover - handled by callers
     CRYPTOGRAPHY_IMPORT_ERROR = exc
 else:
     CRYPTOGRAPHY_IMPORT_ERROR = None
-
-SERIAL_CLEANUP_RE = re.compile(r"[^0-9A-Fa-f]")
 
 
 def _state_dir(base_dir: str) -> str:
@@ -59,63 +73,6 @@ def _load_certificate(path: str) -> x509.Certificate:
         return x509.load_der_x509_certificate(data)
 
 
-def _utc(value: _dt.datetime) -> _dt.datetime:
-    """Return a timezone-aware UTC datetime."""
-    if value.tzinfo is None:
-        return value.replace(tzinfo=_dt.timezone.utc)
-    return value.astimezone(_dt.timezone.utc)
-
-
-def _not_valid_before(cert: x509.Certificate) -> _dt.datetime:
-    """Return a certificate not-before timestamp normalized to UTC."""
-    value = getattr(cert, "not_valid_before_utc", None)
-    return value if value is not None else _utc(cert.not_valid_before)
-
-
-def _not_valid_after(cert: x509.Certificate) -> _dt.datetime:
-    """Return a certificate not-after timestamp normalized to UTC."""
-    value = getattr(cert, "not_valid_after_utc", None)
-    return value if value is not None else _utc(cert.not_valid_after)
-
-
-def _timestamp(value: _dt.datetime) -> str:
-    """Return an ISO-8601 UTC timestamp without microseconds."""
-    return _utc(value).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _parse_timestamp(value: str) -> _dt.datetime:
-    """Parse an inventory UTC timestamp."""
-    return _dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-
-
-def _colon_hex(data: bytes) -> str:
-    """Return colon-separated uppercase hex."""
-    return ":".join(f"{byte:02X}" for byte in data)
-
-
-def _serial_hex(value: int) -> str:
-    """Return an even-length uppercase hexadecimal certificate serial."""
-    text = f"{value:X}"
-    return text if len(text) % 2 == 0 else f"0{text}"
-
-
-def _parse_serial(value: Any) -> int:
-    """Parse decimal, hexadecimal, or colon-separated certificate serials."""
-    if isinstance(value, int):
-        return value
-    text = str(value)
-    if ":" in text:
-        return int(SERIAL_CLEANUP_RE.sub("", text), 16)
-    if text.lower().startswith("0x"):
-        return int(text, 16)
-    return int(text)
-
-
-def _normalize_hex(value: Any) -> str:
-    """Return uppercase hexadecimal text without separators."""
-    return SERIAL_CLEANUP_RE.sub("", str(value)).upper()
-
-
 def _split_fingerprint(value: Any) -> tuple[str, str]:
     """Return an optional fingerprint algorithm and normalized fingerprint."""
     text = str(value or "").strip()
@@ -123,8 +80,8 @@ def _split_fingerprint(value: Any) -> tuple[str, str]:
         prefix, payload = text.split(":", 1)
         algorithm = prefix.replace("-", "").lower()
         if algorithm in {"sha1", "sha256"}:
-            return algorithm, _normalize_hex(payload)
-    return "", _normalize_hex(text)
+            return algorithm, normalize_hex(payload)
+    return "", normalize_hex(text)
 
 
 def _name_attributes(name: x509.Name) -> list[dict[str, str]]:
@@ -158,7 +115,7 @@ def _general_name(name) -> str:
     if isinstance(name, x509.RegisteredID):
         return f"RID:{name.value.dotted_string}"
     if isinstance(name, x509.OtherName):
-        return f"otherName:{name.type_id.dotted_string};DER:{_colon_hex(name.value)}"
+        return f"otherName:{name.type_id.dotted_string};DER:{colon_hex(name.value)}"
     if isinstance(name, x509.DirectoryName):
         return f"DirName:{name.value.rfc4514_string()}"
     return repr(name)
@@ -256,87 +213,16 @@ def _certificate_summary(cert: x509.Certificate) -> dict[str, Any]:
         "issuer": cert.issuer.rfc4514_string(),
         "issuer_attributes": _name_attributes(cert.issuer),
         "serial_number": str(cert.serial_number),
-        "serial_number_hex": _serial_hex(cert.serial_number),
-        "not_valid_before": _timestamp(_not_valid_before(cert)),
-        "not_valid_after": _timestamp(_not_valid_after(cert)),
+        "serial_number_hex": serial_hex(cert.serial_number),
+        "not_valid_before": timestamp_z(certificate_not_valid_before(cert)),
+        "not_valid_after": timestamp_z(certificate_not_valid_after(cert)),
         "signature_algorithm": _oid_name(cert.signature_algorithm_oid),
         "fingerprints": {
-            "sha1": _colon_hex(cert.fingerprint(hashes.SHA1())),
-            "sha256": _colon_hex(cert.fingerprint(hashes.SHA256())),
+            "sha1": colon_hex(cert.fingerprint(hashes.SHA1())),
+            "sha256": colon_hex(cert.fingerprint(hashes.SHA256())),
         },
         "public_key": _public_key_summary(cert),
         "extensions": _extension_summary(cert),
-    }
-
-
-def _bool(value: Any) -> bool:
-    """Return a predictable boolean for inventory policy values."""
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _renewal_policy(value: Any) -> dict[str, Any]:
-    """Return normalized non-secret renewal policy values."""
-    policy = value if isinstance(value, dict) else {}
-    return {
-        "warn_before_days": int(policy.get("warn_before_days") or 0),
-        "renew_before_days": int(policy.get("renew_before_days") or 0),
-        "renew_at": str(policy.get("renew_at") or ""),
-        "rekey": _bool(policy.get("rekey", False)),
-    }
-
-
-def _renewal_datetime(value: Any) -> _dt.datetime | None:
-    """Parse an optional renewal timestamp."""
-    if value in (None, ""):
-        return None
-    text = str(value).strip()
-    if re.match(r"^\d{14}Z$", text):
-        return _dt.datetime.strptime(text, "%Y%m%d%H%M%SZ").replace(
-            tzinfo=_dt.timezone.utc
-        )
-    return _parse_timestamp(text)
-
-
-def _renewal_status(certificate: dict[str, Any], policy_value: Any) -> dict[str, Any]:
-    """Return renewal status for a certificate summary and policy."""
-    policy = _renewal_policy(policy_value)
-    now = _dt.datetime.now(_dt.timezone.utc)
-    not_before = _parse_timestamp(certificate["not_valid_before"])
-    not_after = _parse_timestamp(certificate["not_valid_after"])
-    seconds_remaining = (not_after - now).total_seconds()
-    days_remaining = max(0, int(seconds_remaining // 86400))
-    renew_at = _renewal_datetime(policy["renew_at"])
-    scheduled = renew_at is not None and not_before < renew_at
-    scheduled_due = bool(scheduled and renew_at <= now)
-    renew_window = (
-        policy["renew_before_days"] > 0
-        and now >= not_after - _dt.timedelta(days=policy["renew_before_days"])
-    )
-    warning = (
-        policy["warn_before_days"] > 0
-        and now >= not_after - _dt.timedelta(days=policy["warn_before_days"])
-    )
-    state = "valid"
-    if not_after <= now:
-        state = "expired"
-    elif scheduled_due:
-        state = "scheduled_due"
-    elif renew_window:
-        state = "renewal_due"
-    elif warning:
-        state = "warning"
-    elif scheduled:
-        state = "scheduled"
-    return {
-        "state": state,
-        "days_remaining": days_remaining,
-        "warning": warning,
-        "renewal_due": state in {"expired", "scheduled_due", "renewal_due"},
-        "scheduled": bool(scheduled),
-        "rekey_on_renewal": policy["rekey"],
-        "policy": policy,
     }
 
 
@@ -443,8 +329,8 @@ def _certificate_fingerprint_match(
     """Return whether a certificate record matches a normalized fingerprint."""
     fingerprints = record.get("certificate", {}).get("fingerprints", {})
     if algorithm:
-        return _normalize_hex(fingerprints.get(algorithm, "")) == fingerprint
-    return any(_normalize_hex(value) == fingerprint for value in fingerprints.values())
+        return normalize_hex(fingerprints.get(algorithm, "")) == fingerprint
+    return any(normalize_hex(value) == fingerprint for value in fingerprints.values())
 
 
 def _current_certificate_record(
@@ -551,7 +437,7 @@ def _resolve_revocation_entries_unlocked(
         serial = _revocation_field(entry, "serial_number", "serial")
         if serial is not None:
             item = dict(entry)
-            item["serial_number"] = str(_parse_serial(serial))
+            item["serial_number"] = str(parse_serial(serial))
             resolved.append(item)
             continue
 
@@ -643,8 +529,8 @@ def record_authority_inventory(
         "parent": parent,
         "self_signed": self_signed,
         "days": params.get("days"),
-        "renewal": _renewal_policy(params.get("renewal")),
-        "renewal_status": _renewal_status(
+        "renewal": renewal_policy(params.get("renewal")),
+        "renewal_status": renewal_status(
             certificate,
             params.get("renewal"),
         ),
@@ -708,7 +594,7 @@ def record_certificate_inventory(
         "issuer": issuer,
         "days": model.get("days"),
         "formats": [str(item).lower() for item in model.get("formats", [])],
-        "renewal": _renewal_policy(model.get("renewal")),
+        "renewal": renewal_policy(model.get("renewal")),
         "certificate": certificate,
         "paths": paths,
     }
@@ -751,19 +637,9 @@ def update_certificate_inventory(
         return _compose_inventory_if_configured_unlocked(params) or changed
 
 
-def _crl_timestamp(value: _dt.datetime) -> str:
-    """Return a CRL timestamp normalized to inventory text."""
-    return _timestamp(value)
-
-
 def _crl_update(crl, name: str):
     """Return a CRL timestamp across cryptography versions."""
-    utc_name = f"{name}_utc"
-    value = getattr(crl, utc_name, None)
-    if value is not None:
-        return value
-    value = getattr(crl, name)
-    return _utc(value)
+    return object_datetime(crl, name)
 
 
 def _crl_number(crl) -> int | None:
@@ -782,7 +658,7 @@ def _crl_authority_key_identifier(crl) -> str:
         ).value
     except x509.ExtensionNotFound:
         return ""
-    return _colon_hex(value.key_identifier or b"")
+    return colon_hex(value.key_identifier or b"")
 
 
 def _revoked_from_crl(crl) -> list[dict[str, Any]]:
@@ -795,23 +671,21 @@ def _revoked_from_crl(crl) -> list[dict[str, Any]]:
             reason = reason_ext.value.reason.name
         except x509.ExtensionNotFound:
             pass
-        date = getattr(item, "revocation_date_utc", None)
-        if date is None:
-            date = _utc(item.revocation_date)
+        date = object_datetime(item, "revocation_date")
         record = {
             "serial_number": str(item.serial_number),
-            "serial_number_hex": _serial_hex(item.serial_number),
+            "serial_number_hex": serial_hex(item.serial_number),
             "reason": reason,
-            "revocation_date": _timestamp(date),
+            "revocation_date": timestamp_z(date),
         }
         try:
             invalidity_ext = item.extensions.get_extension_for_class(
                 x509.InvalidityDate
             )
-            invalidity_date = getattr(invalidity_ext.value, "invalidity_date_utc", None)
-            if invalidity_date is None:
-                invalidity_date = _utc(invalidity_ext.value.invalidity_date)
-            record["invalidity_date"] = _timestamp(invalidity_date)
+            invalidity_date = object_datetime(
+                invalidity_ext.value, "invalidity_date"
+            )
+            record["invalidity_date"] = timestamp_z(invalidity_date)
         except x509.ExtensionNotFound:
             pass
         revoked.append(record)
@@ -820,13 +694,13 @@ def _revoked_from_crl(crl) -> list[dict[str, Any]]:
 
 def _revocation_event(authority: str, entry: dict[str, Any]) -> dict[str, Any]:
     """Return one revocation event record from declarative input."""
-    serial = _parse_serial(entry.get("serial_number", entry.get("serial")))
+    serial = parse_serial(entry.get("serial_number", entry.get("serial")))
     event = {
         "record_type": "revocation",
         "schema_version": 1,
         "issuer": authority,
         "serial_number": str(serial),
-        "serial_number_hex": _serial_hex(serial),
+        "serial_number_hex": serial_hex(serial),
         "reason": str(entry.get("reason") or ""),
         "revocation_date": str(entry.get("revocation_date") or ""),
         "invalidity_date": str(entry.get("invalidity_date") or ""),
@@ -854,8 +728,8 @@ def record_crl_inventory(
         "format": crl_format,
         "path": params["path"],
         "issuer": crl.issuer.rfc4514_string(),
-        "last_update": _crl_timestamp(_crl_update(crl, "last_update")),
-        "next_update": _crl_timestamp(_crl_update(crl, "next_update")),
+        "last_update": timestamp_z(_crl_update(crl, "last_update")),
+        "next_update": timestamp_z(_crl_update(crl, "next_update")),
         "signature_algorithm": _oid_name(crl.signature_algorithm_oid),
         "crl_number": _crl_number(crl),
         "authority_key_identifier": _crl_authority_key_identifier(crl),
@@ -922,9 +796,11 @@ def _status(
     revoked = revocations.get((issuer, serial_hex))
     if revoked is not None:
         return {"state": "revoked", "revocation": revoked}
-    now = _dt.datetime.now(_dt.timezone.utc)
-    not_before = _parse_timestamp(record["certificate"]["not_valid_before"])
-    not_after = _parse_timestamp(record["certificate"]["not_valid_after"])
+    now = now_utc()
+    not_before = parse_datetime(record["certificate"]["not_valid_before"])
+    not_after = parse_datetime(record["certificate"]["not_valid_after"])
+    if not_before is None or not_after is None:
+        raise ValueError("certificate record must contain validity timestamps")
     if not_before > now:
         return {"state": "not_yet_valid"}
     if not_after <= now:
@@ -946,7 +822,7 @@ def _with_status(
         == record.get("certificate", {}).get("serial_number_hex")
     )
     result["status"] = _status(record, revocations)
-    result["renewal_status"] = _renewal_status(
+    result["renewal_status"] = renewal_status(
         record["certificate"],
         record.get("renewal"),
     )

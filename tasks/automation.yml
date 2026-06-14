@@ -44,7 +44,10 @@
     - module_utils/ca_file.py
     - module_utils/ca_inventory.py
     - module_utils/ca_profiles.py
+    - module_utils/ca_renewal.py
+    - module_utils/ca_serial.py
     - module_utils/ca_text.py
+    - module_utils/ca_time.py
     - module_utils/ca_x509.py
   when: ca_crl_automation_enabled | bool
 

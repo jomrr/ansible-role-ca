@@ -12,6 +12,7 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     sanitize_error,
     write_file,
 )
+from ansible.module_utils.ca_serial import serial_hex  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_x509 import load_certificates  # type: ignore[import-not-found,import-untyped]
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
@@ -29,15 +30,9 @@ def _chain_path(base_dir: str, name: str) -> str:
     return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain.pem"
 
 
-def _serial_hex(value: int) -> str:
-    """Return an even-length uppercase certificate serial."""
-    text = f"{value:X}"
-    return text if len(text) % 2 == 0 else f"0{text}"
-
-
 def _versioned_chain_path(base_dir: str, name: str, cert: x509.Certificate) -> str:
     """Return the generation-specific CA chain output path."""
-    serial = _serial_hex(cert.serial_number)
+    serial = serial_hex(cert.serial_number)
     return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain-{serial}.pem"
 
 
