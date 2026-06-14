@@ -12,6 +12,9 @@ identical to the root CA certificate.
 - No parent parameter is required.
 - The target authority is identified by `name`.
 - The module loads all `<base_dir>/ca/*-ca.pem` certificates.
+- The module holds the authority graph lock and the readable authority locks
+  while loading the CA graph, so chains are not mixed across concurrent CA
+  renewal.
 - The output path is `<base_dir>/chains/<name>-ca-chain.pem`.
 - The module also writes a generation-specific chain file
   `<base_dir>/chains/<name>-ca-chain-<serial>.pem` for issuing CAs.

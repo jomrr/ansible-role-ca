@@ -8,7 +8,7 @@ from pathlib import Path
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
     ca_lock_path,
-    file_lock,
+    file_locks,
     sanitize_error,
     write_file,
 )
@@ -54,6 +54,17 @@ def _load_authorities(base_dir: str) -> dict[str, x509.Certificate]:
         if certificates:
             authorities[_authority_name(path)] = certificates[0]
     return authorities
+
+
+def _authority_lock_paths(base_dir: str, name: str) -> list[str]:
+    """Return locks for the target authority and every readable CA certificate."""
+    ca_dir = Path(base_dir.rstrip("/")) / "ca"
+    authority_names = {_authority_name(path) for path in ca_dir.glob("*-ca.pem")}
+    authority_names.add(name)
+    return [
+        ca_lock_path(base_dir, "authority", authority_name)
+        for authority_name in authority_names
+    ]
 
 
 def _authority_key_identifier(cert: x509.Certificate) -> bytes | None:
@@ -187,7 +198,12 @@ def run_module():
     params = module.params
     try:
         path = _chain_path(params["base_dir"], params["name"])
-        with file_lock(ca_lock_path(params["base_dir"], "authority", params["name"])):
+        with file_locks(
+            [
+                ca_lock_path(params["base_dir"], "authority", "__graph__"),
+                *_authority_lock_paths(params["base_dir"], params["name"]),
+            ]
+        ):
             certificates = _ordered_chain(params["base_dir"], params["name"])
             if len(certificates) == 1 and _is_self_signed(certificates[0]):
                 changed = _remove_file(path)

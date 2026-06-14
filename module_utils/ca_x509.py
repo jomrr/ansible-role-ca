@@ -1237,6 +1237,8 @@ def ensure_x509(
         manage_chain=manage_chain,
     )
     lock_paths = [params["lock_path"]]
+    if authority:
+        lock_paths.append(ca_lock_path(params["base_dir"], "authority", "__graph__"))
     if signed:
         lock_paths.append(params["signer_lock_path"])
     with file_locks(lock_paths):
