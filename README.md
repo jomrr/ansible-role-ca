@@ -71,8 +71,6 @@ The following variables are part of the public role interface.
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_default_certificate_days` | `int` | `false` | `397` | Default validity period for end-entity certificate profiles. |
 | `ca_certificate_type_days` | `dict` | `false` | tls_server: 397<br />tls_client: 397<br />mskdc: 397<br />fritzbox: 397<br />identity_full: 730<br />identity: 730<br />eap_tls_client: 397 | Validity periods for built-in certificate profiles. |
-| `ca_aia` | `dict` | `false` |  | AIA URL settings. |
-| `ca_cdp` | `dict` | `false` |  | CDP URL settings. |
 | `ca_certificates` | `list` | `false` | [] | End-entity certificates to manage. |
 | `ca_crl` | `dict` | `false` |  | CRL generation settings. |
 | `ca_crl_automation` | `dict` | `false` |  | Optional systemd CRL renewal automation. |
@@ -210,12 +208,6 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
             days: 1826
             crl_days: 30
             key_passphrase: vaulted-identity-passphrase
-        ca_aia:
-          enabled: true
-          url: https://pki.example.org/aia
-        ca_cdp:
-          enabled: true
-          url: https://pki.example.org/crl
         ca_certificates:
           - name: web01
             type: tls_server

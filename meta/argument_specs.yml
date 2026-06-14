@@ -179,34 +179,6 @@ argument_specs:
           identity: 730
           eap_tls_client: 397
         description: Validity periods for built-in certificate profiles.
-      ca_aia:
-        type: dict
-        required: false
-        description: AIA URL settings.
-        options:
-          enabled:
-            type: bool
-            required: false
-            default: true
-            description: Embed AIA URLs in issued certificates.
-          url:
-            type: str
-            required: false
-            description: Base AIA URL.
-      ca_cdp:
-        type: dict
-        required: false
-        description: CDP URL settings.
-        options:
-          enabled:
-            type: bool
-            required: false
-            default: true
-            description: Embed CRL distribution point URLs in issued certificates.
-          url:
-            type: str
-            required: false
-            description: Base CDP URL.
       ca_certificates:
         type: list
         elements: dict

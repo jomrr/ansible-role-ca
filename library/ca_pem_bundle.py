@@ -26,10 +26,19 @@ def _bundle_paths(
     return f"{directory}/{name}-fritzbox.pem", [sources[item] for item in order]
 
 
+def _params(params: dict) -> dict:
+    certificate = dict(params.get("certificate") or {})
+    result = dict(params)
+    if result.get("output_dir") is None and certificate.get("output_dir") is not None:
+        result["output_dir"] = certificate["output_dir"]
+    return result
+
+
 def run_module():
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
+            "certificate": {"type": "dict", "no_log": True},
             "name": {"type": "str", "required": True},
             "output_dir": {"type": "path"},
             "order": {
@@ -45,8 +54,8 @@ def run_module():
         supports_check_mode=False,
     )
 
-    params = module.params
     try:
+        params = _params(module.params)
         path, sources = _bundle_paths(
             params["base_dir"],
             params["name"],

@@ -57,12 +57,6 @@ provisioner:
             crl_days: 30
             key_passphrase: "molecule-identity-passphrase"
             revocations: []
-        ca_aia:
-          enabled: true
-          url: "http://pki.molecule.test/aia"
-        ca_cdp:
-          enabled: true
-          url: "http://pki.molecule.test/crl"
         ca_certificates:
           - name: "web01"
             type: "tls_server"

@@ -744,6 +744,11 @@ def apply_profile_defaults(params: dict, defaults: dict) -> dict:
 
 def _base_url(params: dict, name: str, key: str) -> str:
     value = str(params.get(key) or "").rstrip("/")
+    if not value:
+        base_url = str(params.get("base_url") or "").rstrip("/")
+        if base_url:
+            suffix = "aia" if key == "aia_base_url" else "crl"
+            value = f"{base_url}/{suffix}"
     return f"{value}/{name}" if value else ""
 
 
@@ -810,6 +815,7 @@ def x509_argument_spec(
 ):
     spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
+        "base_url": {"type": "str", "default": ""},
         "name": {"type": "str", "required": True},
         "formats": {"type": "list", "elements": "str", "default": ["pem", "der"]},
         "key_type": {"type": "str", "default": "RSA"},
@@ -870,6 +876,8 @@ def x509_argument_spec(
 def x509_certificate_argument_spec(*, defaults: dict | None = None):
     spec: dict[str, dict[str, Any]] = {
         "base_dir": {"type": "path", "required": True},
+        "base_url": {"type": "str"},
+        "certificate": {"type": "dict", "no_log": True},
         "name": {"type": "str", "required": True},
         "issuer": {"type": "str", "required": True},
         "issuer_key_passphrase": {
@@ -878,19 +886,19 @@ def x509_certificate_argument_spec(*, defaults: dict | None = None):
             "no_log": True,
         },
         "output_dir": {"type": "path"},
-        "key_type": {"type": "str", "default": "RSA"},
-        "key_size": {"type": "int", "default": 4096},
+        "key_type": {"type": "str"},
+        "key_size": {"type": "int"},
         "key_passphrase": {"type": "str", "no_log": True},
-        "subject_ordered": {"type": "list", "elements": "dict", "default": []},
+        "subject_ordered": {"type": "list", "elements": "dict"},
         "common_name": {"type": "str", "required": True},
         "email": {"type": "str"},
-        "subject": {"type": "dict", "default": {}},
-        "key_usage": {"type": "list", "elements": "str", "default": []},
-        "extended_key_usage": {"type": "list", "elements": "str", "default": []},
-        "san": {"type": "list", "elements": "str", "default": []},
-        "aia_base_url": {"type": "str", "default": ""},
-        "cdp_base_url": {"type": "str", "default": ""},
-        "raw_extensions": {"type": "list", "elements": "dict", "default": []},
+        "subject": {"type": "dict"},
+        "key_usage": {"type": "list", "elements": "str"},
+        "extended_key_usage": {"type": "list", "elements": "str"},
+        "san": {"type": "list", "elements": "str"},
+        "aia_base_url": {"type": "str"},
+        "cdp_base_url": {"type": "str"},
+        "raw_extensions": {"type": "list", "elements": "dict"},
         "days": {"type": "int", "required": True},
         "owner": {"type": "str"},
         "group": {"type": "str"},
@@ -905,17 +913,38 @@ def x509_certificate_argument_spec(*, defaults: dict | None = None):
 def x509_certificate_params(params: dict) -> dict:
     result = {
         "formats": ["pem", "der"],
+        "base_url": "",
+        "output_dir": None,
+        "key_type": "RSA",
+        "key_size": 4096,
+        "key_passphrase": None,
+        "subject_ordered": [],
+        "email": None,
+        "subject": {},
         "basic_constraints": ["CA:FALSE"],
+        "key_usage": [],
         "key_usage_critical": True,
+        "extended_key_usage": [],
         "extended_key_usage_critical": False,
+        "san": [],
         "san_critical": False,
+        "aia_base_url": "",
+        "cdp_base_url": "",
+        "raw_extensions": [],
         "pkinit": {},
         "include_identifiers": True,
         "key_mode": "0600",
         "public_mode": "0644",
         "directory_mode": "0755",
     }
-    result.update(params)
+    certificate = dict(params.get("certificate") or {})
+    module_params = {
+        key: value
+        for key, value in params.items()
+        if key != "certificate" and value is not None
+    }
+    result.update(certificate)
+    result.update(module_params)
     result["signer_key_passphrase"] = result.pop("issuer_key_passphrase")
     return result
 

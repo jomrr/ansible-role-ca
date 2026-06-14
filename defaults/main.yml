@@ -56,15 +56,6 @@ ca_authorities:
     key_passphrase: ""
     revocations: []
 
-# Publication endpoints. The URL values are embedded into issued certificates.
-ca_aia:
-  enabled: true
-  url: "{{ ca_base_url }}/aia"
-
-ca_cdp:
-  enabled: true
-  url: "{{ ca_base_url }}/crl"
-
 ca_default_certificate_days: 397
 ca_certificate_type_days:
   tls_server: "{{ ca_default_certificate_days }}"

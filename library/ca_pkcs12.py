@@ -90,16 +90,32 @@ def _paths(
     }
 
 
+def _params(params: dict) -> dict:
+    certificate = dict(params.get("certificate") or {})
+    result = dict(params)
+    for key in ("output_dir", "key_passphrase", "passphrase", "friendly_name"):
+        if result.get(key) is None and certificate.get(key) is not None:
+            result[key] = certificate[key]
+    if result.get("passphrase") is None:
+        result["passphrase"] = certificate.get("pfx_passphrase")
+    if result.get("friendly_name") is None:
+        result["friendly_name"] = certificate.get("common_name") or result["name"]
+    if not result.get("passphrase"):
+        raise ValueError("PKCS#12 bundle requires pfx_passphrase or passphrase")
+    return result
+
+
 def run_module():
     module = AnsibleModule(
         argument_spec={
             "base_dir": {"type": "path", "required": True},
+            "certificate": {"type": "dict", "no_log": True},
             "name": {"type": "str", "required": True},
             "output_dir": {"type": "path"},
             "format": {"type": "str", "choices": ["pfx", "p12"], "required": True},
-            "friendly_name": {"type": "str", "required": True},
+            "friendly_name": {"type": "str"},
             "key_passphrase": {"type": "str", "no_log": True},
-            "passphrase": {"type": "str", "required": True, "no_log": True},
+            "passphrase": {"type": "str", "no_log": True},
             "owner": {"type": "str"},
             "group": {"type": "str"},
             "mode": {"type": "str", "default": "0600"},
@@ -113,8 +129,8 @@ def run_module():
             msg=f"Failed to import cryptography: {CRYPTOGRAPHY_IMPORT_ERROR}"
         )
 
-    params = module.params
     try:
+        params = _params(module.params)
         paths = _paths(
             params["base_dir"], params["name"], params["output_dir"], params["format"]
         )
