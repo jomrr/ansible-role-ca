@@ -20,6 +20,7 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     set_attrs,
     write_file,
 )
+from ansible.module_utils.ca_validation import authority_map  # type: ignore[import-not-found,import-untyped]
 
 AREA_DIRECTORY = {
     "aia": "aia",
@@ -28,6 +29,97 @@ AREA_DIRECTORY = {
 }
 MANIFEST_NAME = ".ca-publish-manifest.json"
 MTIME = 0
+
+
+def _base_dir(value: Any) -> str:
+    """Return a normalized base directory string."""
+    return str(value).rstrip("/")
+
+
+def _artifact(
+    area: str,
+    source: str,
+    filename: str,
+    artifact_format: str,
+    kind: str,
+) -> dict[str, str]:
+    """Return one public artifact descriptor."""
+    return {
+        "area": area,
+        "src": source,
+        "file": filename,
+        "format": artifact_format,
+        "kind": kind,
+    }
+
+
+def _artifacts_from_authorities(
+    authorities: list[dict[str, Any]],
+    base_dir: str,
+) -> list[dict[str, Any]]:
+    """Return public AIA/CDP artifacts derived from managed authorities."""
+    authority_by_name = authority_map(authorities)
+    root = _base_dir(base_dir)
+    artifacts = []
+
+    for name, authority in authority_by_name.items():
+        ca_stem = f"{name}-ca"
+        for artifact_format in ("pem", "der", "txt"):
+            artifacts.append(
+                _artifact(
+                    "aia",
+                    f"{root}/ca/{ca_stem}.{artifact_format}",
+                    f"{ca_stem}.{artifact_format}",
+                    artifact_format,
+                    "certificate",
+                )
+            )
+
+        parent = str(authority.get("parent") or name)
+        if parent != name:
+            chain_stem = f"{name}-ca-chain"
+            for artifact_format in ("pem", "der", "txt"):
+                artifacts.append(
+                    _artifact(
+                        "aia",
+                        f"{root}/chains/{chain_stem}.{artifact_format}",
+                        f"{chain_stem}.{artifact_format}",
+                        artifact_format,
+                        "chain",
+                    )
+                )
+
+        artifacts.extend(
+            [
+                _artifact(
+                    "cdp",
+                    f"{root}/crl/{ca_stem}.crl.pem",
+                    f"{ca_stem}.crl.pem",
+                    "pem",
+                    "crl",
+                ),
+                _artifact(
+                    "cdp",
+                    f"{root}/crl/{ca_stem}.crl",
+                    f"{ca_stem}.crl",
+                    "der",
+                    "crl",
+                ),
+            ]
+        )
+
+    return artifacts
+
+
+def _resolve_artifacts(params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return explicitly supplied or authority-derived public artifacts."""
+    artifacts = params.get("artifacts") or []
+    if artifacts:
+        return artifacts
+    authorities = params.get("authorities") or []
+    if not authorities:
+        raise ValueError("artifacts or authorities is required")
+    return _artifacts_from_authorities(authorities, params["base_dir"])
 
 
 def _mode(value: Any, fallback: int = 0o644) -> int:
@@ -139,7 +231,13 @@ def run_module() -> None:
             "artifacts": {
                 "type": "list",
                 "elements": "dict",
-                "required": True,
+                "default": [],
+            },
+            "authorities": {
+                "type": "list",
+                "elements": "dict",
+                "default": [],
+                "no_log": True,
             },
             "artifact_mode": {"type": "str", "default": "0644"},
             "owner": {"type": "str"},
@@ -153,8 +251,9 @@ def run_module() -> None:
     params = module.params
     try:
         with file_lock(ca_lock_path(params["base_dir"], "publish", "archive")):
+            artifacts = _resolve_artifacts(params)
             content, archive_paths, manifest_sha256 = _archive_content(
-                params["artifacts"],
+                artifacts,
                 params["artifact_mode"],
             )
             changed = params["force"]

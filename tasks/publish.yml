@@ -2,15 +2,6 @@
 # role: ansible-role-ca
 # file: tasks/publish.yml
 
-- name: "CA | Build publish artifact list"
-  ansible.builtin.set_fact:
-    __ca_publish_artifacts: >-
-      {{
-        (ca_authorities | ca_publish_aia_artifacts(ca_base_dir))
-        +
-        (ca_authorities | ca_publish_cdp_artifacts(ca_base_dir))
-      }}
-
 - name: "CA | Publish AIA and CDP artifacts"
   block:
     - name: "CA | Create remote publish staging directory"
@@ -24,7 +15,7 @@
       ca_publish_archive:
         base_dir: "{{ ca_base_dir }}"
         dest: "{{ __ca_publish_remote_stage.path }}/public.tar"
-        artifacts: "{{ __ca_publish_artifacts }}"
+        authorities: "{{ ca_authorities }}"
         artifact_mode: "{{ ca_publish_mode }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"

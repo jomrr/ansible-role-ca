@@ -2,17 +2,16 @@
 
 Internal Ansible filter plugin for CA role variable normalization.
 
-`filter_plugins/ca.py` exposes authority validation and publish artifact list
-filters. It is used by role tasks to validate and address `ca_authorities` by
-name and to derive deterministic AIA/CDP publish sources.
+`filter_plugins/ca.py` exposes authority validation and publish manifest
+comparison filters. It is used by role tasks to validate and address
+`ca_authorities` by name and to decide whether target publish directories need
+an archive extraction.
 
 ## Exported Filters
 
 | Filter | Purpose |
 | --- | --- |
 | `ca_authority_map` | Returns authorities keyed by `name` after validating list shape, safe names, uniqueness, and parent references. |
-| `ca_publish_aia_artifacts` | Returns CA certificate and issuing-chain artifacts for AIA publication. |
-| `ca_publish_cdp_artifacts` | Returns CRL artifacts for CDP publication. |
 | `ca_publish_needs_unpack` | Compares target manifest checksums with a generated publish archive and returns whether extraction is required. |
 
 ## Behavior
@@ -25,9 +24,6 @@ name and to derive deterministic AIA/CDP publish sources.
 - Names must match `^[A-Za-z0-9_.-]+$`.
 - Duplicate names fail.
 - Every `parent` must reference an authority in the same list.
-- AIA publish artifacts include every CA certificate as `pem`, `der`, and `txt`.
-- AIA publish artifacts include issuing CA chains as `pem`, `der`, and `txt`.
-- CDP publish artifacts include every CRL as `pem` and `der`.
 - Publish extraction is skipped when all target manifest checksums match the
   manifest checksums returned by `ca_publish_archive`.
 
