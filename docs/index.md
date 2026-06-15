@@ -15,16 +15,14 @@ The role tasks use the public modules in this order:
 1. `ca_authority` creates root and issuing CA certificates.
 2. `ca_chain` derives issuing CA chain files from the generated CA certificates.
 3. `ca_certificate` dispatches declarative certificate entries to the built-in
-   certificate profiles.
-4. `ca_pkcs12_bundle`, `ca_fullchain_bundle`, and `ca_fritzbox_bundle` create
-   optional certificate export bundles.
-5. `ca_fritzbox_deploy` can deploy a generated FritzBox bundle to FRITZ!OS.
-6. `ca_crl` resolves declared revocations and creates PEM/DER CRL exports for
+   certificate profiles and writes all requested certificate export formats.
+4. `ca_fritzbox_deploy` can deploy a generated FritzBox bundle to FRITZ!OS.
+5. `ca_crl` resolves declared revocations and creates PEM/DER CRL exports for
    every CA.
-7. Optional publish tasks use `ca_publish_archive` to build deterministic
+6. Optional publish tasks use `ca_publish_archive` to build deterministic
    archives and unpack CA certificates, issuing chains, and CRLs to configured
    AIA/CDP target webroots.
-8. `ca_dhparam` optionally creates a DH parameter file.
+7. `ca_dhparam` optionally creates a DH parameter file.
 
 `ca_authority`, `ca_certificate`, and `ca_crl` update internal CA inventory
 fragments. When `ca_name` is set, the fragments are composed into
@@ -36,9 +34,6 @@ fragments. When `ca_name` is set, the fragments are composed into
 - [ca_chain](ca_chain.md)
 - [ca_certificate](ca_certificate.md)
 - [ca_crl](ca_crl.md)
-- [ca_pkcs12_bundle](ca_pkcs12_bundle.md)
-- [ca_fullchain_bundle](ca_fullchain_bundle.md)
-- [ca_fritzbox_bundle](ca_fritzbox_bundle.md)
 - [ca_fritzbox_deploy](ca_fritzbox_deploy.md)
 - [ca_publish_archive](ca_publish_archive.md)
 - [ca_dhparam](ca_dhparam.md)
@@ -52,7 +47,6 @@ inventory state, and validation.
 
 - [ca_file](ca_file.md)
 - [ca_inventory](ca_inventory.md)
-- [ca_pem_bundle](ca_pem_bundle.md)
 - [ca_profiles](ca_profiles.md)
 - [ca_renewal](ca_renewal.md)
 - [ca_serial](ca_serial.md)

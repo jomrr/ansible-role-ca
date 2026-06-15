@@ -29,6 +29,7 @@ try:
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, rsa
+    from cryptography.hazmat.primitives.serialization import pkcs12
     from cryptography.x509.oid import (
         AuthorityInformationAccessOID,
         ExtendedKeyUsageOID,
@@ -299,6 +300,11 @@ def _cert_public_key_bytes(cert) -> bytes:
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
     )
+
+
+def _cert_fingerprint(cert) -> bytes:
+    """Return a SHA-256 certificate fingerprint."""
+    return cert.fingerprint(hashes.SHA256())
 
 
 def _csr_public_key_bytes(csr) -> bytes:
@@ -938,6 +944,149 @@ def _ensure_chain(params):
     )
 
 
+def _chain_content(params, signer_cert) -> bytes:
+    """Return the issuing chain content for certificate export bundles."""
+    for path in (params.get("chain_path"), params.get("chain_src_path")):
+        if not path:
+            continue
+        try:
+            return read_file(path).rstrip() + b"\n"
+        except FileNotFoundError:
+            continue
+    if signer_cert is not None:
+        return signer_cert.public_bytes(serialization.Encoding.PEM).rstrip() + b"\n"
+    raise ValueError("certificate chain is required for bundle export formats")
+
+
+def _chain_certificates(params, signer_cert):
+    """Return issuing chain certificates for PKCS#12 exports."""
+    for path in (params.get("chain_path"), params.get("chain_src_path")):
+        if not path:
+            continue
+        try:
+            return load_certificates(path)
+        except FileNotFoundError:
+            continue
+    return [signer_cert] if signer_cert is not None else []
+
+
+def _pkcs12_existing_matches(path, passphrase, key, cert, extra_certs) -> bool:
+    """Return whether an existing PKCS#12 bundle matches desired content."""
+    try:
+        existing_key, existing_cert, existing_extra = pkcs12.load_key_and_certificates(
+            read_file(path),
+            passphrase.encode() if passphrase else None,
+        )
+    except Exception:
+        return False
+    if existing_key is None or existing_cert is None:
+        return False
+    if _public_key_bytes(existing_key) != _public_key_bytes(key):
+        return False
+    if _cert_fingerprint(existing_cert) != _cert_fingerprint(cert):
+        return False
+    existing_fingerprints = sorted(
+        _cert_fingerprint(item) for item in (existing_extra or [])
+    )
+    desired_fingerprints = sorted(_cert_fingerprint(item) for item in extra_certs)
+    return existing_fingerprints == desired_fingerprints
+
+
+def _pkcs12_passphrase(params) -> str:
+    """Return the configured PKCS#12 passphrase."""
+    return str(params.get("passphrase") or params.get("pfx_passphrase") or "")
+
+
+def _ensure_pkcs12_exports(params, key, cert, extra_certs) -> tuple[bool, dict[str, str]]:
+    """Ensure requested PKCS#12 export formats exist."""
+    paths = {
+        export_format: params["pkcs12_paths"][export_format]
+        for export_format in ("pfx", "p12")
+        if export_format in params["formats"]
+    }
+    if not paths:
+        return False, {}
+
+    passphrase = _pkcs12_passphrase(params)
+    if not passphrase:
+        raise ValueError("PKCS#12 bundle requires pfx_passphrase or passphrase")
+    friendly_name = str(params.get("friendly_name") or params.get("common_name") or params["name"])
+    content = pkcs12.serialize_key_and_certificates(
+        name=friendly_name.encode(),
+        key=key,
+        cert=cert,
+        cas=extra_certs,
+        encryption_algorithm=serialization.BestAvailableEncryption(passphrase.encode()),
+    )
+
+    changed = False
+    for path in paths.values():
+        export_changed = bool(params["force"]) or not _pkcs12_existing_matches(
+            path,
+            passphrase,
+            key,
+            cert,
+            extra_certs,
+        )
+        if export_changed:
+            changed = (
+                write_file(
+                    path,
+                    content,
+                    params["owner"],
+                    params["group"],
+                    params["key_mode"],
+                    force=True,
+                )
+                or changed
+            )
+        else:
+            changed = (
+                set_attrs(path, params["owner"], params["group"], params["key_mode"])
+                or changed
+            )
+    return changed, paths
+
+
+def _pem_join(*parts: bytes) -> bytes:
+    """Join PEM sections with exactly one trailing newline per section."""
+    return b"".join(part.rstrip() + b"\n" for part in parts if part)
+
+
+def _ensure_fullchain_bundle(params, cert, chain_content: bytes) -> bool:
+    """Ensure the requested PEM fullchain bundle exists."""
+    if "fullchain" not in params["formats"]:
+        return False
+    content = _pem_join(cert.public_bytes(serialization.Encoding.PEM), chain_content)
+    return write_file(
+        params["fullchain_path"],
+        content,
+        params["owner"],
+        params["group"],
+        params["public_mode"],
+        force=params["force"],
+    )
+
+
+def _ensure_fritzbox_bundle(params, cert, chain_content: bytes) -> bool:
+    """Ensure the requested FritzBox PEM import bundle exists."""
+    if "fritzbox" not in params["formats"]:
+        return False
+    content = _pem_join(
+        cert.public_bytes(serialization.Encoding.PEM),
+        chain_content,
+        read_file(params["key_path"]),
+    )
+    return write_file(
+        params["fritzbox_bundle_path"],
+        content,
+        params["owner"],
+        params["group"],
+        params["key_mode"],
+        force=params["force"],
+    )
+
+
 def _base_url(params: dict, name: str, key: str) -> str:
     """Derive an AIA or CDP URL from explicit or base URL parameters."""
     value = str(params.get(key) or "").rstrip("/")
@@ -998,6 +1147,17 @@ def _with_derived_paths(
     result["cert_path"] = f"{output_dir}/{name}.pem"
     result["der_path"] = f"{output_dir}/{name}.der" if "der" in formats else ""
     result["txt_path"] = f"{output_dir}/{name}.txt" if "txt" in formats else ""
+    result["fullchain_path"] = (
+        f"{output_dir}/{name}-fullchain.pem" if "fullchain" in formats else ""
+    )
+    result["fritzbox_bundle_path"] = (
+        f"{output_dir}/{name}-fritzbox.pem" if "fritzbox" in formats else ""
+    )
+    result["pkcs12_paths"] = {
+        export_format: f"{output_dir}/{name}.{export_format}"
+        for export_format in ("pfx", "p12")
+        if export_format in formats
+    }
     result["directory_path"] = output_dir if manage_directory else None
     if signed:
         result["signer_lock_path"] = ca_lock_path(base_dir, "authority", issuer)
@@ -1220,6 +1380,21 @@ def _ensure_x509_locked(
     txt_changed = ensure_txt(params, cert)
     if manage_chain:
         chain_changed = _ensure_chain(params)
+    chain_content = b""
+    extra_certs = []
+    if not params["authority"] and set(params["formats"]).intersection(
+        {"pfx", "p12", "fullchain", "fritzbox"}
+    ):
+        chain_content = _chain_content(params, signer_cert)
+        extra_certs = _chain_certificates(params, signer_cert)
+    pkcs12_changed, pkcs12_paths = _ensure_pkcs12_exports(
+        params,
+        key,
+        cert,
+        extra_certs,
+    )
+    fullchain_changed = _ensure_fullchain_bundle(params, cert, chain_content)
+    fritzbox_bundle_changed = _ensure_fritzbox_bundle(params, cert, chain_content)
 
     return {
         "changed": directory_changed
@@ -1229,7 +1404,10 @@ def _ensure_x509_locked(
         or cert_changed
         or der_changed
         or txt_changed
-        or chain_changed,
+        or chain_changed
+        or pkcs12_changed
+        or fullchain_changed
+        or fritzbox_bundle_changed,
         "directory_changed": directory_changed,
         "archive_changed": archive_changed,
         "key_changed": key_changed,
@@ -1238,9 +1416,15 @@ def _ensure_x509_locked(
         "der_changed": der_changed,
         "txt_changed": txt_changed,
         "chain_changed": chain_changed,
+        "pkcs12_changed": pkcs12_changed,
+        "fullchain_changed": fullchain_changed,
+        "fritzbox_bundle_changed": fritzbox_bundle_changed,
         "formats": params["formats"],
         "renewal": renewal_decision,
         "csr_path": params["csr_path"],
         "cert_path": params["cert_path"],
         "txt_path": params["txt_path"],
+        "pkcs12_paths": pkcs12_paths,
+        "fullchain_path": params.get("fullchain_path", ""),
+        "fritzbox_bundle_path": params.get("fritzbox_bundle_path", ""),
     }

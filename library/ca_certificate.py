@@ -196,11 +196,6 @@ def run_module():
         )
         formats = [str(item).lower() for item in model["formats"]]
         result["formats"] = formats
-        result["pkcs12_formats"] = [
-            item for item in formats if item in {"pfx", "p12"}
-        ]
-        result["fullchain_bundle"] = "fullchain" in formats
-        result["fritzbox_bundle"] = "fritzbox" in formats
         inventory_changed = update_certificate_inventory(params, model, result)
         result["inventory_changed"] = inventory_changed
         result["changed"] = result["changed"] or inventory_changed

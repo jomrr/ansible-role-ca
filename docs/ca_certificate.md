@@ -22,12 +22,12 @@ uses the shared X.509 helper to create certificate artifacts.
 - Generates or reuses the private key and CSR.
 - Issues a PEM certificate and optional DER and text exports.
 - Copies the issuer chain into the certificate output directory.
+- Writes requested PKCS#12, fullchain, and FritzBox bundles directly.
 - Renewal policy can mark warning state, renew inside a configured window, or
   renew at a planned timestamp.
 - Renewal keeps the existing key by default. Set `renewal.rekey: true` to
   generate a new private key when renewal is due.
 - Replaced generations are archived below `<base_dir>/archive/certificates`.
-- Returns export hints used by the bundle modules.
 - Records certificate inventory state.
 
 ## Certificate Profiles
@@ -76,7 +76,7 @@ These keys are accepted inside `certificate`.
 | `key_type` | str | no | `RSA` | see [index](index.md#common-value-sets) | no | Private key algorithm. |
 | `key_size` | int | no | `4096` | RSA bit size, or `256`/`384` for generic ECDSA | no | Key size or curve selector. |
 | `key_passphrase` | str | no | none | any string | yes | Optional certificate private key passphrase. |
-| `pfx_passphrase` | str | conditional | none | any string | yes | Required when `formats` contains `pfx` or `p12`, unless `passphrase` is used by the bundle task. |
+| `pfx_passphrase` | str | conditional | none | any string | yes | Required when `formats` contains `pfx` or `p12`, unless `passphrase` is set. |
 | `friendly_name` | str | no | `common_name` or `name` | any string | no | Friendly name for PKCS#12 exports. |
 | `renewal` | dict | no | module `renewal` | see below | no | Certificate-local renewal and rekey policy. |
 | `subject_ordered` | list[dict] | no | `[]` | supported subject keys | no | Full ordered subject override. |
@@ -126,12 +126,13 @@ For `name: web01`, `issuer: component`, and `base_dir: /etc/pki/example`:
 - `/etc/pki/example/certs/web01/web01.der` when `der` is requested
 - `/etc/pki/example/certs/web01/web01.txt` when `txt` is requested
 - `/etc/pki/example/certs/web01/web01-chain.pem`
+- `/etc/pki/example/certs/web01/web01.pfx` when `pfx` is requested
+- `/etc/pki/example/certs/web01/web01.p12` when `p12` is requested
+- `/etc/pki/example/certs/web01/web01-fullchain.pem` when `fullchain` is requested
+- `/etc/pki/example/certs/web01/web01-fritzbox.pem` when `fritzbox` is requested
 - Inventory fragments below `/etc/pki/example/inventory/state`
 - `/etc/pki/example/inventory/ca-inventory.json` when `ca_name` is set
 - `/etc/pki/example/archive/certificates/web01/<serial>/*` for replaced generations
-
-Bundle formats are produced by the dedicated bundle modules after
-`ca_certificate` returns its export hints.
 
 ## Return Values
 
@@ -148,15 +149,18 @@ Bundle formats are produced by the dedicated bundle modules after
 | `der_changed` | bool | Whether the DER export changed. |
 | `txt_changed` | bool | Whether the text export changed. |
 | `chain_changed` | bool | Whether the issuer chain copy changed. |
+| `pkcs12_changed` | bool | Whether any PKCS#12 export changed. |
+| `fullchain_changed` | bool | Whether the fullchain bundle changed. |
+| `fritzbox_bundle_changed` | bool | Whether the FritzBox import bundle changed. |
 | `inventory_changed` | bool | Whether CA inventory state changed. |
 | `formats` | list[str] | Normalized formats. |
 | `renewal` | dict | Renewal decision for this run. |
-| `pkcs12_formats` | list[str] | `pfx` and `p12` formats requested for follow-up bundle tasks. |
-| `fullchain_bundle` | bool | Whether a fullchain bundle should be generated. |
-| `fritzbox_bundle` | bool | Whether a FritzBox bundle should be generated. |
 | `csr_path` | str | CSR path. |
 | `cert_path` | str | PEM certificate path. |
 | `txt_path` | str | Text export path, or empty string. |
+| `pkcs12_paths` | dict | Written PKCS#12 paths keyed by format. |
+| `fullchain_path` | str | Fullchain bundle path, or empty string. |
+| `fritzbox_bundle_path` | str | FritzBox import bundle path, or empty string. |
 
 ## Examples
 
