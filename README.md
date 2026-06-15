@@ -32,7 +32,6 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - Serial-specific issuing CA chain files for CA rollover and key changeover
 - Embedded AIA and CDP URLs
 - Optional AIA/CDP artifact publishing to SSH targets
-- Optional per-authority CRL publish hooks after CRL changes
 
 ### Not Managed
 
@@ -129,7 +128,6 @@ The following variables are part of the public role interface.
 - Revocations are declared in `ca_revocations`, keyed by issuing authority name; each entry can identify a managed certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.
 - CRL PEM and DER files are exported from the same generated CRL object, so both formats share the same CRL Number, Authority Key Identifier, lastUpdate, nextUpdate, and revoked certificate entries.
 - Revocation entries support `reason`, `revocation_date`, and `invalidity_date`; `reason` is encoded as CRL Reason and `invalidity_date` as Invalidity Date.
-- Per-authority `crl_publish_hook.argv` can run a local command after CRL files changed; the hook uses `ansible.builtin.command` and does not invoke a shell.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
 - The role processes `ca_certificates` through the batched `ca_certificate_batch` module; direct single-certificate use is still available through `ca_certificate`.
@@ -205,10 +203,6 @@ Creates the Root CA and the three issuing CAs without certificates.
             renewal:
               renew_at: "2027-01-01T00:00:00Z"
               rekey: true
-            crl_publish_hook:
-              argv:
-                - /usr/local/sbin/publish-ca-crl
-                - component
           - name: network
             common_name: Example Network CA
             parent: root

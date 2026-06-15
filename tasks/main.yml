@@ -2,13 +2,13 @@
 # role: ansible-role-ca
 # file: tasks/main.yml
 
-- name: "CA | Load platform variables"
-  ansible.builtin.include_vars: "{{ ansible_facts.os_family }}.yml"
-  tags: always
-
 - name: "CA | Assert role configuration"
   ansible.builtin.import_tasks: assert.yml
   tags: assert
+
+- name: "CA | Load platform variables"
+  ansible.builtin.include_vars: "{{ ansible_facts.os_family }}.yml"
+  tags: always
 
 - name: "CA | Install required packages"
   ansible.builtin.package:

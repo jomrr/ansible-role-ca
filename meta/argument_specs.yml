@@ -193,22 +193,6 @@ argument_specs:
             type: str
             required: false
             description: Optional CRL message digest override.
-          crl_publish_hook:
-            type: dict
-            required: false
-            description:
-              - Optional command hook executed after this authority's CRL files change.
-              - The hook uses `ansible.builtin.command` with `argv`; no shell is invoked.
-            options:
-              argv:
-                type: list
-                elements: str
-                required: true
-                description: Command and arguments to execute.
-              environment:
-                type: dict
-                required: false
-                description: Optional environment variables for the hook process.
       ca_revocations:
         type: dict
         required: false

@@ -8,20 +8,17 @@
       - ansible_facts.os_family in ['Debian', 'RedHat', 'Suse']
     fail_msg: "The ca role supports Debian, RedHat, and Suse platform families."
 
-- name: "CA | Assert authority definitions are complete"
+- name: "CA | Assert authority graph is valid"
   ansible.builtin.assert:
     that:
-      - ca_renewal is mapping
       - (ca_authorities | ca_authority_map | length) == (ca_authorities | length)
-      - ca_authority.name is defined
-      - ca_authority.parent is defined
-      - ca_authority.common_name is defined
-      - ca_authority.days is defined
-      - ca_authority.default_days is defined
-      - ca_authority.crl_days is defined
-      - ca_authority.key_passphrase is defined
-      - ca_authority.key_passphrase | string | length > 0
-    fail_msg: "Every managed CA needs name, parent, common_name, days, default_days, crl_days, and key_passphrase."
+    fail_msg: "ca_authorities need unique names and parents that reference managed authorities."
+
+- name: "CA | Assert authority passphrases are set"
+  ansible.builtin.assert:
+    that:
+      - ca_authority.key_passphrase | default('') | string | length > 0
+    fail_msg: "Every managed CA needs a non-empty key_passphrase."
   loop: "{{ ca_authorities }}"
   loop_control:
     loop_var: ca_authority
@@ -40,26 +37,7 @@
         == 0
     fail_msg: "ca_revocations keys must match managed authority names."
 
-- name: "CA | Assert managed certificate types are known"
-  ansible.builtin.assert:
-    that:
-      - ca_certificate.name is defined
-      - ca_certificate.type is defined
-      - ca_certificate.type in ca_certificate_types
-      - ca_certificate.common_name is defined
-    fail_msg: "Each entry in ca_certificates needs name, type, and common_name."
-  loop: "{{ ca_certificates }}"
-  loop_control:
-    loop_var: ca_certificate
-    label: "{{ ca_certificate.name | default('unnamed') }}"
-  no_log: >-
-    {{
-      ca_no_log | bool
-      or ca_certificate.key_passphrase is defined
-      or ca_certificate.pfx_passphrase is defined
-    }}
-
-- name: "CA | Assert managed certificate names are unique"
+- name: "CA | Assert managed certificates are consistent"
   ansible.builtin.assert:
     that:
       - >-
@@ -73,19 +51,13 @@
         | unique
         | list
         | length
-    fail_msg: "Every entry in ca_certificates needs a unique name."
+      - >-
+        ca_certificates
+        | map(attribute='type')
+        | list
+        | difference(ca_certificate_types.keys() | list)
+        | length
+        == 0
+    fail_msg: "ca_certificates need unique names and types defined in ca_certificate_types."
   when: ca_certificates | length > 0
   no_log: "{{ ca_no_log | bool }}"
-
-- name: "CA | Assert publish target definitions are complete"
-  ansible.builtin.assert:
-    that:
-      - ca_publish_targets is iterable
-      - ca_publish_targets is not string
-      - ca_publish_target.name is defined
-      - ca_publish_target.path is defined
-    fail_msg: "Each ca_publish_targets item needs name and path."
-  loop: "{{ ca_publish_targets }}"
-  loop_control:
-    loop_var: ca_publish_target
-    label: "{{ ca_publish_target.name | default('unnamed') }}"

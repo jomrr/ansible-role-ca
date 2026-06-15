@@ -12,6 +12,8 @@ Serial parsing and timestamp normalization are delegated to the internal
 
 - Reads the CA private key from `<base_dir>/private/<name>-ca.key`.
 - Builds the CRL issuer subject from `subject` and `common_name`.
+- Defaults to writing both `pem` and `der` CRL formats when `formats` is not
+  supplied.
 - Writes PEM CRLs to `<base_dir>/crl/<name>-ca.crl.pem`.
 - Writes DER CRLs to `<base_dir>/crl/<name>-ca.crl`.
 - PEM and DER are exports of the same generated CRL object, so they share CRL
@@ -121,7 +123,7 @@ Create a PEM CRL:
     key_passphrase: "{{ ca_component_passphrase }}"
 ```
 
-Create PEM and DER CRLs with one revoked certificate by name:
+Create default PEM and DER CRLs with one revoked certificate by name:
 
 ```yaml
 - name: Create component CA CRLs
@@ -129,9 +131,6 @@ Create PEM and DER CRLs with one revoked certificate by name:
     base_dir: /etc/pki/example
     ca_name: example
     name: component
-    formats:
-      - pem
-      - der
     common_name: Example Component CA
     next_update_days: 7
     key_passphrase: "{{ ca_component_passphrase }}"
