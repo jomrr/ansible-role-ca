@@ -87,6 +87,20 @@
   when: ca_certificates | length > 0
   no_log: "{{ ca_no_log | bool }}"
 
+- name: "CA | Assert publish target definitions are complete"
+  ansible.builtin.assert:
+    that:
+      - ca_publish_targets is iterable
+      - ca_publish_targets is not string
+      - ca_publish_target.name is defined
+      - ca_publish_target.aia_path is defined
+      - ca_publish_target.cdp_path is defined
+    fail_msg: "Each ca_publish_targets item needs name, aia_path, and cdp_path."
+  loop: "{{ ca_publish_targets }}"
+  loop_control:
+    loop_var: ca_publish_target
+    label: "{{ ca_publish_target.name | default('unnamed') }}"
+
 - name: "CA | Initialize filesystem layout"
   ansible.builtin.import_tasks: init.yml
   tags: init
@@ -103,6 +117,11 @@
 - name: "CA | Manage CRLs"
   ansible.builtin.import_tasks: crls.yml
   tags: crl
+
+- name: "CA | Publish AIA and CDP artifacts"
+  ansible.builtin.import_tasks: publish.yml
+  when: ca_publish_targets | length > 0
+  tags: publish
 
 - name: "CA | Configure CRL renewal automation"
   ansible.builtin.import_tasks: automation.yml

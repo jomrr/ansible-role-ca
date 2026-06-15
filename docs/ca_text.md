@@ -12,6 +12,7 @@ extension output.
 
 | Helper | Purpose |
 | --- | --- |
+| `certificate_text(cert)` | Returns deterministic certificate text bytes. |
 | `ensure_txt(params, cert)` | Writes `params["txt_path"]` when set and returns whether the file changed. |
 
 ## Behavior
@@ -53,3 +54,4 @@ txt_changed = ensure_txt(params, cert)
 ## Used By
 
 - `ca_x509`
+- `ca_chain`

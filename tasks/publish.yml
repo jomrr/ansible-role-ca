@@ -1,0 +1,99 @@
+---
+# role: ansible-role-ca
+# file: tasks/publish.yml
+
+- name: "CA | Build publish artifact list"
+  ansible.builtin.set_fact:
+    __ca_publish_artifacts: >-
+      {{
+        (ca_authorities | ca_publish_aia_artifacts(ca_base_dir))
+        +
+        (ca_authorities | ca_publish_cdp_artifacts(ca_base_dir))
+      }}
+
+- name: "CA | Publish AIA and CDP artifacts"
+  block:
+    - name: "CA | Create local publish staging directory"
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: "ca-publish-{{ ca_name | lower }}-"
+      register: __ca_publish_stage
+      delegate_to: localhost
+      changed_when: false
+
+    - name: "CA | Stage publish artifacts on controller"
+      ansible.builtin.fetch:
+        src: "{{ ca_publish_artifact.src }}"
+        dest: "{{ __ca_publish_stage.path }}/{{ ca_publish_artifact.file }}"
+        flat: true
+      loop: "{{ __ca_publish_artifacts }}"
+      loop_control:
+        loop_var: ca_publish_artifact
+        label: "{{ ca_publish_artifact.src }}"
+      changed_when: false
+
+    - name: "CA | Register publish target hosts"
+      ansible.builtin.add_host:
+        name: "{{ ca_publish_target.name }}"
+        ansible_host: "{{ ca_publish_target.ansible_host | default(omit) }}"
+        ansible_user: "{{ ca_publish_target.ansible_user | default(omit) }}"
+        ansible_port: "{{ ca_publish_target.ansible_port | default(omit) }}"
+        ansible_ssh_private_key_file: "{{ ca_publish_target.ansible_ssh_private_key_file | default(omit) }}"
+      loop: "{{ ca_publish_targets }}"
+      loop_control:
+        loop_var: ca_publish_target
+        label: "{{ ca_publish_target.name }}"
+      changed_when: false
+      when: >-
+        ca_publish_target.ansible_host is defined
+        or ca_publish_target.ansible_user is defined
+        or ca_publish_target.ansible_port is defined
+        or ca_publish_target.ansible_ssh_private_key_file is defined
+
+    - name: "CA | Create publish directories"
+      ansible.builtin.file:
+        path: "{{ ca_publish_pair.0[ca_publish_pair.1 ~ '_path'] }}"
+        state: directory
+        owner: "{{ ca_publish_pair.0.owner | default(ca_owner) }}"
+        group: "{{ ca_publish_pair.0.group | default(ca_group) }}"
+        mode: "{{ ca_publish_pair.0.directory_mode | default(ca_publish_directory_mode) }}"
+      loop: "{{ ca_publish_targets | product(['aia', 'cdp']) | list }}"
+      loop_control:
+        loop_var: ca_publish_pair
+        label: "{{ ca_publish_pair.0.name }}/{{ ca_publish_pair.1 }}"
+      delegate_to: "{{ ca_publish_pair.0.name }}"
+      become: "{{ ca_publish_pair.0.become | default(false) | bool }}"
+      become_user: "{{ ca_publish_pair.0.become_user | default('root') }}"
+
+    - name: "CA | Copy publish artifacts"
+      ansible.builtin.copy:
+        src: "{{ __ca_publish_stage.path }}/{{ ca_publish_pair.1.file }}"
+        dest: >-
+          {{
+            (
+              ca_publish_pair.0.aia_path
+              if ca_publish_pair.1.area == 'aia'
+              else ca_publish_pair.0.cdp_path
+            )
+            | regex_replace('/+$', '')
+          }}/{{ ca_publish_pair.1.file }}
+        owner: "{{ ca_publish_pair.0.owner | default(ca_owner) }}"
+        group: "{{ ca_publish_pair.0.group | default(ca_group) }}"
+        mode: "{{ ca_publish_pair.0.mode | default(ca_publish_mode) }}"
+      loop: "{{ ca_publish_targets | product(__ca_publish_artifacts) | list }}"
+      loop_control:
+        loop_var: ca_publish_pair
+        label: "{{ ca_publish_pair.0.name }}/{{ ca_publish_pair.1.area }}/{{ ca_publish_pair.1.file }}"
+      delegate_to: "{{ ca_publish_pair.0.name }}"
+      become: "{{ ca_publish_pair.0.become | default(false) | bool }}"
+      become_user: "{{ ca_publish_pair.0.become_user | default('root') }}"
+  always:
+    - name: "CA | Remove local publish staging directory"
+      ansible.builtin.file:
+        path: "{{ __ca_publish_stage.path }}"
+        state: absent
+      when:
+        - __ca_publish_stage is defined
+        - __ca_publish_stage.path is defined
+      delegate_to: localhost
+      changed_when: false

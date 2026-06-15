@@ -31,12 +31,13 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - Renewal warning state, scheduled renewal, same-key renewal, and re-key renewal
 - Serial-specific issuing CA chain files for CA rollover and key changeover
 - Embedded AIA and CDP URLs
+- Optional AIA/CDP publishing to one or more SSH/Ansible target hosts
 - Optional per-authority CRL publish hooks after CRL changes
 - Optional systemd service and timer for CRL renewal
 
 ### Not Managed
 
-- Serving AIA and CDP files
+- Webserver package installation and virtual-host configuration
 - Online certificate enrollment protocols
 - OCSP responder services
 - Importing certificates into applications or hardware tokens other than optional FritzBox deployment
@@ -48,6 +49,7 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus `ad_object_guid`.
 - FritzBox deployment requires network access to FRITZ!OS and a user with certificate import permissions.
+- AIA/CDP publishing targets require Ansible SSH access to the configured target hosts.
 - CRL renewal systemd services read CA key passphrases from `/root/.profile` environment variables named `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE`, uppercased with non-alphanumeric characters replaced by underscores.
 
 ## Dependencies
@@ -86,6 +88,9 @@ The following variables are part of the public role interface.
 | `ca_crl_automation_on_calendar` | `str` | `false` | `daily` | systemd timer OnCalendar value. |
 | `ca_crl_automation_randomized_delay_sec` | `str` | `false` | `15m` | systemd timer randomized delay. |
 | `ca_crl_automation_persistent` | `bool` | `false` | `True` | systemd timer Persistent value. |
+| `ca_publish_targets` | `list` | `false` | [] | Optional SSH/Ansible targets for public AIA/CDP artifact publishing.<br>Each target receives CA certificates and issuing chains below `aia_path`, and CRLs below `cdp_path`.<br>Declare multiple targets when the same AIA/CDP URLs are served from multiple hosts, for example in Split-DNS setups. |
+| `ca_publish_directory_mode` | `str` | `false` | `0755` | Default directory mode for published AIA/CDP directories. |
+| `ca_publish_mode` | `str` | `false` | `0644` | Default file mode for published AIA/CDP artifacts. |
 | `ca_create_dhparams` | `bool` | `false` | `False` | Generate Diffie-Hellman parameters under the platform PKI base directory. |
 
 ## Managed Files
@@ -95,7 +100,7 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/ca/*-ca.pem`
 - `<ca_base_dir>/ca/*-ca.der`
 - `<ca_base_dir>/ca/*-ca.txt`
-- `<ca_base_dir>/chains/*-ca-chain.pem for issuing CAs`
+- `<ca_base_dir>/chains/*-ca-chain.{pem,der,txt} for issuing CAs`
 - `<ca_base_dir>/crl/*-ca.crl`
 - `<ca_base_dir>/crl/*-ca.crl.pem`
 - `<ca_base_dir>/csr/*.csr`
@@ -126,7 +131,16 @@ The following variables are part of the public role interface.
 - MSKDC `krb5_realm` is uppercased before encoding and becomes `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
 - MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs are converted to AD byte order for the NTDS replication extension.
 - AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
-- AIA/CDP serving is outside this role because URLs do not describe an Ansible transport target.
+- `ca_publish_targets` copies all CA certificates and issuing CA chains to each
+  target `aia_path`, and all CRLs to each target `cdp_path`.
+- Multiple targets can use the same AIA/CDP paths on different hosts. This
+  supports Split-DNS or active/standby HTTP endpoints that serve the same
+  AIA/CDP URL from different machines.
+- Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing
+  `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
+- Published CDP files are `*-ca.crl.pem` and `*-ca.crl`.
+- Webserver package installation and virtual-host configuration remain outside
+  this role; configure the HTTP server to serve the configured paths.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
@@ -146,7 +160,7 @@ The following variables are part of the public role interface.
 - `ca_renewal.rekey=true` generates a new private key when renewal is due; otherwise renewal keeps the existing key.
 - Per-authority and per-certificate `renewal` dictionaries override the global `ca_renewal` defaults.
 - Replaced certificate generations are archived below `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted private key is archived with private file permissions.
-- Issuing CA chains are also written as `<ca>-ca-chain-<serial>.pem`, so old and new CA chains can exist in parallel during rollover.
+- Issuing CA chains are also written as `<ca>-ca-chain-<serial>.{pem,der,txt}`, so old and new CA chains can exist in parallel during rollover.
 - The CA inventory is maintained by internal state hooks in the authority, certificate, and CRL modules; it contains non-secret metadata such as serial numbers, fingerprints, subjects, issuers, validity windows, current certificate pointers, issued certificate history, revocation events, CRL metadata, status, and managed artifact paths.
 - X.509 material, authority chains, certificate bundles, CRLs, and inventory composition use internal advisory locks below `<ca_base_dir>/.locks` so concurrent jobs for the same CA object cannot interleave their file writes.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
@@ -181,6 +195,15 @@ Creates the Root CA and the three issuing CAs without certificates.
       vars:
         ca_name: Example
         ca_base_url: http://pki.example.org
+        ca_publish_targets:
+          - name: pki-web-01
+            aia_path: /var/www/pki/aia
+            cdp_path: /var/www/pki/crl
+            become: true
+          - name: pki-web-02
+            aia_path: /var/www/pki/aia
+            cdp_path: /var/www/pki/crl
+            become: true
         ca_renewal:
           warn_before_days: 45
           renew_before_days: 14
@@ -241,6 +264,15 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
       vars:
         ca_name: Example
         ca_base_url: http://pki.example.org
+        ca_publish_targets:
+          - name: pki-web-01
+            aia_path: /var/www/pki/aia
+            cdp_path: /var/www/pki/crl
+            become: true
+          - name: pki-web-02
+            aia_path: /var/www/pki/aia
+            cdp_path: /var/www/pki/crl
+            become: true
         ca_authorities:
           - name: root
             common_name: Example Root CA

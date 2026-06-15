@@ -14,14 +14,16 @@ The role tasks use the public modules in this order:
 
 1. `ca_authority` creates root and issuing CA certificates.
 2. `ca_chain` derives issuing CA chain files from the generated CA certificates.
-3. `ca_crl` resolves declared revocations and creates PEM/DER CRL exports for
-   every CA.
-4. `ca_certificate` dispatches declarative certificate entries to the built-in
+3. `ca_certificate` dispatches declarative certificate entries to the built-in
    certificate profiles.
-5. `ca_pkcs12_bundle`, `ca_fullchain_bundle`, and `ca_fritzbox_bundle` create
+4. `ca_pkcs12_bundle`, `ca_fullchain_bundle`, and `ca_fritzbox_bundle` create
    optional certificate export bundles.
-6. `ca_fritzbox_deploy` can deploy a generated FritzBox bundle to FRITZ!OS.
-7. `ca_dhparam` optionally creates a DH parameter file.
+5. `ca_fritzbox_deploy` can deploy a generated FritzBox bundle to FRITZ!OS.
+6. `ca_crl` resolves declared revocations and creates PEM/DER CRL exports for
+   every CA.
+7. Optional publish tasks copy CA certificates, issuing chains, and CRLs to
+   configured AIA/CDP target directories.
+8. `ca_dhparam` optionally creates a DH parameter file.
 
 `ca_authority`, `ca_certificate`, and `ca_crl` update internal CA inventory
 fragments. When `ca_name` is set, the fragments are composed into
@@ -38,6 +40,7 @@ fragments. When `ca_name` is set, the fragments are composed into
 - [ca_fritzbox_bundle](ca_fritzbox_bundle.md)
 - [ca_fritzbox_deploy](ca_fritzbox_deploy.md)
 - [ca_dhparam](ca_dhparam.md)
+- [AIA/CDP publishing](publishing.md)
 
 ## Internal Helpers
 
@@ -110,8 +113,8 @@ All public modules currently use `supports_check_mode: false`.
 | PEM certificate | `<base_dir>/ca/<name>-ca.pem` | `<output_dir>/<name>.pem` |
 | DER certificate | `<base_dir>/ca/<name>-ca.der` | `<output_dir>/<name>.der` |
 | Text certificate | `<base_dir>/ca/<name>-ca.txt` | `<output_dir>/<name>.txt` |
-| CA chain | `<base_dir>/chains/<name>-ca-chain.pem` for issuing CAs | copied to `<output_dir>/<name>-chain.pem` |
-| Versioned CA chain | `<base_dir>/chains/<name>-ca-chain-<serial>.pem` for issuing CAs | none |
+| CA chain | `<base_dir>/chains/<name>-ca-chain.{pem,der,txt}` for issuing CAs | copied to `<output_dir>/<name>-chain.pem` |
+| Versioned CA chain | `<base_dir>/chains/<name>-ca-chain-<serial>.{pem,der,txt}` for issuing CAs | none |
 | Fullchain bundle | none | `<output_dir>/<name>-fullchain.pem` |
 | FritzBox bundle | none | `<output_dir>/<name>-fritzbox.pem` |
 | CRL PEM | `<base_dir>/crl/<name>-ca.crl.pem` | none |

@@ -131,7 +131,7 @@ def _extension_value_text(value) -> list[str]:
     return [repr(value)]
 
 
-def _certificate_text(cert) -> bytes:
+def certificate_text(cert) -> bytes:
     """Return a deterministic text representation of a certificate."""
     lines = [
         "Certificate:",
@@ -165,7 +165,7 @@ def ensure_txt(params, cert):
         return False
     return write_file(
         params["txt_path"],
-        _certificate_text(cert),
+        certificate_text(cert),
         params["owner"],
         params["group"],
         params["public_mode"],

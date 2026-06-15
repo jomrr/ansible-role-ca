@@ -13,6 +13,7 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     write_file,
 )
 from ansible.module_utils.ca_serial import serial_hex  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_text import certificate_text  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_x509 import load_certificates  # type: ignore[import-not-found,import-untyped]
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
@@ -25,15 +26,38 @@ else:
     CRYPTOGRAPHY_IMPORT_ERROR = None
 
 
-def _chain_path(base_dir: str, name: str) -> str:
-    """Return the derived CA chain output path."""
-    return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain.pem"
+SUPPORTED_FORMATS = {"pem", "der", "txt"}
 
 
-def _versioned_chain_path(base_dir: str, name: str, cert: x509.Certificate) -> str:
+def _formats(value) -> list[str]:
+    """Return normalized CA chain output formats."""
+    if isinstance(value, str):
+        raise ValueError("formats must be a list")
+    formats = [str(item).lower() for item in (value or ["pem", "der", "txt"])]
+    unsupported = sorted(set(formats).difference(SUPPORTED_FORMATS))
+    if unsupported:
+        raise ValueError(f"Unsupported CA chain formats: {', '.join(unsupported)}")
+    return formats
+
+
+def _chain_paths(base_dir: str, name: str, formats: list[str]) -> dict[str, str]:
+    """Return derived CA chain output paths."""
+    base = f"{base_dir.rstrip('/')}/chains/{name}-ca-chain"
+    return {
+        chain_format: f"{base}.{chain_format}"
+        for chain_format in formats
+    }
+
+
+def _versioned_chain_path(
+    base_dir: str,
+    name: str,
+    cert: x509.Certificate,
+    chain_format: str,
+) -> str:
     """Return the generation-specific CA chain output path."""
     serial = serial_hex(cert.serial_number)
-    return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain-{serial}.pem"
+    return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain-{serial}.{chain_format}"
 
 
 def _authority_name(path: Path) -> str:
@@ -161,14 +185,26 @@ def _existing_chain(path: str) -> list[x509.Certificate]:
         return []
 
 
-def _chain_content(certificates: list[x509.Certificate]) -> bytes:
-    """Return normalized PEM content for an ordered certificate chain."""
+def _chain_content(certificates: list[x509.Certificate], chain_format: str) -> bytes:
+    """Return normalized content for an ordered certificate chain."""
     if not certificates:
         raise ValueError("certificate chain needs at least one certificate")
-    return b"".join(
-        cert.public_bytes(serialization.Encoding.PEM).rstrip() + b"\n"
-        for cert in certificates
-    )
+    if chain_format == "pem":
+        return b"".join(
+            cert.public_bytes(serialization.Encoding.PEM).rstrip() + b"\n"
+            for cert in certificates
+        )
+    if chain_format == "der":
+        return b"".join(
+            cert.public_bytes(serialization.Encoding.DER)
+            for cert in certificates
+        )
+    if chain_format == "txt":
+        return b"".join(
+            certificate_text(cert).rstrip() + b"\n"
+            for cert in certificates
+        )
+    raise ValueError(f"Unsupported CA chain format: {chain_format}")
 
 
 def run_module():
@@ -177,6 +213,11 @@ def run_module():
         argument_spec={
             "base_dir": {"type": "path", "required": True},
             "name": {"type": "str", "required": True},
+            "formats": {
+                "type": "list",
+                "elements": "str",
+                "default": ["pem", "der", "txt"],
+            },
             "owner": {"type": "str"},
             "group": {"type": "str"},
             "mode": {"type": "str", "default": "0644"},
@@ -192,7 +233,8 @@ def run_module():
 
     params = module.params
     try:
-        path = _chain_path(params["base_dir"], params["name"])
+        formats = _formats(params["formats"])
+        paths = _chain_paths(params["base_dir"], params["name"], formats)
         with file_locks(
             [
                 ca_lock_path(params["base_dir"], "authority", "__graph__"),
@@ -201,49 +243,59 @@ def run_module():
         ):
             certificates = _ordered_chain(params["base_dir"], params["name"])
             if len(certificates) == 1 and _is_self_signed(certificates[0]):
-                changed = _remove_file(path)
+                changed = False
+                for path in paths.values():
+                    changed = _remove_file(path) or changed
                 state = "absent"
             else:
-                content = _chain_content(certificates)
-                previous = _existing_chain(path)
+                previous = _existing_chain(paths["pem"]) if "pem" in paths else []
                 changed = False
-                if previous:
+                for chain_format, path in paths.items():
+                    content = _chain_content(certificates, chain_format)
+                    if previous:
+                        changed = write_file(
+                            _versioned_chain_path(
+                                params["base_dir"],
+                                params["name"],
+                                previous[0],
+                                chain_format,
+                            ),
+                            _chain_content(previous, chain_format),
+                            params["owner"],
+                            params["group"],
+                            params["mode"],
+                        ) or changed
+                    changed = write_file(
+                        path,
+                        content,
+                        params["owner"],
+                        params["group"],
+                        params["mode"],
+                        force=params["force"],
+                    ) or changed
                     changed = write_file(
                         _versioned_chain_path(
                             params["base_dir"],
                             params["name"],
-                            previous[0],
+                            certificates[0],
+                            chain_format,
                         ),
-                        _chain_content(previous),
+                        content,
                         params["owner"],
                         params["group"],
                         params["mode"],
-                    )
-                changed = write_file(
-                    path,
-                    content,
-                    params["owner"],
-                    params["group"],
-                    params["mode"],
-                    force=params["force"],
-                ) or changed
-                changed = write_file(
-                    _versioned_chain_path(
-                        params["base_dir"],
-                        params["name"],
-                        certificates[0],
-                    ),
-                    content,
-                    params["owner"],
-                    params["group"],
-                    params["mode"],
-                    force=params["force"],
-                ) or changed
+                        force=params["force"],
+                    ) or changed
                 state = "present"
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
 
-    module.exit_json(changed=changed, path=path, state=state)
+    module.exit_json(
+        changed=changed,
+        path=paths.get("pem", ""),
+        paths=paths,
+        state=state,
+    )
 
 
 def main():
