@@ -41,6 +41,7 @@
     mode: "0644"
   loop:
     - library/ca_crl.py
+    - library/ca_publish_archive.py
     - module_utils/ca_file.py
     - module_utils/ca_inventory.py
     - module_utils/ca_profiles.py

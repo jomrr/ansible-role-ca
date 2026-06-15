@@ -88,7 +88,7 @@ The following variables are part of the public role interface.
 | `ca_crl_automation_on_calendar` | `str` | `false` | `daily` | systemd timer OnCalendar value. |
 | `ca_crl_automation_randomized_delay_sec` | `str` | `false` | `15m` | systemd timer randomized delay. |
 | `ca_crl_automation_persistent` | `bool` | `false` | `True` | systemd timer Persistent value. |
-| `ca_publish_targets` | `list` | `false` | [] | Optional SSH/Ansible targets for public AIA/CDP artifact publishing.<br>Each target receives CA certificates and issuing chains below `aia_path`, and CRLs below `cdp_path`.<br>Declare multiple targets when the same AIA/CDP URLs are served from multiple hosts, for example in Split-DNS setups. |
+| `ca_publish_targets` | `list` | `false` | [] | Optional SSH/Ansible targets for public AIA/CDP artifact publishing.<br>Each target receives CA certificates and issuing chains below `path/aia`, and CRLs below `path/crl`.<br>Declare multiple targets when the same AIA/CDP URLs are served from multiple hosts, for example in Split-DNS setups. |
 | `ca_publish_directory_mode` | `str` | `false` | `0755` | Default directory mode for published AIA/CDP directories. |
 | `ca_publish_mode` | `str` | `false` | `0644` | Default file mode for published AIA/CDP artifacts. |
 | `ca_create_dhparams` | `bool` | `false` | `False` | Generate Diffie-Hellman parameters under the platform PKI base directory. |
@@ -131,11 +131,13 @@ The following variables are part of the public role interface.
 - MSKDC `krb5_realm` is uppercased before encoding and becomes `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
 - MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs are converted to AD byte order for the NTDS replication extension.
 - AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
-- `ca_publish_targets` copies all CA certificates and issuing CA chains to each
-  target `aia_path`, and all CRLs to each target `cdp_path`.
+- `ca_publish_targets` publishes all CA certificates and issuing CA chains to
+  each target `path/aia`, and all CRLs to each target `path/crl`.
 - Multiple targets can use the same AIA/CDP paths on different hosts. This
   supports Split-DNS or active/standby HTTP endpoints that serve the same
   AIA/CDP URL from different machines.
+- Publishing builds one deterministic archive on the CA host, fetches that
+  archive once to the controller, and unpacks it on every target.
 - Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing
   `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
 - Published CDP files are `*-ca.crl.pem` and `*-ca.crl`.
@@ -197,12 +199,10 @@ Creates the Root CA and the three issuing CAs without certificates.
         ca_base_url: http://pki.example.org
         ca_publish_targets:
           - name: pki-web-01
-            aia_path: /var/www/pki/aia
-            cdp_path: /var/www/pki/crl
+            path: /var/www/pki
             become: true
           - name: pki-web-02
-            aia_path: /var/www/pki/aia
-            cdp_path: /var/www/pki/crl
+            path: /var/www/pki
             become: true
         ca_renewal:
           warn_before_days: 45
@@ -266,12 +266,10 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
         ca_base_url: http://pki.example.org
         ca_publish_targets:
           - name: pki-web-01
-            aia_path: /var/www/pki/aia
-            cdp_path: /var/www/pki/crl
+            path: /var/www/pki
             become: true
           - name: pki-web-02
-            aia_path: /var/www/pki/aia
-            cdp_path: /var/www/pki/crl
+            path: /var/www/pki
             become: true
         ca_authorities:
           - name: root

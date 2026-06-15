@@ -31,8 +31,7 @@ provisioner:
         ca_crl_automation_enabled: true
         ca_publish_targets:
           - name: "ca"
-            aia_path: "/var/www/pki/aia"
-            cdp_path: "/var/www/pki/crl"
+            path: "/var/www/pki"
         ca_renewal:
           warn_before_days: 400
           renew_before_days: 0

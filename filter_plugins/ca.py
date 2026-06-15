@@ -111,6 +111,27 @@ def ca_publish_cdp_artifacts(
     return artifacts
 
 
+def ca_publish_needs_unpack(
+    manifest_results: list[dict[str, Any]],
+    target_name: str,
+    manifest_sha256: dict[str, str],
+) -> bool:
+    """Return whether a publish target needs archive extraction."""
+    current: dict[str, str] = {}
+    for result in manifest_results:
+        pair = result.get("ca_publish_pair") or []
+        if len(pair) != 2:
+            continue
+        target = pair[0]
+        area = str(pair[1])
+        if not isinstance(target, dict) or target.get("name") != target_name:
+            continue
+        stat = result.get("stat") or {}
+        if stat.get("exists") and stat.get("checksum"):
+            current[area] = str(stat["checksum"])
+    return any(current.get(area) != checksum for area, checksum in manifest_sha256.items())
+
+
 class FilterModule:
     """Ansible filter plugin entry point."""
 
@@ -120,4 +141,5 @@ class FilterModule:
             "ca_authority_map": ca_authority_map,
             "ca_publish_aia_artifacts": ca_publish_aia_artifacts,
             "ca_publish_cdp_artifacts": ca_publish_cdp_artifacts,
+            "ca_publish_needs_unpack": ca_publish_needs_unpack,
         }

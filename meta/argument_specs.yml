@@ -423,8 +423,8 @@ argument_specs:
         default: []
         description:
           - Optional SSH/Ansible targets for public AIA/CDP artifact publishing.
-          - Each target receives CA certificates and issuing chains below `aia_path`,
-            and CRLs below `cdp_path`.
+          - Each target receives CA certificates and issuing chains below `path/aia`,
+            and CRLs below `path/crl`.
           - Declare multiple targets when the same AIA/CDP URLs are served from multiple
             hosts, for example in Split-DNS setups.
         options:
@@ -451,14 +451,11 @@ argument_specs:
             type: str
             required: false
             description: Optional SSH private key path registered through `add_host`.
-          aia_path:
+          path:
             type: str
             required: true
-            description: Remote directory for CA certificates and issuing CA chains.
-          cdp_path:
-            type: str
-            required: true
-            description: Remote directory for CRLs.
+            description: Remote webroot directory that receives `aia` and `crl`
+              subdirectories.
           owner:
             type: str
             required: false

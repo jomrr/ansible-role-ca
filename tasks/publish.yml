@@ -13,6 +13,25 @@
 
 - name: "CA | Publish AIA and CDP artifacts"
   block:
+    - name: "CA | Create remote publish staging directory"
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: "ca-publish-{{ ca_name | lower }}-"
+      register: __ca_publish_remote_stage
+      changed_when: false
+
+    - name: "CA | Create remote publish archive"
+      ca_publish_archive:
+        base_dir: "{{ ca_base_dir }}"
+        dest: "{{ __ca_publish_remote_stage.path }}/public.tar"
+        artifacts: "{{ __ca_publish_artifacts }}"
+        artifact_mode: "{{ ca_publish_mode }}"
+        owner: "{{ ca_owner }}"
+        group: "{{ ca_group }}"
+        mode: "0600"
+      register: __ca_publish_archive
+      changed_when: false
+
     - name: "CA | Create local publish staging directory"
       ansible.builtin.tempfile:
         state: directory
@@ -21,57 +40,11 @@
       delegate_to: localhost
       changed_when: false
 
-    - name: "CA | Create local publish area staging directories"
-      ansible.builtin.file:
-        path: "{{ __ca_publish_stage.path }}/{{ ca_publish_area }}"
-        state: directory
-        mode: "0700"
-      loop:
-        - aia
-        - cdp
-      loop_control:
-        loop_var: ca_publish_area
-        label: "{{ ca_publish_area }}"
-      delegate_to: localhost
-      changed_when: false
-
-    - name: "CA | Stage publish artifacts on controller"
+    - name: "CA | Stage publish archive on controller"
       ansible.builtin.fetch:
-        src: "{{ ca_publish_artifact.src }}"
-        dest: "{{ __ca_publish_stage.path }}/{{ ca_publish_artifact.area }}/{{ ca_publish_artifact.file }}"
+        src: "{{ __ca_publish_archive.path }}"
+        dest: "{{ __ca_publish_stage.path }}/public.tar"
         flat: true
-      loop: "{{ __ca_publish_artifacts }}"
-      loop_control:
-        loop_var: ca_publish_artifact
-        label: "{{ ca_publish_artifact.src }}"
-      changed_when: false
-
-    - name: "CA | Normalize staged publish artifact metadata"
-      ansible.builtin.file:
-        path: "{{ __ca_publish_stage.path }}/{{ ca_publish_artifact.area }}/{{ ca_publish_artifact.file }}"
-        mode: "{{ ca_publish_mode }}"
-        modification_time: "197001010000.00"
-      loop: "{{ __ca_publish_artifacts }}"
-      loop_control:
-        loop_var: ca_publish_artifact
-        label: "{{ ca_publish_artifact.area }}/{{ ca_publish_artifact.file }}"
-      delegate_to: localhost
-      changed_when: false
-
-    - name: "CA | Create local publish archives"
-      community.general.archive:
-        path: "{{ __ca_publish_stage.path }}/{{ ca_publish_area }}/*"
-        dest: "{{ __ca_publish_stage.path }}/{{ ca_publish_area }}.tar"
-        format: tar
-        force_archive: true
-        mode: "0600"
-      loop:
-        - aia
-        - cdp
-      loop_control:
-        loop_var: ca_publish_area
-        label: "{{ ca_publish_area }}"
-      delegate_to: localhost
       changed_when: false
 
     - name: "CA | Register publish target hosts"
@@ -94,33 +67,58 @@
 
     - name: "CA | Create publish directories"
       ansible.builtin.file:
-        path: "{{ ca_publish_pair.0[ca_publish_pair.1 ~ '_path'] }}"
+        path: >-
+          {{
+            ca_publish_pair.0.path | regex_replace('/+$', '')
+          }}{{ ('/' ~ ca_publish_pair.1) if ca_publish_pair.1 else '' }}
         state: directory
         owner: "{{ ca_publish_pair.0.owner | default(ca_owner) }}"
         group: "{{ ca_publish_pair.0.group | default(ca_group) }}"
         mode: "{{ ca_publish_pair.0.directory_mode | default(ca_publish_directory_mode) }}"
-      loop: "{{ ca_publish_targets | product(['aia', 'cdp']) | list }}"
+      loop: "{{ ca_publish_targets | product(['', 'aia', 'crl']) | list }}"
       loop_control:
         loop_var: ca_publish_pair
-        label: "{{ ca_publish_pair.0.name }}/{{ ca_publish_pair.1 }}"
+        label: "{{ ca_publish_pair.0.name }}/{{ ca_publish_pair.1 | default('webroot', true) }}"
       delegate_to: "{{ ca_publish_pair.0.name }}"
       become: "{{ ca_publish_pair.0.become | default(false) | bool }}"
       become_user: "{{ ca_publish_pair.0.become_user | default('root') }}"
 
-    - name: "CA | Publish artifact archives"
-      ansible.builtin.unarchive:
-        src: "{{ __ca_publish_stage.path }}/{{ ca_publish_pair.1 }}.tar"
-        dest: "{{ ca_publish_pair.0[ca_publish_pair.1 ~ '_path'] }}"
-        owner: "{{ ca_publish_pair.0.owner | default(ca_owner) }}"
-        group: "{{ ca_publish_pair.0.group | default(ca_group) }}"
-        mode: "{{ ca_publish_pair.0.mode | default(ca_publish_mode) }}"
-      loop: "{{ ca_publish_targets | product(['aia', 'cdp']) | list }}"
+    - name: "CA | Check publish target manifests"
+      ansible.builtin.stat:
+        path: >-
+          {{
+            ca_publish_pair.0.path | regex_replace('/+$', '')
+          }}/{{ ca_publish_pair.1 }}/.ca-publish-manifest.json
+        checksum_algorithm: sha256
+      loop: "{{ ca_publish_targets | product(__ca_publish_archive.manifest_sha256.keys() | list) | list }}"
       loop_control:
         loop_var: ca_publish_pair
         label: "{{ ca_publish_pair.0.name }}/{{ ca_publish_pair.1 }}"
       delegate_to: "{{ ca_publish_pair.0.name }}"
       become: "{{ ca_publish_pair.0.become | default(false) | bool }}"
       become_user: "{{ ca_publish_pair.0.become_user | default('root') }}"
+      register: __ca_publish_target_manifests
+      changed_when: false
+
+    - name: "CA | Publish artifact archive"
+      ansible.builtin.unarchive:
+        src: "{{ __ca_publish_stage.path }}/public.tar"
+        dest: "{{ ca_publish_target.path | regex_replace('/+$', '') }}"
+        owner: "{{ ca_publish_target.owner | default(ca_owner) }}"
+        group: "{{ ca_publish_target.group | default(ca_group) }}"
+      loop: "{{ ca_publish_targets }}"
+      loop_control:
+        loop_var: ca_publish_target
+        label: "{{ ca_publish_target.name }}"
+      delegate_to: "{{ ca_publish_target.name }}"
+      become: "{{ ca_publish_target.become | default(false) | bool }}"
+      become_user: "{{ ca_publish_target.become_user | default('root') }}"
+      when: >-
+        __ca_publish_target_manifests.results
+        | ca_publish_needs_unpack(
+          ca_publish_target.name,
+          __ca_publish_archive.manifest_sha256
+        )
   always:
     - name: "CA | Remove local publish staging directory"
       ansible.builtin.file:
@@ -130,4 +128,13 @@
         - __ca_publish_stage is defined
         - __ca_publish_stage.path is defined
       delegate_to: localhost
+      changed_when: false
+
+    - name: "CA | Remove remote publish staging directory"
+      ansible.builtin.file:
+        path: "{{ __ca_publish_remote_stage.path }}"
+        state: absent
+      when:
+        - __ca_publish_remote_stage is defined
+        - __ca_publish_remote_stage.path is defined
       changed_when: false

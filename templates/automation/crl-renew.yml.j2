@@ -24,7 +24,7 @@
 {% endif %}
 {% endfor %}
 {% if ca_publish_targets | default([]) | length > 0 %}
-    ca_publish_cdp_targets:
+    ca_publish_targets:
 {% for ca_publish_target in ca_publish_targets | default([]) %}
       - name: {{ ca_publish_target.name | to_json }}
 {% if ca_publish_target.ansible_host is defined %}
@@ -39,7 +39,7 @@
 {% if ca_publish_target.ansible_ssh_private_key_file is defined %}
         ansible_ssh_private_key_file: {{ ca_publish_target.ansible_ssh_private_key_file | to_json }}
 {% endif %}
-        cdp_path: {{ ca_publish_target.cdp_path | to_json }}
+        path: {{ ca_publish_target.path | to_json }}
         owner: {{ (ca_publish_target.owner | default(ca_owner)) | to_json }}
         group: {{ (ca_publish_target.group | default(ca_group)) | to_json }}
         mode: {{ (ca_publish_target.mode | default(ca_publish_mode)) | to_json }}
@@ -48,15 +48,17 @@
         become_user: {{ (ca_publish_target.become_user | default('root')) | to_json }}
 {% endfor %}
 {% else %}
-    ca_publish_cdp_targets: []
+    ca_publish_targets: []
 {% endif %}
     ca_crl_publish_artifacts:
 {% for ca_authority in ca_authorities %}
       {{ ca_authority.name }}:
         - src: {{ (ca_base_dir ~ '/crl/' ~ ca_authority.name ~ '-ca.crl.pem') | to_json }}
           file: {{ (ca_authority.name ~ '-ca.crl.pem') | to_json }}
+          area: cdp
         - src: {{ (ca_base_dir ~ '/crl/' ~ ca_authority.name ~ '-ca.crl') | to_json }}
           file: {{ (ca_authority.name ~ '-ca.crl') | to_json }}
+          area: cdp
 {% endfor %}
 
   tasks:
@@ -110,58 +112,104 @@
         - ca_crl_authority_config.crl_publish_hook.argv | length > 0
       no_log: true
 
-    - name: "CA | Register CRL publish target hosts"
-      ansible.builtin.add_host:
-        name: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
-        ansible_host: "{{ '{{' }} ca_publish_target.ansible_host | default(omit) {{ '}}' }}"
-        ansible_user: "{{ '{{' }} ca_publish_target.ansible_user | default(omit) {{ '}}' }}"
-        ansible_port: "{{ '{{' }} ca_publish_target.ansible_port | default(omit) {{ '}}' }}"
-        ansible_ssh_private_key_file: "{{ '{{' }} ca_publish_target.ansible_ssh_private_key_file | default(omit) {{ '}}' }}"
-      loop: "{{ '{{' }} ca_publish_cdp_targets {{ '}}' }}"
-      loop_control:
-        loop_var: ca_publish_target
-        label: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
-      changed_when: false
-      when:
-        - ca_publish_cdp_targets | length > 0
-        - >-
-          ca_publish_target.ansible_host is defined
-          or ca_publish_target.ansible_user is defined
-          or ca_publish_target.ansible_port is defined
-          or ca_publish_target.ansible_ssh_private_key_file is defined
-
-    - name: "CA | Create CRL publish directories"
-      ansible.builtin.file:
-        path: "{{ '{{' }} ca_publish_target.cdp_path {{ '}}' }}"
-        state: directory
-        owner: "{{ '{{' }} ca_publish_target.owner {{ '}}' }}"
-        group: "{{ '{{' }} ca_publish_target.group {{ '}}' }}"
-        mode: "{{ '{{' }} ca_publish_target.directory_mode {{ '}}' }}"
-      loop: "{{ '{{' }} ca_publish_cdp_targets {{ '}}' }}"
-      loop_control:
-        loop_var: ca_publish_target
-        label: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
-      delegate_to: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
-      become: "{{ '{{' }} ca_publish_target.become | bool {{ '}}' }}"
-      become_user: "{{ '{{' }} ca_publish_target.become_user {{ '}}' }}"
-      when: ca_publish_cdp_targets | length > 0
-
     - name: "CA | Publish renewed CRLs"
-      ansible.builtin.copy:
-        src: "{{ '{{' }} ca_publish_pair.1.src {{ '}}' }}"
-        dest: >-
-          {{ '{{' }}
-            ca_publish_pair.0.cdp_path
-            | regex_replace('/+$', '')
-          {{ '}}' }}/{{ '{{' }} ca_publish_pair.1.file {{ '}}' }}
-        owner: "{{ '{{' }} ca_publish_pair.0.owner {{ '}}' }}"
-        group: "{{ '{{' }} ca_publish_pair.0.group {{ '}}' }}"
-        mode: "{{ '{{' }} ca_publish_pair.0.mode {{ '}}' }}"
-      loop: "{{ '{{' }} ca_publish_cdp_targets | product(ca_crl_publish_artifacts[ca_crl_authority]) | list {{ '}}' }}"
-      loop_control:
-        loop_var: ca_publish_pair
-        label: "{{ '{{' }} ca_publish_pair.0.name {{ '}}' }}/{{ '{{' }} ca_publish_pair.1.file {{ '}}' }}"
-      delegate_to: "{{ '{{' }} ca_publish_pair.0.name {{ '}}' }}"
-      become: "{{ '{{' }} ca_publish_pair.0.become | bool {{ '}}' }}"
-      become_user: "{{ '{{' }} ca_publish_pair.0.become_user {{ '}}' }}"
-      when: ca_publish_cdp_targets | length > 0
+      when: ca_publish_targets | length > 0
+      block:
+        - name: "CA | Create CRL publish staging directory"
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: "{{ ca_name | lower }}-crl-publish-"
+          register: ca_crl_publish_stage
+          changed_when: false
+
+        - name: "CA | Create CRL publish archive"
+          ca_publish_archive:
+            base_dir: "{{ ca_base_dir }}"
+            dest: "{{ '{{' }} ca_crl_publish_stage.path {{ '}}' }}/crl.tar"
+            artifacts: "{{ '{{' }} ca_crl_publish_artifacts[ca_crl_authority] {{ '}}' }}"
+            artifact_mode: "{{ ca_publish_mode }}"
+            owner: "{{ ca_owner }}"
+            group: "{{ ca_group }}"
+            mode: "0600"
+          register: ca_crl_publish_archive
+          changed_when: false
+
+        - name: "CA | Register CRL publish target hosts"
+          ansible.builtin.add_host:
+            name: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
+            ansible_host: "{{ '{{' }} ca_publish_target.ansible_host | default(omit) {{ '}}' }}"
+            ansible_user: "{{ '{{' }} ca_publish_target.ansible_user | default(omit) {{ '}}' }}"
+            ansible_port: "{{ '{{' }} ca_publish_target.ansible_port | default(omit) {{ '}}' }}"
+            ansible_ssh_private_key_file: "{{ '{{' }} ca_publish_target.ansible_ssh_private_key_file | default(omit) {{ '}}' }}"
+          loop: "{{ '{{' }} ca_publish_targets {{ '}}' }}"
+          loop_control:
+            loop_var: ca_publish_target
+            label: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
+          changed_when: false
+          when: >-
+            ca_publish_target.ansible_host is defined
+            or ca_publish_target.ansible_user is defined
+            or ca_publish_target.ansible_port is defined
+            or ca_publish_target.ansible_ssh_private_key_file is defined
+
+        - name: "CA | Create CRL publish directories"
+          ansible.builtin.file:
+            path: "{{ '{{' }} (ca_publish_pair.0.path | regex_replace('/+$', '')) ~ (('/' ~ ca_publish_pair.1) if ca_publish_pair.1 else '') {{ '}}' }}"
+            state: directory
+            owner: "{{ '{{' }} ca_publish_pair.0.owner {{ '}}' }}"
+            group: "{{ '{{' }} ca_publish_pair.0.group {{ '}}' }}"
+            mode: "{{ '{{' }} ca_publish_pair.0.directory_mode {{ '}}' }}"
+          loop: "{{ '{{' }} ca_publish_targets | product(['', 'crl']) | list {{ '}}' }}"
+          loop_control:
+            loop_var: ca_publish_pair
+            label: "{{ '{{' }} ca_publish_pair.0.name {{ '}}' }}/{{ '{{' }} ca_publish_pair.1 | default('webroot', true) {{ '}}' }}"
+          delegate_to: "{{ '{{' }} ca_publish_pair.0.name {{ '}}' }}"
+          become: "{{ '{{' }} ca_publish_pair.0.become | bool {{ '}}' }}"
+          become_user: "{{ '{{' }} ca_publish_pair.0.become_user {{ '}}' }}"
+
+        - name: "CA | Check CRL publish manifests"
+          ansible.builtin.stat:
+            path: "{{ '{{' }} ca_publish_target.path | regex_replace('/+$', '') {{ '}}' }}/crl/.ca-publish-manifest.json"
+            checksum_algorithm: sha256
+          loop: "{{ '{{' }} ca_publish_targets {{ '}}' }}"
+          loop_control:
+            loop_var: ca_publish_target
+            label: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
+          delegate_to: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
+          become: "{{ '{{' }} ca_publish_target.become | bool {{ '}}' }}"
+          become_user: "{{ '{{' }} ca_publish_target.become_user {{ '}}' }}"
+          register: ca_crl_publish_manifest_stats
+          changed_when: false
+
+        - name: "CA | Unpack renewed CRLs"
+          ansible.builtin.unarchive:
+            src: "{{ '{{' }} ca_crl_publish_stage.path {{ '}}' }}/crl.tar"
+            dest: "{{ '{{' }} ca_publish_target.path | regex_replace('/+$', '') {{ '}}' }}"
+            owner: "{{ '{{' }} ca_publish_target.owner {{ '}}' }}"
+            group: "{{ '{{' }} ca_publish_target.group {{ '}}' }}"
+          loop: "{{ '{{' }} ca_publish_targets {{ '}}' }}"
+          loop_control:
+            loop_var: ca_publish_target
+            label: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
+          delegate_to: "{{ '{{' }} ca_publish_target.name {{ '}}' }}"
+          become: "{{ '{{' }} ca_publish_target.become | bool {{ '}}' }}"
+          become_user: "{{ '{{' }} ca_publish_target.become_user {{ '}}' }}"
+          when: >-
+            {{ '{{' }}
+              (
+                ca_crl_publish_manifest_stats.results
+                | selectattr("ca_publish_target.name", "equalto", ca_publish_target.name)
+                | map(attribute="stat.checksum")
+                | first
+                | default("")
+              ) != ca_crl_publish_archive.manifest_sha256.crl
+            {{ '}}' }}
+      always:
+        - name: "CA | Remove CRL publish staging directory"
+          ansible.builtin.file:
+            path: "{{ '{{' }} ca_crl_publish_stage.path {{ '}}' }}"
+            state: absent
+          when:
+            - ca_crl_publish_stage is defined
+            - ca_crl_publish_stage.path is defined
+          changed_when: false

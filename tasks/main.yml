@@ -93,9 +93,8 @@
       - ca_publish_targets is iterable
       - ca_publish_targets is not string
       - ca_publish_target.name is defined
-      - ca_publish_target.aia_path is defined
-      - ca_publish_target.cdp_path is defined
-    fail_msg: "Each ca_publish_targets item needs name, aia_path, and cdp_path."
+      - ca_publish_target.path is defined
+    fail_msg: "Each ca_publish_targets item needs name and path."
   loop: "{{ ca_publish_targets }}"
   loop_control:
     loop_var: ca_publish_target

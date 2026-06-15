@@ -79,7 +79,7 @@ ca_crl_automation_randomized_delay_sec: 15m
 ca_crl_automation_persistent: true
 
 # Optional AIA/CDP publishing targets. Each target receives CA certificates and
-# issuing chains below aia_path, and CRLs below cdp_path.
+# issuing chains below path/aia, and CRLs below path/crl.
 ca_publish_targets: []
 ca_publish_directory_mode: "0755"
 ca_publish_mode: "0644"
