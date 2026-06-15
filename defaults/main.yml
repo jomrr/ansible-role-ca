@@ -36,8 +36,8 @@ ca_subject:
   country: DE
   state: Bayern
   locality: Erlangen
-  organization: Yourdomain SE
-  organizational_unit: Yourdomain Certificate Authority
+  organization: "{{ ca_name }} SE"
+  organizational_unit: "{{ ca_name }} Certificate Authority"
 
 ################################################################################
 # Reissue / renewal policy
