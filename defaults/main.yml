@@ -2,15 +2,36 @@
 # role: ansible-role-ca
 # file: defaults/main.yml
 
-# General CA settings.
+################################################################################
+# Role behavior
+################################################################################
+
+# Human-readable PKI name used in default CA common names.
 ca_name: Yourdomain
+
+# CA working directory below the platform PKI base path.
 ca_base_dir: "{{ ca_fhs_dir | default('/etc/ssl') }}/{{ ca_name | lower }}"
+
+# HTTP base URL used for generated AIA and CDP certificate extensions.
 ca_base_url: "http://pki.yourdomain.tld"
+
+# Default Kerberos realm used by MSKDC certificates when not set per certificate.
 ca_kerberos_realm: ""
+
+# Owner used for generated CA files.
 ca_owner: root
+
+# Group used for generated CA files.
 ca_group: root
+
+# Suppress task output that may include private key or export passphrases.
 ca_no_log: true
 
+################################################################################
+# Subject defaults
+################################################################################
+
+# Default X.509 subject attributes merged into authorities and certificates.
 ca_subject:
   country: DE
   state: Bayern
@@ -18,15 +39,70 @@ ca_subject:
   organization: Yourdomain SE
   organizational_unit: Yourdomain Certificate Authority
 
+################################################################################
+# Reissue / renewal policy
+################################################################################
+
+# Force regeneration where supported. Prefer renewal policy for planned changes.
 ca_force_reissue: false
 
+# Default renewal policy for CA authorities and managed certificates.
+#
+# warn_before_days marks inventory renewal_status before expiry.
+# renew_before_days renews objects inside this remaining-validity window.
+# renew_at triggers one planned renewal for certificates issued before the date.
+# rekey controls whether renewal replaces the private key.
+#
+# Example: renew certificates 14 days before expiry without replacing keys.
+# ca_renewal:
+#   warn_before_days: 45
+#   renew_before_days: 14
+#   renew_at: ""
+#   rekey: false
+#
+# Example: perform a scheduled key rollover at a fixed UTC time.
+# ca_renewal:
+#   warn_before_days: 60
+#   renew_before_days: 0
+#   renew_at: "2027-01-01T00:00:00Z"
+#   rekey: true
 ca_renewal:
   warn_before_days: 30
   renew_before_days: 0
   renew_at: ""
   rekey: false
 
-# Managed CA topology. Store real key_passphrase values in Ansible Vault.
+################################################################################
+# Managed CA topology
+################################################################################
+
+# Managed CA authorities. Store real key_passphrase values in Ansible Vault.
+#
+# name is the authority identifier and file stem.
+# parent references the signing authority; parent == name creates a root CA.
+# days is the CA certificate validity.
+# default_days is the default validity for certificates issued by this CA.
+# crl_days is the CRL nextUpdate interval.
+#
+# Example: add a separate issuing CA with a custom renewal policy.
+# ca_authorities:
+#   - name: root
+#     common_name: Example Root CA
+#     parent: root
+#     days: 3652
+#     default_days: 397
+#     crl_days: 30
+#     key_passphrase: "{{ vault_ca_root_passphrase }}"
+#   - name: component
+#     common_name: Example Component CA
+#     parent: root
+#     days: 1826
+#     default_days: 397
+#     crl_days: 30
+#     key_passphrase: "{{ vault_ca_component_passphrase }}"
+#     renewal:
+#       renew_at: "2027-01-01T00:00:00Z"
+#       rekey: true
 ca_authorities:
   - name: root
     common_name: "{{ ca_name }} Root CA"
@@ -57,18 +133,113 @@ ca_authorities:
     crl_days: 30
     key_passphrase: ""
 
-# Revocations are keyed by issuing authority name.
+################################################################################
+# Certificate revocation
+################################################################################
+
+# Declarative revocations keyed by issuing authority name.
+#
+# Each item identifies one issued certificate by name, fingerprint, or serial.
+# Supported selectors are name, certificate_name, certificate, fingerprint,
+# sha1, sha256, serial, and serial_number.
+#
+# reason is optional and becomes a CRL Reason extension.
+# invalidity_date is optional and becomes an Invalidity Date extension.
+# revocation_date is optional; the current UTC time is used when omitted.
+#
+# Supported reasons are key_compromise, ca_compromise, affiliation_changed,
+# superseded, cessation_of_operation, certificate_hold, privilege_withdrawn,
+# and aa_compromise.
+#
+# Example: revoke a managed TLS certificate by inventory name.
+# ca_revocations:
+#   component:
+#     - name: web01
+#       reason: key_compromise
+#       invalidity_date: "2026-06-14T00:00:00Z"
+#
+# Example: revoke an unmanaged certificate by serial number.
+# ca_revocations:
+#   network:
+#     - serial: "0x2A"
+#       reason: superseded
+#
+# Example: revoke a certificate by SHA-256 fingerprint.
+# ca_revocations:
+#   identity:
+#     - sha256: "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"
+#       reason: privilege_withdrawn
 ca_revocations:
   root: []
   component: []
   network: []
   identity: []
 
-# List of managed certificates.
+################################################################################
+# Managed certificates
+################################################################################
+
+# Managed certificate declarations. Empty means only CA authorities and CRLs.
+#
+# type selects a built-in profile from role vars.
+# common_name becomes the certificate CN.
+# formats are optional; module defaults are used when omitted.
+#
+# Example: issue a TLS server certificate with a fullchain bundle.
+# ca_certificates:
+#   - name: web01
+#     type: tls_server
+#     common_name: web01.example.org
+#     san:
+#       - DNS:web01.example.org
+#       - DNS:web01
+#     formats:
+#       - pem
+#       - der
+#       - txt
+#       - fullchain
+#
+# Example: issue an MSKDC certificate for a Samba AD domain controller.
+# ca_certificates:
+#   - name: dc01
+#     type: mskdc
+#     common_name: dc01.example.org
+#     krb5_realm: EXAMPLE.ORG
+#     ad_object_guid: d900ea2b-1253-4754-a22b-cf28508dfed3
+#     san:
+#       - DNS:dc01.example.org
+#       - DNS:dc01
 ca_certificates: []
 
-# Optional AIA/CDP publishing targets. Each target receives CA certificates and
-# issuing chains below path/aia, and CRLs below path/crl.
+################################################################################
+# AIA / CDP publishing
+################################################################################
+
+# SSH/Ansible targets for public AIA and CDP artifacts.
+#
+# Each target receives CA certificates and chains below path/aia, and CRLs
+# below path/crl. Use multiple targets for Split-DNS or redundant webroots.
+#
+# Example: publish public CA material to two HTTP webroots.
+# ca_publish_targets:
+#   - name: pki-web-01
+#     ansible_host: 192.0.2.10
+#     ansible_user: root
+#     path: /var/www/pki
+#     owner: root
+#     group: root
+#     become: true
+#   - name: pki-web-02
+#     ansible_host: 198.51.100.10
+#     ansible_user: root
+#     path: /var/www/pki
+#     owner: root
+#     group: root
+#     become: true
 ca_publish_targets: []
+
+# Directory mode for created publish webroot, aia, and crl directories.
 ca_publish_directory_mode: "0755"
+
+# File mode for published public CA, chain, CRL, and manifest files.
 ca_publish_mode: "0644"
