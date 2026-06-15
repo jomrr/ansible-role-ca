@@ -31,7 +31,6 @@ ca_renewal:
   rekey: false
 
 # Managed CA topology. Store real key_passphrase values in Ansible Vault.
-# CRL renewal services read passphrases from root profile environment variables.
 ca_authorities:
   - name: root
     common_name: "{{ ca_name }} Root CA"
@@ -71,12 +70,6 @@ ca_revocations:
 
 # List of managed certificates.
 ca_certificates: []
-
-ca_crl_automation_enabled: false
-ca_crl_automation_ansible_playbook: ansible-playbook
-ca_crl_automation_on_calendar: daily
-ca_crl_automation_randomized_delay_sec: 15m
-ca_crl_automation_persistent: true
 
 # Optional AIA/CDP publishing targets. Each target receives CA certificates and
 # issuing chains below path/aia, and CRLs below path/crl.

@@ -28,7 +28,6 @@ provisioner:
         ca_no_log: false
         ca_name: "Example"
         ca_base_url: "http://pki.molecule.test"
-        ca_crl_automation_enabled: true
         ca_publish_targets:
           - name: "ca"
             path: "/var/www/pki"
@@ -148,4 +147,3 @@ platforms:
     image: "docker.io/${uns:-jomrr}/molecule-${img:-fedora}:${tag:-latest}"
     pre_build_image: true
     override_command: false
-    systemd: true

@@ -122,10 +122,6 @@
   when: ca_publish_targets | length > 0
   tags: publish
 
-- name: "CA | Configure CRL renewal automation"
-  ansible.builtin.import_tasks: automation.yml
-  tags: automation
-
 - name: "CA | Generate Diffie-Hellman parameters"
   ca_dhparam:
     base_dir: "{{ ca_fhs_dir }}"

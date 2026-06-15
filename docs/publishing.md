@@ -71,8 +71,6 @@ example in Split-DNS setups.
 - Target webroot, `aia`, and `crl` directories are created before unpacking.
 - Targets are unpacked only when their manifest checksums differ from the
   generated archive manifests.
-- The CRL renewal systemd playbook builds and unpacks a CRL-only archive with
-  the same `ca_publish_targets`.
 
 ## Not Managed
 

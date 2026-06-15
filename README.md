@@ -33,11 +33,11 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - Embedded AIA and CDP URLs
 - Optional AIA/CDP publishing to one or more SSH/Ansible target hosts
 - Optional per-authority CRL publish hooks after CRL changes
-- Optional systemd service and timer for CRL renewal
 
 ### Not Managed
 
 - Webserver package installation and virtual-host configuration
+- CRL renewal scheduling and orchestration
 - Online certificate enrollment protocols
 - OCSP responder services
 - Importing certificates into applications or hardware tokens other than optional FritzBox deployment
@@ -50,7 +50,6 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus `ad_object_guid`.
 - FritzBox deployment requires network access to FRITZ!OS and a user with certificate import permissions.
 - AIA/CDP publishing targets require Ansible SSH access to the configured target hosts.
-- CRL renewal systemd services read CA key passphrases from `/root/.profile` environment variables named `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE`, uppercased with non-alphanumeric characters replaced by underscores.
 
 ## Dependencies
 
@@ -83,11 +82,6 @@ The following variables are part of the public role interface.
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_revocations` | `dict` | `false` | root: []<br />component: []<br />network: []<br />identity: [] | Revoked certificate entries keyed by issuing authority name.<br>Missing authority keys mean that no certificate is revoked for that authority.<br>Each list item must identify one certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.<br>Names and fingerprints are resolved from the managed CA inventory; serial numbers can be decimal, `0x` hex, or colon-separated hex.<br>Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.<br>Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`, `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`, and `aa_compromise`.<br>PEM and DER CRLs are regenerated from one shared CRL object, so both formats have identical CRL Number, AKI, timestamps, and revoked entries. |
 | `ca_certificates` | `list` | `false` | [] | Certificates to manage. |
-| `ca_crl_automation_enabled` | `bool` | `false` | `False` | Manage and enable CRL renewal timer instances.<br>The role enables `<ca_name \| lower>-crl-renew@<authority>.timer` for every authority.<br>The service sources `/root/.profile` and expects `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE` environment variables, uppercased with non-alphanumeric characters replaced by underscores. |
-| `ca_crl_automation_ansible_playbook` | `str` | `false` | `ansible-playbook` | Command used by the CRL renewal service template. |
-| `ca_crl_automation_on_calendar` | `str` | `false` | `daily` | systemd timer OnCalendar value. |
-| `ca_crl_automation_randomized_delay_sec` | `str` | `false` | `15m` | systemd timer randomized delay. |
-| `ca_crl_automation_persistent` | `bool` | `false` | `True` | systemd timer Persistent value. |
 | `ca_publish_targets` | `list` | `false` | [] | Optional SSH/Ansible targets for public AIA/CDP artifact publishing.<br>Each target receives CA certificates and issuing chains below `path/aia`, and CRLs below `path/crl`.<br>Declare multiple targets when the same AIA/CDP URLs are served from multiple hosts, for example in Split-DNS setups. |
 | `ca_publish_directory_mode` | `str` | `false` | `0755` | Default directory mode for published AIA/CDP directories. |
 | `ca_publish_mode` | `str` | `false` | `0644` | Default file mode for published AIA/CDP artifacts. |
@@ -110,13 +104,10 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/.locks/*`
 - `<ca_base_dir>/inventory/ca-inventory.json`
 - `<ca_base_dir>/inventory/state/*`
-- `/etc/systemd/system/<ca_name | lower>-crl-renew@.service` when `ca_crl_automation_enabled=true`
-- `/etc/systemd/system/<ca_name | lower>-crl-renew@.timer` when `ca_crl_automation_enabled=true`
 
 ## Security Notes
 
 - CA private keys are passphrase-protected and their passphrases are supplied by inventory variables.
-- CRL renewal timers source `/root/.profile`; define variables such as `CA_EXAMPLE_ROOT_KEY_PASSPHRASE` there for systemd-triggered renewal.
 - Certificate private key passphrases are optional except for formats that require export passwords, such as PFX/PKCS#12.
 - Fullchain bundles contain the certificate followed by its issuing chain and do not include the private key.
 - FritzBox bundles are mode `0600` because they include the private key, certificate, and issuing chain.
@@ -151,7 +142,6 @@ The following variables are part of the public role interface.
 - CRL PEM and DER files are exported from the same generated CRL object, so both formats share the same CRL Number, Authority Key Identifier, lastUpdate, nextUpdate, and revoked certificate entries.
 - Revocation entries support `reason`, `revocation_date`, and `invalidity_date`; `reason` is encoded as CRL Reason and `invalidity_date` as Invalidity Date.
 - Per-authority `crl_publish_hook.argv` can run a local command after CRL files changed; the hook uses `ansible.builtin.command` and does not invoke a shell.
-- CRL renewal uses instantiated systemd timers named `<ca_name | lower>-crl-renew@<authority>.timer`, for example `example-crl-renew@root.timer`.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
 - Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.

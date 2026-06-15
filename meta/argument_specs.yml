@@ -7,8 +7,8 @@ argument_specs:
     short_description: Manage a two-tier private certificate authority.
     description:
       - Creates and manages a Root CA plus Component, Network, and Identity issuing CAs.
-      - Issues declared certificates, CRLs, embeds AIA/CDP URLs, writes a non-secret CA
-        inventory, and optionally manages CRL renewal automation.
+      - Issues declared certificates, CRLs, embeds AIA/CDP URLs, and writes a non-secret
+        CA inventory.
       - Built-in CA topology and certificate profiles are role vars; certificate format
         defaults live in the modules; FritzBox bundle order is fixed in the module; validity
         periods are the intended override points.
@@ -386,36 +386,6 @@ argument_specs:
                 required: false
                 default: false
                 description: Validate HTTPS certificates for the FRITZ!Box connection.
-      ca_crl_automation_enabled:
-        type: bool
-        required: false
-        default: false
-        description:
-          - Manage and enable CRL renewal timer instances.
-          - The role enables `<ca_name | lower>-crl-renew@<authority>.timer` for every authority.
-          - The service sources `/root/.profile` and expects `CA_<CA_NAME>_<AUTHORITY>_KEY_PASSPHRASE`
-            environment variables, uppercased with non-alphanumeric characters replaced
-            by underscores.
-      ca_crl_automation_ansible_playbook:
-        type: str
-        required: false
-        default: ansible-playbook
-        description: Command used by the CRL renewal service template.
-      ca_crl_automation_on_calendar:
-        type: str
-        required: false
-        default: daily
-        description: systemd timer OnCalendar value.
-      ca_crl_automation_randomized_delay_sec:
-        type: str
-        required: false
-        default: 15m
-        description: systemd timer randomized delay.
-      ca_crl_automation_persistent:
-        type: bool
-        required: false
-        default: true
-        description: systemd timer Persistent value.
       ca_publish_targets:
         type: list
         elements: dict
