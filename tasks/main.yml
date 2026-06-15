@@ -1,5 +1,5 @@
 ---
-# role: ansible-role-ca
+# role: ca
 # file: tasks/main.yml
 
 - name: "CA | Assert role configuration"

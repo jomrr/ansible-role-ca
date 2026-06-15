@@ -42,7 +42,7 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 
 ## Requirements
 
-- Target hosts need OpenSSL and Python cryptography bindings.
+- Target hosts need Python cryptography bindings.
 - CA private key passphrases are required as `key_passphrase` values in `ca_authorities`; store real values in Ansible Vault.
 - PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus `ad_object_guid`.
@@ -105,13 +105,13 @@ The following variables are part of the public role interface.
 - Fullchain bundles contain the certificate followed by its issuing chain and do not include the private key.
 - FritzBox bundles are mode `0600` because they include the private key, certificate, and issuing chain.
 - FritzBox deployment uploads the bundle, including the private key, to the configured FRITZ!OS endpoint and requires FRITZ!OS credentials from inventory variables.
-- MSKDC certificates include `digitalSignature`, `serverAuth`, `clientAuth`, and KDC Authentication EKU `1.3.6.1.5.2.3.5` (OpenSSL renders it as `Signing KDC Response`); the Microsoft template-name extension is emitted as `1.3.6.1.4.1.311.20.2 = ASN1:BMPSTRING:DomainController`.
+- MSKDC certificates include `digitalSignature`, `serverAuth`, `clientAuth`, and KDC Authentication EKU `1.3.6.1.5.2.3.5`, commonly shown as `Signing KDC Response`; the Microsoft template-name extension is emitted as `1.3.6.1.4.1.311.20.2 = ASN1:BMPSTRING:DomainController`.
 - MSKDC certificates include a PKINIT SAN `otherName:1.3.6.1.5.2.2` containing the DER-encoded `KRB5PrincipalName` for `krbtgt/<REALM>@<REALM>`.
 - MSKDC certificates require the domain controller AD objectGUID through `ad_object_guid`; the role emits it as `1.3.6.1.4.1.311.25.1 = ASN1:FORMAT:HEX,OCTETSTRING:<guid-bytes>`.
 
 ## Operational Notes
 
-- Certificate SANs use module/OpenSSL syntax such as `DNS:host.example.org`, `IP:192.0.2.10`, `email:user@example.org`, and `otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user@example.org`.
+- Certificate SANs use OpenSSL-style syntax such as `DNS:host.example.org`, `IP:192.0.2.10`, `email:user@example.org`, and `otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user@example.org`.
 - MSKDC `krb5_realm` is uppercased before encoding and becomes `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
 - MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs are converted to AD byte order for the NTDS replication extension.
 - AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.

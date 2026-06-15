@@ -1,5 +1,5 @@
 ---
-# role: ansible-role-ca
+# role: ca
 # file: tasks/crl.yml
 
 - name: "CA | Manage CRLs for {{ ca_authority.name }}"

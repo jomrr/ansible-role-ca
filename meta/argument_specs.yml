@@ -263,7 +263,7 @@ argument_specs:
             elements: str
             required: false
             default: []
-            description: Subject Alternative Name entries in OpenSSL syntax.
+            description: Subject Alternative Name entries in OpenSSL-style syntax.
           krb5_realm:
             type: str
             required: false

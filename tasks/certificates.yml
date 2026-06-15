@@ -1,5 +1,5 @@
 ---
-# role: ansible-role-ca
+# role: ca
 # file: tasks/certificates.yml
 
 - name: "CA | Manage certificate material"

@@ -1,5 +1,5 @@
 ---
-# role: ansible-role-ca
+# role: ca
 # file: tasks/publish.yml
 
 - name: "CA | Publish AIA and CDP artifacts"

@@ -1,10 +1,9 @@
 ---
-# role: ansible-role-ca
+# role: ca
 # file: vars/RedHat.yml
 
 ca_packages:
   - ca-certificates
-  - openssl
   - python3-cryptography
 
 ca_fhs_dir: /etc/pki

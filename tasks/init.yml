@@ -1,5 +1,5 @@
 ---
-# role: ansible-role-ca
+# role: ca
 # file: tasks/init.yml
 
 - name: "CA | Create CA private directory"

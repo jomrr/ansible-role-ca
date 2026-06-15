@@ -1,5 +1,5 @@
 ---
-# role: ansible-role-ca
+# role: ca
 # file: tasks/authority.yml
 
 - name: "CA | Manage authority {{ ca_authority.name }}"
