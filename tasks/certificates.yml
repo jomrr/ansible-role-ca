@@ -2,12 +2,12 @@
 # role: ansible-role-ca
 # file: tasks/certificates.yml
 
-- name: "CA | Start certificate material jobs"
-  ca_certificate:
+- name: "CA | Manage certificate material"
+  ca_certificate_batch:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
     ca_name: "{{ ca_name }}"
-    certificate: "{{ ca_certificate }}"
+    certificates: "{{ ca_certificates }}"
     certificate_types: "{{ ca_certificate_types }}"
     authorities: "{{ ca_authorities }}"
     kerberos_realm: "{{ ca_kerberos_realm }}"
@@ -16,52 +16,23 @@
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ ca_certificates }}"
-  loop_control:
-    loop_var: ca_certificate
-    label: "{{ ca_certificate.name }}"
-  async: "{{ ca_certificate_async_timeout }}"
-  poll: 0
-  changed_when: false
-  register: __ca_certificate_jobs
-  no_log: true
-
-- name: "CA | Wait for certificate material jobs"
-  ansible.builtin.async_status:
-    jid: "{{ ca_certificate_job.ansible_job_id }}"
-  loop: >-
-    {{
-      __ca_certificate_jobs.results
-      | default([])
-      | selectattr('ansible_job_id', 'defined')
-      | list
-    }}
-  loop_control:
-    loop_var: ca_certificate_job
-    label: "{{ ca_certificate_job.ca_certificate.name }}"
   register: __ca_certificate_material_status
-  until: __ca_certificate_material_status.finished
-  retries: "{{ ca_certificate_async_retries }}"
-  delay: "{{ ca_certificate_async_delay }}"
-  changed_when: __ca_certificate_material_status.changed | default(false)
-  failed_when: __ca_certificate_material_status.failed | default(false)
   no_log: true
 
 - name: "CA | Deploy FritzBox certificates"
   ca_fritzbox_deploy:
     base_dir: "{{ ca_base_dir }}"
-    certificate: "{{ ca_certificate_result.ca_certificate_job.ca_certificate }}"
-    deploy: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.fritzbox_deploy | default({}) }}"
-    name: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+    certificate: "{{ ca_certificate }}"
+    deploy: "{{ ca_certificate.fritzbox_deploy | default({}) }}"
+    name: "{{ ca_certificate.name }}"
     force: "{{ ca_force_reissue | bool }}"
-  loop: "{{ __ca_certificate_material_status.results | default([]) }}"
+  loop: "{{ ca_certificates }}"
   loop_control:
-    loop_var: ca_certificate_result
-    label: "{{ ca_certificate_result.ca_certificate_job.ca_certificate.name }}"
+    loop_var: ca_certificate
+    label: "{{ ca_certificate.name }}"
   when:
-    - "'fritzbox' in (ca_certificate_result.formats | default([]))"
     - >-
-      ca_certificate_result.ca_certificate_job.ca_certificate.fritzbox_deploy.enabled
-      | default(false)
-      | bool
+      ca_certificate.type == 'fritzbox'
+      or 'fritzbox' in (ca_certificate.formats | default([]))
+    - ca_certificate.fritzbox_deploy.enabled | default(false) | bool
   no_log: true

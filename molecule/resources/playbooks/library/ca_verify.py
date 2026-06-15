@@ -11,6 +11,7 @@ from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 
+CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
     from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, padding, rsa

@@ -2,10 +2,11 @@
 
 Dispatch one declarative role certificate to a built-in certificate profile.
 
-`ca_certificate` is the public module used for entries in `ca_certificates`.
-It is not a low-level generic X.509 module. It validates the declarative model,
-resolves the issuer through `certificate_types`, applies profile defaults, then
-uses the shared X.509 helper to create certificate artifacts.
+`ca_certificate` is the single-certificate public module. The role tasks use
+`ca_certificate_batch` for `ca_certificates`; both modules use the same
+certificate engine. This module is useful when a playbook wants to issue one
+certificate without invoking the role task loop. It is not a low-level generic
+X.509 module.
 
 ## Behavior
 

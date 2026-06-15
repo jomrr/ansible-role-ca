@@ -107,8 +107,11 @@ def renewal_status(
     seconds_remaining = (not_after - current_time).total_seconds()
     days_remaining = max(0, int(seconds_remaining // 86400))
     renew_at = renewal_datetime(policy["renew_at"])
-    scheduled = renew_at is not None and not_before < renew_at
-    scheduled_due = bool(scheduled and renew_at <= current_time)
+    scheduled = False
+    scheduled_due = False
+    if renew_at is not None:
+        scheduled = not_before < renew_at
+        scheduled_due = scheduled and renew_at <= current_time
     renew_window = (
         policy["renew_before_days"] > 0
         and current_time >= not_after - _dt.timedelta(days=policy["renew_before_days"])

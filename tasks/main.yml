@@ -118,7 +118,7 @@
   tags: crl
 
 - name: "CA | Publish AIA and CDP artifacts"
-  ansible.builtin.import_tasks: publish.yml
+  ansible.builtin.include_tasks: publish.yml
   when: ca_publish_targets | length > 0
   tags: publish
 

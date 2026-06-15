@@ -45,6 +45,7 @@ __all__ = [
     "ca_authority_argument_spec",
     "digest_algorithm",
     "ensure_x509",
+    "ensure_x509_many",
     "load_certificates",
     "load_private_key",
     "normalize_formats",
@@ -1244,7 +1245,7 @@ def certificate_params(
     params: dict, *, default_formats: list[str] | None = None
 ) -> dict:
     """Merge certificate dictionaries with explicit module parameters."""
-    result = {
+    result: dict[str, Any] = {
         "base_url": "",
         "output_dir": None,
         "key_type": "RSA",
@@ -1320,12 +1321,87 @@ def ensure_x509(
         )
 
 
+def ensure_x509_many(
+    params_list: list[dict],
+    *,
+    signed: bool,
+    authority: bool = False,
+    manage_directory: bool = False,
+    manage_chain: bool = False,
+) -> list[dict]:
+    """Ensure multiple X.509 objects while caching shared signer material."""
+    derived = [
+        _with_derived_paths(
+            params,
+            authority=authority,
+            signed=signed,
+            manage_directory=manage_directory,
+            manage_chain=manage_chain,
+        )
+        for params in params_list
+    ]
+    if not signed or authority:
+        return [
+            ensure_x509(
+                params,
+                signed=signed,
+                authority=authority,
+                manage_directory=manage_directory,
+                manage_chain=manage_chain,
+            )
+            for params in params_list
+        ]
+
+    groups: dict[str, list[tuple[int, dict]]] = {}
+    order: list[str] = []
+    for index, params in enumerate(derived):
+        signer_lock_path = str(params["signer_lock_path"])
+        if signer_lock_path not in groups:
+            groups[signer_lock_path] = []
+            order.append(signer_lock_path)
+        groups[signer_lock_path].append((index, params))
+
+    results: list[dict] = [{} for _ in derived]
+    for signer_lock_path in order:
+        group = groups[signer_lock_path]
+        lock_paths = [signer_lock_path, *(params["lock_path"] for _, params in group)]
+        with file_locks(lock_paths):
+            first_params = group[0][1]
+            signer_key = load_private_key(
+                first_params["signer_key_path"],
+                first_params["signer_key_passphrase"],
+            )
+            signer_cert = load_certificate(first_params["signer_cert_path"])
+            needs_chain = any(
+                set(params["formats"]).intersection({"pfx", "p12", "fullchain", "fritzbox"})
+                for _, params in group
+            )
+            chain_content = _chain_content(first_params, signer_cert) if needs_chain else b""
+            extra_certs = _chain_certificates(first_params, signer_cert) if needs_chain else []
+            for index, params in group:
+                results[index] = _ensure_x509_locked(
+                    params,
+                    signed=signed,
+                    manage_directory=manage_directory,
+                    manage_chain=manage_chain,
+                    signer_key=signer_key,
+                    signer_cert=signer_cert,
+                    chain_content=chain_content,
+                    extra_certs=extra_certs,
+                )
+    return results
+
+
 def _ensure_x509_locked(
     params: dict,
     *,
     signed: bool,
     manage_directory: bool,
     manage_chain: bool,
+    signer_key=None,
+    signer_cert=None,
+    chain_content: bytes | None = None,
+    extra_certs: list[Any] | None = None,
 ) -> dict:
     """Ensure one X.509 object while holding its object lock."""
     directory_changed = False
@@ -1352,13 +1428,14 @@ def _ensure_x509_locked(
         existing_cert=existing_cert,
     )
     subject = subject_from_params(params)
-    signer_key = key
-    signer_cert = None
+    signer_key = signer_key or key
     if signed:
-        signer_key = load_private_key(
-            params["signer_key_path"], params["signer_key_passphrase"]
-        )
-        signer_cert = load_certificate(params["signer_cert_path"])
+        if signer_key is key:
+            signer_key = load_private_key(
+                params["signer_key_path"], params["signer_key_passphrase"]
+            )
+        if signer_cert is None:
+            signer_cert = load_certificate(params["signer_cert_path"])
 
     signer_public_key = (
         signer_cert.public_key() if signer_cert is not None else key.public_key()
@@ -1380,13 +1457,15 @@ def _ensure_x509_locked(
     txt_changed = ensure_txt(params, cert)
     if manage_chain:
         chain_changed = _ensure_chain(params)
-    chain_content = b""
-    extra_certs = []
+    chain_content = chain_content if chain_content is not None else b""
+    extra_certs = extra_certs if extra_certs is not None else []
     if not params["authority"] and set(params["formats"]).intersection(
         {"pfx", "p12", "fullchain", "fritzbox"}
     ):
-        chain_content = _chain_content(params, signer_cert)
-        extra_certs = _chain_certificates(params, signer_cert)
+        if not chain_content:
+            chain_content = _chain_content(params, signer_cert)
+        if not extra_certs:
+            extra_certs = _chain_certificates(params, signer_cert)
     pkcs12_changed, pkcs12_paths = _ensure_pkcs12_exports(
         params,
         key,

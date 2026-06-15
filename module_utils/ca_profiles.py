@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 __all__ = [
     "CERTIFICATE_DEFAULT_FORMATS",
@@ -19,7 +20,7 @@ KRB5_REALM_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]*$")
 GUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 GUID_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
 
-STANDARD_CERTIFICATE_DEFAULTS = {
+STANDARD_CERTIFICATE_DEFAULTS: dict[str, dict[str, Any]] = {
     "tls_server": {
         "default_dns_san": True,
         "digest": "sha384",
@@ -37,7 +38,7 @@ STANDARD_CERTIFICATE_DEFAULTS = {
         "extended_key_usage": ["clientAuth"],
     },
 }
-IDENTITY_CERTIFICATE_DEFAULTS = {
+IDENTITY_CERTIFICATE_DEFAULTS: dict[str, dict[str, Any]] = {
     "identity": {
         "digest": "sha384",
         "key_usage": ["digitalSignature", "keyEncipherment", "nonRepudiation"],
@@ -58,7 +59,7 @@ IDENTITY_CERTIFICATE_DEFAULTS = {
         ],
     },
 }
-MSKDC_CERTIFICATE_DEFAULTS = {
+MSKDC_CERTIFICATE_DEFAULTS: dict[str, Any] = {
     "default_dns_san": True,
     "digest": "sha384",
     "key_usage": ["digitalSignature", "keyEncipherment"],
@@ -74,19 +75,19 @@ MSKDC_CERTIFICATE_DEFAULTS = {
         }
     ],
 }
-FRITZBOX_CERTIFICATE_DEFAULTS = {
+FRITZBOX_CERTIFICATE_DEFAULTS: dict[str, Any] = {
     "default_dns_san": True,
     "digest": "sha384",
     "key_usage": ["digitalSignature", "keyEncipherment"],
     "extended_key_usage": ["serverAuth", "clientAuth"],
 }
-CERTIFICATE_PROFILE_DEFAULTS = {
+CERTIFICATE_PROFILE_DEFAULTS: dict[str, dict[str, Any]] = {
     **STANDARD_CERTIFICATE_DEFAULTS,
     **IDENTITY_CERTIFICATE_DEFAULTS,
     "mskdc": MSKDC_CERTIFICATE_DEFAULTS,
     "fritzbox": FRITZBOX_CERTIFICATE_DEFAULTS,
 }
-CERTIFICATE_DEFAULT_FORMATS = {
+CERTIFICATE_DEFAULT_FORMATS: dict[str, list[str]] = {
     "tls_server": ["pem", "der", "txt"],
     "tls_client": ["pem", "der", "txt"],
     "eap_tls_client": ["pem", "der", "txt"],

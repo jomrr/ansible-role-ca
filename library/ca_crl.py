@@ -65,7 +65,7 @@ def _formats(value) -> list[str]:
     return formats
 
 
-def _load_crl(path: str):
+def _load_crl(path: str) -> x509.CertificateRevocationList:
     """Load an existing PEM or DER CRL from disk."""
     data = read_file(path)
     try:
@@ -171,7 +171,9 @@ def _existing_numbers(existing_crls: dict[str, object | None]) -> list[int]:
     return numbers
 
 
-def _same_existing_number(existing_crls: dict[str, object | None]) -> bool:
+def _same_existing_number(
+    existing_crls: dict[str, x509.CertificateRevocationList | None],
+) -> bool:
     """Return whether all requested existing CRLs have the same CRL Number."""
     numbers = [
         _crl_number(crl) if crl is not None else None
@@ -182,9 +184,9 @@ def _same_existing_number(existing_crls: dict[str, object | None]) -> bool:
 
 def _needs_rebuild(
     *,
-    existing_crls: dict[str, object | None],
+    existing_crls: dict[str, x509.CertificateRevocationList | None],
     params: dict,
-    comparison_crl,
+    comparison_crl: x509.CertificateRevocationList,
     desired_revoked: list[tuple[int, str, str]],
     desired_authority_key: bytes | None,
 ) -> bool:
@@ -370,7 +372,10 @@ def run_module():
                 )
             else:
                 crl = next(crl for crl in existing_crls.values() if crl is not None)
-                crl_number = _crl_number(crl)
+                existing_crl_number = _crl_number(crl)
+                if existing_crl_number is None:
+                    raise ValueError("existing CRL is missing a CRL Number")
+                crl_number = existing_crl_number
 
             changed = _write_crls(params, crl) or changed
             inventory_changed = update_crl_inventory(params, crl)

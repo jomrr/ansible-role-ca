@@ -22,6 +22,7 @@ users to call a separate inventory module.
 | --- | --- |
 | `update_authority_inventory(params, result)` | Records one authority certificate and derived artifact paths, then composes the inventory under one state lock. |
 | `update_certificate_inventory(params, model, result)` | Records one issued certificate and its current pointer, then composes the inventory under one state lock. |
+| `update_certificates_inventory(records)` | Records multiple issued certificate records, then composes the inventory once under one state lock. |
 | `update_crl_inventory(params, crl)` | Records all exported CRL formats and declarative revocation events, then composes the inventory under one state lock. |
 | `resolve_revocation_entries(base_dir, authority, entries)` | Resolves revocation entries by serial, certificate name, or fingerprint. |
 | `compose_inventory(base_dir, ca_name, base_url)` | Builds the complete inventory dictionary from fragments. |
@@ -123,4 +124,5 @@ inventory_changed = update_certificate_inventory(params, model, result)
 
 - `ca_authority`
 - `ca_certificate`
+- `ca_certificate_batch`
 - `ca_crl`

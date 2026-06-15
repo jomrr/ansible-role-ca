@@ -20,9 +20,6 @@ ca_subject:
 
 ca_default_bits: 4096
 ca_force_reissue: false
-ca_certificate_async_timeout: 600
-ca_certificate_async_retries: 600
-ca_certificate_async_delay: 1
 
 ca_renewal:
   warn_before_days: 30

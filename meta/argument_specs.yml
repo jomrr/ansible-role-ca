@@ -7,8 +7,8 @@ argument_specs:
     short_description: Manage a two-tier private certificate authority.
     description:
       - Creates and manages a Root CA plus Component, Network, and Identity issuing CAs.
-      - Issues declared certificates, CRLs, embeds AIA/CDP URLs, and writes a non-secret
-        CA inventory.
+      - Issues declared certificates, CRLs, embeds AIA/CDP URLs, writes a non-secret CA
+        inventory, and optionally publishes public AIA/CDP artifacts.
       - Built-in CA topology and certificate profiles are role vars; certificate format
         defaults live in the modules; FritzBox bundle order is fixed in the module; validity
         periods are the intended override points.
@@ -98,22 +98,6 @@ argument_specs:
         required: false
         default: false
         description: Force regeneration of keys, certificates, CRLs, and exports where supported.
-      ca_certificate_async_timeout:
-        type: int
-        required: false
-        default: 600
-        description: Async timeout in seconds for certificate and bundle jobs.
-      ca_certificate_async_retries:
-        type: int
-        required: false
-        default: 600
-        description: Number of async status retries for certificate and bundle jobs.
-      ca_certificate_async_delay:
-        type: int
-        required: false
-        default: 1
-        description: Delay in seconds between async status checks for certificate and bundle
-          jobs.
       ca_renewal:
         type: dict
         required: false
@@ -393,8 +377,8 @@ argument_specs:
         default: []
         description:
           - Optional SSH/Ansible targets for public AIA/CDP artifact publishing.
-          - Each target receives CA certificates and issuing chains below `path/aia`,
-            and CRLs below `path/crl`.
+          - Each target receives CA certificates and issuing chains below `path/aia`, and
+            CRLs below `path/crl`.
           - Declare multiple targets when the same AIA/CDP URLs are served from multiple
             hosts, for example in Split-DNS setups.
         options:
@@ -403,8 +387,7 @@ argument_specs:
             required: true
             description:
               - Ansible host receiving the files.
-              - Optional SSH connection values are registered for this host through
-                `add_host`.
+              - Optional SSH connection values are registered for this host through `add_host`.
           ansible_host:
             type: str
             required: false
@@ -424,8 +407,7 @@ argument_specs:
           path:
             type: str
             required: true
-            description: Remote webroot directory that receives `aia` and `crl`
-              subdirectories.
+            description: Remote webroot directory that receives `aia` and `crl` subdirectories.
           owner:
             type: str
             required: false

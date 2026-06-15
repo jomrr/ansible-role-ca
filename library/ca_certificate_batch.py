@@ -1,12 +1,12 @@
 #!/usr/bin/python
-"""Dispatch one managed CA role certificate to the built-in X.509 profiles."""
+"""Dispatch managed CA role certificates in one batch."""
 
 from __future__ import annotations
 
 from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_certificate_engine import (  # type: ignore[import-not-found,import-untyped]
-    ensure_certificate_artifacts,
-    single_certificate_argument_spec,
+    batch_certificate_argument_spec,
+    ensure_certificate_batch,
 )
 from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
     CRYPTOGRAPHY_IMPORT_ERROR,
@@ -15,9 +15,9 @@ from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,impo
 
 
 def run_module():
-    """Run the Ansible module for dispatched certificate profiles."""
+    """Run the Ansible module for batched certificate profiles."""
     module = AnsibleModule(
-        argument_spec=single_certificate_argument_spec(),
+        argument_spec=batch_certificate_argument_spec(),
         supports_check_mode=False,
     )
 
@@ -27,7 +27,7 @@ def run_module():
         )
 
     try:
-        result = ensure_certificate_artifacts(module.params)
+        result = ensure_certificate_batch(module.params)
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))
 

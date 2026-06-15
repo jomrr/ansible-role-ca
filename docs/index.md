@@ -14,8 +14,9 @@ The role tasks use the public modules in this order:
 
 1. `ca_authority` creates root and issuing CA certificates.
 2. `ca_chain` derives issuing CA chain files from the generated CA certificates.
-3. `ca_certificate` dispatches declarative certificate entries to the built-in
-   certificate profiles and writes all requested certificate export formats.
+3. `ca_certificate_batch` dispatches the declarative `ca_certificates` list to
+   the built-in certificate profiles and writes all requested certificate export
+   formats. `ca_certificate` uses the same engine for one certificate.
 4. `ca_fritzbox_deploy` can deploy a generated FritzBox bundle to FRITZ!OS.
 5. `ca_crl` resolves declared revocations and creates PEM/DER CRL exports for
    every CA.
@@ -24,15 +25,16 @@ The role tasks use the public modules in this order:
    AIA/CDP target webroots.
 7. `ca_dhparam` optionally creates a DH parameter file.
 
-`ca_authority`, `ca_certificate`, and `ca_crl` update internal CA inventory
-fragments. When `ca_name` is set, the fragments are composed into
-`<base_dir>/inventory/ca-inventory.json`.
+`ca_authority`, `ca_certificate_batch`, `ca_certificate`, and `ca_crl` update
+internal CA inventory fragments. When `ca_name` is set, the fragments are
+composed into `<base_dir>/inventory/ca-inventory.json`.
 
 ## Public Modules
 
 - [ca_authority](ca_authority.md)
 - [ca_chain](ca_chain.md)
 - [ca_certificate](ca_certificate.md)
+- [ca_certificate_batch](ca_certificate_batch.md)
 - [ca_crl](ca_crl.md)
 - [ca_fritzbox_deploy](ca_fritzbox_deploy.md)
 - [ca_publish_archive](ca_publish_archive.md)
@@ -46,6 +48,7 @@ their behavior affects the public module interface, generated files, locking,
 inventory state, and validation.
 
 - [ca_file](ca_file.md)
+- [ca_certificate_engine](ca_certificate_engine.md)
 - [ca_inventory](ca_inventory.md)
 - [ca_profiles](ca_profiles.md)
 - [ca_renewal](ca_renewal.md)

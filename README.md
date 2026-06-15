@@ -31,13 +31,12 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - Renewal warning state, scheduled renewal, same-key renewal, and re-key renewal
 - Serial-specific issuing CA chain files for CA rollover and key changeover
 - Embedded AIA and CDP URLs
-- Optional AIA/CDP publishing to one or more SSH/Ansible target hosts
+- Optional AIA/CDP artifact publishing to SSH targets
 - Optional per-authority CRL publish hooks after CRL changes
 
 ### Not Managed
 
-- Webserver package installation and virtual-host configuration
-- CRL renewal scheduling and orchestration
+- Webserver virtual host configuration for AIA and CDP files
 - Online certificate enrollment protocols
 - OCSP responder services
 - Importing certificates into applications or hardware tokens other than optional FritzBox deployment
@@ -75,9 +74,6 @@ The following variables are part of the public role interface.
 | `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: Yourdomain SE<br />organizational_unit: Yourdomain Certificate Authority | Default X.509 subject attributes added before the certificate common name. |
 | `ca_default_bits` | `int` | `false` | `4096` | DH parameter size when `ca_create_dhparams=true`. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
-| `ca_certificate_async_timeout` | `int` | `false` | `600` | Async timeout in seconds for certificate and bundle jobs. |
-| `ca_certificate_async_retries` | `int` | `false` | `600` | Number of async status retries for certificate and bundle jobs. |
-| `ca_certificate_async_delay` | `int` | `false` | `1` | Delay in seconds between async status checks for certificate and bundle jobs. |
 | `ca_renewal` | `dict` | `false` | warn_before_days: 30<br />renew_before_days: 0<br />renew_at: ''<br />rekey: false | Default renewal policy for CA authorities and certificates.<br>`warn_before_days` marks renewal warning state in CA inventory but does not renew by itself.<br>`renew_before_days` renews when the existing certificate reaches that remaining-validity window.<br>`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ` timestamp, but only for certificates issued before that timestamp.<br>`rekey=true` generates a new private key when renewal is triggered; otherwise renewal keeps the existing key.<br>Replaced generations are archived below `<ca_base_dir>/archive`; issuing CA chains also get serial-specific files below `<ca_base_dir>/chains`. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_revocations` | `dict` | `false` | root: []<br />component: []<br />network: []<br />identity: [] | Revoked certificate entries keyed by issuing authority name.<br>Missing authority keys mean that no certificate is revoked for that authority.<br>Each list item must identify one certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.<br>Names and fingerprints are resolved from the managed CA inventory; serial numbers can be decimal, `0x` hex, or colon-separated hex.<br>Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.<br>Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`, `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`, and `aa_compromise`.<br>PEM and DER CRLs are regenerated from one shared CRL object, so both formats have identical CRL Number, AKI, timestamps, and revoked entries. |
@@ -94,7 +90,7 @@ The following variables are part of the public role interface.
 - `<ca_base_dir>/ca/*-ca.pem`
 - `<ca_base_dir>/ca/*-ca.der`
 - `<ca_base_dir>/ca/*-ca.txt`
-- `<ca_base_dir>/chains/*-ca-chain.{pem,der,txt} for issuing CAs`
+- `<ca_base_dir>/chains/*-ca-chain.pem for issuing CAs`
 - `<ca_base_dir>/crl/*-ca.crl`
 - `<ca_base_dir>/crl/*-ca.crl.pem`
 - `<ca_base_dir>/csr/*.csr`
@@ -122,18 +118,12 @@ The following variables are part of the public role interface.
 - MSKDC `krb5_realm` is uppercased before encoding and becomes `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
 - MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs are converted to AD byte order for the NTDS replication extension.
 - AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
-- `ca_publish_targets` publishes all CA certificates and issuing CA chains to
-  each target `path/aia`, and all CRLs to each target `path/crl`.
-- Multiple targets can use the same AIA/CDP paths on different hosts. This
-  supports Split-DNS or active/standby HTTP endpoints that serve the same
-  AIA/CDP URL from different machines.
-- Publishing builds one deterministic archive on the CA host, fetches that
-  archive once to the controller, and unpacks it on every target.
-- Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing
-  `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
+- `ca_publish_targets` publishes all CA certificates and issuing CA chains to each target `path/aia`, and all CRLs to each target `path/crl`.
+- Multiple targets can use the same AIA/CDP paths on different hosts. This supports Split-DNS or active/standby HTTP endpoints that serve the same AIA/CDP URL from different machines.
+- Publishing builds one deterministic archive on the CA host, fetches that archive once to the controller, and unpacks it on every target.
+- Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
 - Published CDP files are `*-ca.crl.pem` and `*-ca.crl`.
-- Webserver package installation and virtual-host configuration remain outside
-  this role; configure the HTTP server to serve the configured paths.
+- Webserver package installation and virtual-host configuration remain outside this role; configure the HTTP server to serve the configured paths.
 - The default CA working directory is derived from `ca_name | lower` below the platform PKI base path.
 - `ca_subject` supplies the default X.509 subject attributes; per-authority or per-certificate `subject` values override individual fields.
 - The managed CA topology is declared in `ca_authorities`; `parent == name` creates a self-signed authority.
@@ -144,6 +134,7 @@ The following variables are part of the public role interface.
 - Per-authority `crl_publish_hook.argv` can run a local command after CRL files changed; the hook uses `ansible.builtin.command` and does not invoke a shell.
 - Private keys default to RSA 4096. `key_type` and optional `key_size` can be set per authority or certificate; supported key types are RSA, ECDSA P-256/P-384, Ed25519, and Ed448.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
+- The role processes `ca_certificates` through the batched `ca_certificate_batch` module; direct single-certificate use is still available through `ca_certificate`.
 - Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - `ca_renewal.warn_before_days` only marks inventory `renewal_status`; it does not renew certificates.
@@ -152,7 +143,7 @@ The following variables are part of the public role interface.
 - `ca_renewal.rekey=true` generates a new private key when renewal is due; otherwise renewal keeps the existing key.
 - Per-authority and per-certificate `renewal` dictionaries override the global `ca_renewal` defaults.
 - Replaced certificate generations are archived below `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted private key is archived with private file permissions.
-- Issuing CA chains are also written as `<ca>-ca-chain-<serial>.{pem,der,txt}`, so old and new CA chains can exist in parallel during rollover.
+- Issuing CA chains are also written as `<ca>-ca-chain-<serial>.pem`, so old and new CA chains can exist in parallel during rollover.
 - The CA inventory is maintained by internal state hooks in the authority, certificate, and CRL modules; it contains non-secret metadata such as serial numbers, fingerprints, subjects, issuers, validity windows, current certificate pointers, issued certificate history, revocation events, CRL metadata, status, and managed artifact paths.
 - X.509 material, authority chains, certificate bundles, CRLs, and inventory composition use internal advisory locks below `<ca_base_dir>/.locks` so concurrent jobs for the same CA object cannot interleave their file writes.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.

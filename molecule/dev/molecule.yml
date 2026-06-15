@@ -147,23 +147,29 @@ platforms:
     image: "docker.io/jomrr/molecule-almalinux:latest"
     pre_build_image: true
     override_command: false
+    systemd: true
   - name: debian-latest-ca
     image: "docker.io/jomrr/molecule-debian:latest"
     pre_build_image: true
     override_command: false
+    systemd: true
   - name: fedora-latest-ca
     image: "docker.io/jomrr/molecule-fedora:latest"
     pre_build_image: true
     override_command: false
+    systemd: true
   - name: opensuse-leap-latest-ca
     image: "docker.io/jomrr/molecule-opensuse-leap:latest"
     pre_build_image: true
     override_command: false
+    systemd: true
   - name: opensuse-tumbleweed-latest-ca
     image: "docker.io/jomrr/molecule-opensuse-tumbleweed:latest"
     pre_build_image: true
     override_command: false
+    systemd: true
   - name: ubuntu-latest-ca
     image: "docker.io/jomrr/molecule-ubuntu:latest"
     pre_build_image: true
     override_command: false
+    systemd: true

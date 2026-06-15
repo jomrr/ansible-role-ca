@@ -637,6 +637,21 @@ def update_certificate_inventory(
         return _compose_inventory_if_configured_unlocked(params) or changed
 
 
+def update_certificates_inventory(
+    records: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]],
+) -> bool:
+    """Record multiple certificate fragments and compose inventory once."""
+    if not records:
+        return False
+
+    base_dir = str(records[0][0]["base_dir"]).rstrip("/")
+    with file_lock(_inventory_lock_path(base_dir)):
+        changed = False
+        for params, model, result in records:
+            changed = record_certificate_inventory(params, model, result) or changed
+        return _compose_inventory_if_configured_unlocked(records[0][0]) or changed
+
+
 def _crl_update(crl, name: str):
     """Return a CRL timestamp across cryptography versions."""
     return object_datetime(crl, name)
