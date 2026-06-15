@@ -37,14 +37,3 @@
   ansible.builtin.include_tasks: publish.yml
   when: ca_publish_targets | length > 0
   tags: publish
-
-- name: "CA | Generate Diffie-Hellman parameters"
-  ca_dhparam:
-    base_dir: "{{ ca_fhs_dir }}"
-    size: "{{ ca_default_bits }}"
-    owner: "{{ ca_owner }}"
-    group: "{{ ca_group }}"
-    mode: "0644"
-    force: "{{ ca_force_reissue | bool }}"
-  when: ca_create_dhparams | bool
-  tags: dhparams

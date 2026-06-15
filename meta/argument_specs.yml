@@ -88,11 +88,6 @@ argument_specs:
             type: str
             required: false
             description: X.509 subject organizational unit.
-      ca_default_bits:
-        type: int
-        required: false
-        default: 4096
-        description: DH parameter size when `ca_create_dhparams=true`.
       ca_force_reissue:
         type: bool
         required: false
@@ -442,8 +437,3 @@ argument_specs:
         required: false
         default: '0644'
         description: Default file mode for published AIA/CDP artifacts.
-      ca_create_dhparams:
-        type: bool
-        required: false
-        default: false
-        description: Generate Diffie-Hellman parameters under the platform PKI base directory.

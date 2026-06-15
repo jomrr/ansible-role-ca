@@ -72,7 +72,6 @@ The following variables are part of the public role interface.
 | `ca_group` | `str` | `false` | `root` | Group for managed CA files. |
 | `ca_no_log` | `bool` | `false` | `True` | Suppress task output that can contain private key passphrases or PFX passphrases. |
 | `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: Yourdomain SE<br />organizational_unit: Yourdomain Certificate Authority | Default X.509 subject attributes added before the certificate common name. |
-| `ca_default_bits` | `int` | `false` | `4096` | DH parameter size when `ca_create_dhparams=true`. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
 | `ca_renewal` | `dict` | `false` | warn_before_days: 30<br />renew_before_days: 0<br />renew_at: ''<br />rekey: false | Default renewal policy for CA authorities and certificates.<br>`warn_before_days` marks renewal warning state in CA inventory but does not renew by itself.<br>`renew_before_days` renews when the existing certificate reaches that remaining-validity window.<br>`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ` timestamp, but only for certificates issued before that timestamp.<br>`rekey=true` generates a new private key when renewal is triggered; otherwise renewal keeps the existing key.<br>Replaced generations are archived below `<ca_base_dir>/archive`; issuing CA chains also get serial-specific files below `<ca_base_dir>/chains`. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
@@ -81,7 +80,6 @@ The following variables are part of the public role interface.
 | `ca_publish_targets` | `list` | `false` | [] | Optional SSH/Ansible targets for public AIA/CDP artifact publishing.<br>Each target receives CA certificates and issuing chains below `path/aia`, and CRLs below `path/crl`.<br>Declare multiple targets when the same AIA/CDP URLs are served from multiple hosts, for example in Split-DNS setups. |
 | `ca_publish_directory_mode` | `str` | `false` | `0755` | Default directory mode for published AIA/CDP directories. |
 | `ca_publish_mode` | `str` | `false` | `0644` | Default file mode for published AIA/CDP artifacts. |
-| `ca_create_dhparams` | `bool` | `false` | `False` | Generate Diffie-Hellman parameters under the platform PKI base directory. |
 
 ## Managed Files
 

@@ -64,7 +64,6 @@ with file_locks(lock_paths):
 - `ca_certificate`
 - `ca_chain`
 - `ca_crl`
-- `ca_dhparam`
 - `ca_fritzbox_deploy`
 - `ca_inventory`
 - `ca_text`

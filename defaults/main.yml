@@ -18,7 +18,6 @@ ca_subject:
   organization: Yourdomain SE
   organizational_unit: Yourdomain Certificate Authority
 
-ca_default_bits: 4096
 ca_force_reissue: false
 
 ca_renewal:
@@ -73,5 +72,3 @@ ca_certificates: []
 ca_publish_targets: []
 ca_publish_directory_mode: "0755"
 ca_publish_mode: "0644"
-
-ca_create_dhparams: false

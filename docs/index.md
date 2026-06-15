@@ -23,7 +23,6 @@ The role tasks use the public modules in this order:
 6. Optional publish tasks use `ca_publish_archive` to build deterministic
    archives and unpack CA certificates, issuing chains, and CRLs to configured
    AIA/CDP target webroots.
-7. `ca_dhparam` optionally creates a DH parameter file.
 
 `ca_authority`, `ca_certificate_batch`, `ca_certificate`, and `ca_crl` update
 internal CA inventory fragments. When `ca_name` is set, the fragments are
@@ -38,7 +37,6 @@ composed into `<base_dir>/inventory/ca-inventory.json`.
 - [ca_crl](ca_crl.md)
 - [ca_fritzbox_deploy](ca_fritzbox_deploy.md)
 - [ca_publish_archive](ca_publish_archive.md)
-- [ca_dhparam](ca_dhparam.md)
 - [AIA/CDP publishing](publishing.md)
 
 ## Internal Helpers
