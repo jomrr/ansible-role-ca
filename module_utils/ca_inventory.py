@@ -529,11 +529,6 @@ def record_authority_inventory(
         "parent": parent,
         "self_signed": self_signed,
         "days": params.get("days"),
-        "renewal": renewal_policy(params.get("renewal")),
-        "renewal_status": renewal_status(
-            certificate,
-            params.get("renewal"),
-        ),
         "certificate": certificate,
         "paths": paths,
     }

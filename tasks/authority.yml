@@ -25,10 +25,8 @@
         common_name: "{{ ca_authority.common_name }}"
         subject: "{{ ca_subject | combine(ca_authority.subject | default({})) }}"
         days: "{{ ca_authority.days }}"
-        renewal: "{{ ca_renewal | combine(ca_authority.renewal | default({})) }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
-        force: "{{ ca_force_reissue | bool }}"
       no_log: true
 
     - name: "CA | Manage authority chain for {{ ca_authority.name }}"

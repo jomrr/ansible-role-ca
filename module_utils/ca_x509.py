@@ -1210,7 +1210,6 @@ def ca_authority_argument_spec(
         "raw_extensions": {"type": "list", "elements": "dict", "default": []},
         "pkinit": {"type": "dict", "default": {}},
         "days": {"type": "int", "required": True},
-        "renewal": {"type": "dict", "default": {}},
         "digest": {"type": "str", "default": "sha384"},
         "include_identifiers": {"type": "bool", "default": True},
         "owner": {"type": "str"},

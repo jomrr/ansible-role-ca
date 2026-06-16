@@ -358,7 +358,6 @@ def _check_inventory(
             errors.append(f"inventory {key} count is {actual}, expected {expected}")
 
     inventory_certificates = inventory.get("certificates", [])
-    authority_records = inventory.get("authorities", [])
     authority_map = {_authority_name(authority): authority for authority in authorities}
 
     for certificate in certificates:
@@ -394,20 +393,6 @@ def _check_inventory(
         if expected_days and warn_before >= expected_days:
             if record.get("renewal_status", {}).get("state") != "warning":
                 errors.append(f"{name} renewal status is not warning")
-
-    for authority in authorities:
-        if _authority_is_root(authority):
-            continue
-        name = _authority_name(authority)
-        try:
-            record = _find_named(authority_records, name)
-        except KeyError:
-            errors.append(f"missing inventory authority: {name}")
-            continue
-        serial = record.get("certificate", {}).get("serial_number_hex")
-        versioned_chain = base_dir / f"chains/{name}-ca-chain-{serial}.pem"
-        if not serial or not versioned_chain.exists():
-            errors.append(f"missing versioned {name} CA chain: {versioned_chain}")
 
 
 def _check_default_digests(

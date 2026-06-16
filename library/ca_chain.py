@@ -12,7 +12,6 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     sanitize_error,
     write_file,
 )
-from ansible.module_utils.ca_serial import serial_hex  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_text import certificate_text  # type: ignore[import-not-found,import-untyped]
 from ansible.module_utils.ca_x509 import load_certificates  # type: ignore[import-not-found,import-untyped]
 
@@ -47,17 +46,6 @@ def _chain_paths(base_dir: str, name: str, formats: list[str]) -> dict[str, str]
         chain_format: f"{base}.{chain_format}"
         for chain_format in formats
     }
-
-
-def _versioned_chain_path(
-    base_dir: str,
-    name: str,
-    cert: x509.Certificate,
-    chain_format: str,
-) -> str:
-    """Return the generation-specific CA chain output path."""
-    serial = serial_hex(cert.serial_number)
-    return f"{base_dir.rstrip('/')}/chains/{name}-ca-chain-{serial}.{chain_format}"
 
 
 def _authority_name(path: Path) -> str:
@@ -177,14 +165,6 @@ def _remove_file(path: str) -> bool:
     return True
 
 
-def _existing_chain(path: str) -> list[x509.Certificate]:
-    """Load an existing chain or return an empty list when absent."""
-    try:
-        return load_certificates(path)
-    except FileNotFoundError:
-        return []
-
-
 def _chain_content(certificates: list[x509.Certificate], chain_format: str) -> bytes:
     """Return normalized content for an ordered certificate chain."""
     if not certificates:
@@ -248,38 +228,11 @@ def run_module():
                     changed = _remove_file(path) or changed
                 state = "absent"
             else:
-                previous = _existing_chain(paths["pem"]) if "pem" in paths else []
                 changed = False
                 for chain_format, path in paths.items():
                     content = _chain_content(certificates, chain_format)
-                    if previous:
-                        changed = write_file(
-                            _versioned_chain_path(
-                                params["base_dir"],
-                                params["name"],
-                                previous[0],
-                                chain_format,
-                            ),
-                            _chain_content(previous, chain_format),
-                            params["owner"],
-                            params["group"],
-                            params["mode"],
-                        ) or changed
                     changed = write_file(
                         path,
-                        content,
-                        params["owner"],
-                        params["group"],
-                        params["mode"],
-                        force=params["force"],
-                    ) or changed
-                    changed = write_file(
-                        _versioned_chain_path(
-                            params["base_dir"],
-                            params["name"],
-                            certificates[0],
-                            chain_format,
-                        ),
                         content,
                         params["owner"],
                         params["group"],
