@@ -14,6 +14,7 @@ from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
+    from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, padding, rsa
     from cryptography.hazmat.primitives.serialization import pkcs12
     from cryptography.x509.oid import (
@@ -73,6 +74,14 @@ def _load_pem_certs(path: Path) -> list[x509.Certificate]:
     return [x509.load_pem_x509_certificate(block) for block in blocks]
 
 
+def _public_key_bytes(key) -> bytes:
+    """Return DER SubjectPublicKeyInfo bytes for a public key."""
+    return key.public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+
 def _authority_name(authority: dict[str, Any]) -> str:
     """Return a CA authority name."""
     return str(authority.get("name", "")).strip()
@@ -119,6 +128,20 @@ def _certificate_pem_path(base_dir: Path, certificate: dict[str, Any]) -> Path:
     """Return the primary PEM certificate path."""
     name = _certificate_name(certificate)
     return _certificate_output_dir(base_dir, certificate) / f"{name}.pem"
+
+
+def _certificate_uses_csr(certificate: dict[str, Any]) -> bool:
+    """Return whether a certificate is issued from an external CSR."""
+    return bool(certificate.get("csr_content") or certificate.get("csr_path"))
+
+
+def _certificate_csr(certificate: dict[str, Any]):
+    """Load a certificate's configured CSR."""
+    if certificate.get("csr_content"):
+        return x509.load_pem_x509_csr(str(certificate["csr_content"]).encode())
+    if certificate.get("csr_path"):
+        return x509.load_pem_x509_csr(Path(str(certificate["csr_path"])).read_bytes())
+    raise ValueError(f"{_certificate_name(certificate)} has no configured CSR")
 
 
 def _certificate_expected_paths(base_dir: Path, certificate: dict[str, Any]) -> list[Path]:
@@ -229,19 +252,24 @@ def _cert_not_after(cert: x509.Certificate) -> datetime:
 def _assert_signature(cert: x509.Certificate, issuer: x509.Certificate) -> None:
     """Verify a certificate signature with the issuer public key."""
     key = issuer.public_key()
+    digest = cert.signature_hash_algorithm
     if isinstance(key, rsa.RSAPublicKey):
+        if digest is None:
+            raise ValueError("RSA certificate has no signature digest")
         key.verify(
             cert.signature,
             cert.tbs_certificate_bytes,
             padding.PKCS1v15(),
-            cert.signature_hash_algorithm,
+            digest,
         )
         return
     if isinstance(key, ec.EllipticCurvePublicKey):
+        if digest is None:
+            raise ValueError("ECDSA certificate has no signature digest")
         key.verify(
             cert.signature,
             cert.tbs_certificate_bytes,
-            ec.ECDSA(cert.signature_hash_algorithm),
+            ec.ECDSA(digest),
         )
         return
     if isinstance(key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey)):
@@ -422,9 +450,27 @@ def _check_public_keys(
     """Validate generated certificate public key algorithms."""
     for certificate in certificates:
         name = _certificate_name(certificate)
+        cert = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
+        if _certificate_uses_csr(certificate):
+            csr = _certificate_csr(certificate)
+            private_key_path = (
+                _certificate_output_dir(base_dir, certificate) / f"{name}.key"
+            )
+            if private_key_path.exists():
+                errors.append(
+                    f"{name} CSR certificate should not have a managed private key"
+                )
+            if cert.subject != csr.subject:
+                errors.append(f"{name} subject does not match configured CSR")
+            if _public_key_bytes(cert.public_key()) != _public_key_bytes(
+                csr.public_key()
+            ):
+                errors.append(f"{name} public key does not match configured CSR")
+            continue
+
         key_type = str(certificate.get("key_type") or "RSA").upper().replace("-", "")
         key_size = certificate.get("key_size")
-        key = _load_pem_cert(_certificate_pem_path(base_dir, certificate)).public_key()
+        key = cert.public_key()
         if key_type == "RSA":
             expected_size = int(key_size or 4096)
             if not isinstance(key, rsa.RSAPublicKey) or key.key_size != expected_size:

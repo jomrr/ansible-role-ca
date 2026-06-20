@@ -90,7 +90,7 @@ def _name_attributes(name: x509.Name) -> list[dict[str, str]]:
         {
             "oid": attribute.oid.dotted_string,
             "name": getattr(attribute.oid, "_name", attribute.oid.dotted_string),
-            "value": attribute.value,
+            "value": str(attribute.value),
         }
         for attribute in name
     ]
@@ -275,7 +275,9 @@ def _certificate_record_paths(
     """Return deterministic managed artifact paths for a certificate record."""
     paths = _certificate_paths(base_dir, certificate)
     formats = {str(item).lower() for item in certificate.get("formats", [])}
-    keys = {"output_dir", "private_key", "csr", "certificate_pem", "chain"}
+    keys = {"output_dir", "csr", "certificate_pem", "chain"}
+    if not certificate.get("csr_mode"):
+        keys.add("private_key")
     if "der" in formats:
         keys.add("certificate_der")
     if "txt" in formats:

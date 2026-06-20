@@ -85,6 +85,31 @@ provisioner:
           - name: "client01"
             type: "tls_client"
             common_name: "client01.molecule.test"
+          - name: "external-csr"
+            type: "tls_server"
+            formats:
+              - "pem"
+              - "der"
+              - "txt"
+              - "fullchain"
+            csr_content: |-
+              -----BEGIN CERTIFICATE REQUEST-----
+              MIICsDCCAZgCAQAwJTEjMCEGA1UEAwwaZXh0ZXJuYWwtY3NyLm1vbGVjdWxlLnRl
+              c3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCyxE7u0BNCBFKmcvwa
+              HNifDexDukFYlUxMy9zSxRx0i7KKEOXA4xsnH3NwdKZALoI62MMQbOT4dtdXm7bE
+              YLuTKT9a0RSzsTSmVzoTTOj7tLh1vNXvKybihlUg+cQ0+zCmE3+ccCciHCYrG213
+              HrL2HMhP/A2X2m/OuIweqBj8skGXPXBVQvhMANu+sY/RiaJ5uuyLQDj77Nh0FBCU
+              3XJc6EeH6h8JF8uGXISnKT0M7smzBcmC3hdlKSgojlRldQW2BlxtGAQJCKpi8b2E
+              F1ec2GZoszAOcTIRId80mTeEB+oVJWbxCDYUHxyaHC9/WbPOOfCG1l8jb9Sdirci
+              VrU9AgMBAAGgRjBEBgkqhkiG9w0BCQ4xNzA1MDMGA1UdEQQsMCqCGmV4dGVybmFs
+              LWNzci5tb2xlY3VsZS50ZXN0ggxleHRlcm5hbC1jc3IwDQYJKoZIhvcNAQELBQAD
+              ggEBAB1dgRdjYUSTeu3V9ngH5U2pseLmXOr1UxpAN1XorUleg3VLjhOsupTruLzX
+              1P7Rt8LdZ+6I+66wODmJignJfjFxO33dwPQx+iDaFgmVCKgKk61V5zijwQNLxpvk
+              9Hd4Hy1j4n1f3lElKxKCQAZwa8Qc7tZPZQnPtJAUvOEQ8Wl0CFP794QsLZwOx4en
+              jjn+xqUUP3AcXRojyH73t0W0wk+idcX/yQQ31A3EQQ7d1L8YCgATrkyrJrq6Aevh
+              6OQ8gsQphZ5aR6KVBQLvHe71/FN1oN+5AABW+Nz7CCHZCU4XOtKHMd8AAGlCpsrw
+              Qzu14PIaSg9rxeEweUeoBF3eWGU=
+              -----END CERTIFICATE REQUEST-----
           - name: "ec-p256-client"
             type: "tls_client"
             common_name: "ec-p256-client.molecule.test"

@@ -287,9 +287,22 @@ def _private_key_pem(key, passphrase: str | None) -> bytes:
     )
 
 
+def _as_public_key(key):
+    """Return a public key object from a private or public key object."""
+    public_key_types = (
+        rsa.RSAPublicKey,
+        ec.EllipticCurvePublicKey,
+        ed25519.Ed25519PublicKey,
+        ed448.Ed448PublicKey,
+    )
+    if isinstance(key, public_key_types):
+        return key
+    return key.public_key()
+
+
 def _public_key_bytes(key) -> bytes:
-    """Return DER SubjectPublicKeyInfo bytes for a private key."""
-    return key.public_key().public_bytes(
+    """Return DER SubjectPublicKeyInfo bytes for a private or public key."""
+    return _as_public_key(key).public_bytes(
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
     )
@@ -319,6 +332,20 @@ def _csr_public_key_bytes(csr) -> bytes:
 def _load_csr(path: str):
     """Load a PEM certificate signing request from disk."""
     return x509.load_pem_x509_csr(read_file(path))
+
+
+def _load_csr_bytes(data: bytes):
+    """Load a PEM or DER certificate signing request from bytes."""
+    try:
+        return x509.load_pem_x509_csr(data)
+    except ValueError:
+        return x509.load_der_x509_csr(data)
+
+
+def _csr_common_name(csr) -> str:
+    """Return the first CSR common name when present."""
+    values = csr.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+    return values[0].value if values else ""
 
 
 def load_certificate(path: str):
@@ -563,7 +590,18 @@ def _raw_extension_value(value: str) -> bytes:
     raise ValueError(f"Unsupported raw extension value {value}")
 
 
-def _desired_extensions(params, public_key, signer_public_key):
+def _csr_subject_alt_name(csr):
+    """Return the CSR SAN extension value and critical flag when present."""
+    try:
+        extension = csr.extensions.get_extension_for_class(
+            x509.SubjectAlternativeName
+        )
+    except x509.ExtensionNotFound:
+        return None
+    return extension.value, extension.critical
+
+
+def _desired_extensions(params, public_key, signer_public_key, csr_san=None):
     """Build the desired certificate or CSR extension list."""
     extensions = [
         (
@@ -592,6 +630,15 @@ def _desired_extensions(params, public_key, signer_public_key):
                 x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME,
                 bool(params["san_critical"]),
                 _subject_alt_name(params["san"], realm),
+            )
+        )
+    elif params.get("use_csr_san", True) and csr_san is not None:
+        san_value, san_critical = csr_san
+        extensions.append(
+            (
+                x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME,
+                bool(san_critical),
+                san_value,
             )
         )
     if params["aia_url"]:
@@ -849,6 +896,47 @@ def _ensure_csr(params, key, subject, csr_extensions):
     return csr, changed
 
 
+def _external_csr_configured(params: dict) -> bool:
+    """Return whether certificate issuance should use an externally supplied CSR."""
+    return bool(params.get("csr_source_path") or params.get("csr_content"))
+
+
+def _external_csr_bytes(params: dict) -> bytes:
+    """Return CSR bytes from inline content or a source path."""
+    csr_content = params.get("csr_content")
+    if csr_content:
+        return str(csr_content).encode()
+    csr_source_path = str(params.get("csr_source_path") or "")
+    if csr_source_path:
+        return read_file(csr_source_path)
+    raise ValueError("csr_path or csr_content is required for CSR signing")
+
+
+def _ensure_external_csr(params: dict):
+    """Validate and copy an externally supplied CSR into the managed CSR path."""
+    csr = _load_csr_bytes(_external_csr_bytes(params))
+    if not csr.is_signature_valid:
+        raise ValueError("CSR signature verification failed")
+
+    common_name = str(params.get("common_name") or "").strip()
+    csr_common_name = _csr_common_name(csr)
+    if common_name and common_name != csr_common_name:
+        raise ValueError(
+            f"CSR common name {csr_common_name!r} does not match {common_name!r}"
+        )
+
+    content = csr.public_bytes(serialization.Encoding.PEM)
+    changed = write_file(
+        params["csr_path"],
+        content,
+        params["owner"],
+        params["group"],
+        params["public_mode"],
+        force=params["force"],
+    )
+    return csr, changed
+
+
 def _ensure_certificate(
     params,
     key,
@@ -866,7 +954,7 @@ def _ensure_certificate(
         x509.CertificateBuilder()
         .subject_name(subject)
         .issuer_name(issuer)
-        .public_key(key.public_key())
+        .public_key(_as_public_key(key))
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - _dt.timedelta(minutes=1))
         .not_valid_after(now + _dt.timedelta(days=int(params["days"])))
@@ -1141,9 +1229,10 @@ def _with_derived_paths(
     output_dir = str(result.get("output_dir") or f"{base_dir}/certs/{name}").rstrip("/")
     issuer = str(result["issuer"])
     issuer_file = f"{issuer}-ca"
+    external_csr = _external_csr_configured(result)
     result["lock_path"] = ca_lock_path(base_dir, "certificate", name)
     result["output_dir"] = output_dir
-    result["key_path"] = f"{output_dir}/{name}.key"
+    result["key_path"] = "" if external_csr else f"{output_dir}/{name}.key"
     result["csr_path"] = f"{base_dir}/csr/{name}.csr"
     result["cert_path"] = f"{output_dir}/{name}.pem"
     result["der_path"] = f"{output_dir}/{name}.der" if "der" in formats else ""
@@ -1247,6 +1336,8 @@ def certificate_params(
     result: dict[str, Any] = {
         "base_url": "",
         "output_dir": None,
+        "csr_content": None,
+        "csr_source_path": None,
         "key_type": "RSA",
         "key_size": 4096,
         "key_passphrase": None,
@@ -1280,6 +1371,8 @@ def certificate_params(
     }
     result.update(certificate)
     result.update(module_params)
+    if result.get("csr_path"):
+        result["csr_source_path"] = result.pop("csr_path")
     formats = module_formats if module_formats is not None else certificate_formats
     if formats is None:
         formats = (
@@ -1391,6 +1484,113 @@ def ensure_x509_many(
     return results
 
 
+def _ensure_x509_from_csr_locked(
+    params: dict,
+    *,
+    signed: bool,
+    manage_directory: bool,
+    manage_chain: bool,
+    signer_key=None,
+    signer_cert=None,
+    chain_content: bytes | None = None,
+) -> dict:
+    """Ensure one signed certificate from an externally supplied CSR."""
+    if not signed:
+        raise ValueError("CSR signing requires an issuing CA")
+
+    unsupported = sorted(
+        set(params["formats"]).intersection({"pfx", "p12", "fritzbox"})
+    )
+    if unsupported:
+        raise ValueError(
+            "CSR signing cannot create formats that require a private key: "
+            + ", ".join(unsupported)
+        )
+
+    directory_changed = False
+    chain_changed = False
+    if manage_directory:
+        directory_changed = _ensure_directory(
+            params["directory_path"],
+            params["owner"],
+            params["group"],
+            params["directory_mode"],
+        )
+
+    existing_cert = _load_existing_certificate(params["cert_path"])
+    renewal_decision = _renewal_decision(params, existing_cert)
+    if renewal_decision["rekey"]:
+        renewal_decision = dict(renewal_decision)
+        renewal_decision["rekey"] = False
+
+    csr, csr_changed = _ensure_external_csr(params)
+    subject = csr.subject
+
+    if signer_key is None:
+        signer_key = load_private_key(
+            params["signer_key_path"], params["signer_key_passphrase"]
+        )
+    if signer_cert is None:
+        signer_cert = load_certificate(params["signer_cert_path"])
+
+    cert_extensions = _desired_extensions(
+        params,
+        csr.public_key(),
+        signer_cert.public_key(),
+        _csr_subject_alt_name(csr),
+    )
+    cert, cert_changed = _ensure_certificate(
+        params,
+        csr.public_key(),
+        subject,
+        cert_extensions,
+        signer_key,
+        signer_cert,
+        renewal_decision,
+        existing_cert,
+    )
+    der_changed = _ensure_der(params, cert)
+    txt_changed = ensure_txt(params, cert)
+    if manage_chain:
+        chain_changed = _ensure_chain(params)
+
+    chain_content = chain_content if chain_content is not None else b""
+    if "fullchain" in params["formats"] and not chain_content:
+        chain_content = _chain_content(params, signer_cert)
+    fullchain_changed = _ensure_fullchain_bundle(params, cert, chain_content)
+
+    return {
+        "changed": directory_changed
+        or csr_changed
+        or cert_changed
+        or der_changed
+        or txt_changed
+        or chain_changed
+        or fullchain_changed,
+        "directory_changed": directory_changed,
+        "archive_changed": False,
+        "key_changed": False,
+        "csr_changed": csr_changed,
+        "cert_changed": cert_changed,
+        "der_changed": der_changed,
+        "txt_changed": txt_changed,
+        "chain_changed": chain_changed,
+        "pkcs12_changed": False,
+        "fullchain_changed": fullchain_changed,
+        "fritzbox_bundle_changed": False,
+        "formats": params["formats"],
+        "renewal": renewal_decision,
+        "csr_mode": True,
+        "common_name": _csr_common_name(csr),
+        "csr_path": params["csr_path"],
+        "cert_path": params["cert_path"],
+        "txt_path": params["txt_path"],
+        "pkcs12_paths": {},
+        "fullchain_path": params.get("fullchain_path", ""),
+        "fritzbox_bundle_path": "",
+    }
+
+
 def _ensure_x509_locked(
     params: dict,
     *,
@@ -1403,6 +1603,17 @@ def _ensure_x509_locked(
     extra_certs: list[Any] | None = None,
 ) -> dict:
     """Ensure one X.509 object while holding its object lock."""
+    if _external_csr_configured(params):
+        return _ensure_x509_from_csr_locked(
+            params,
+            signed=signed,
+            manage_directory=manage_directory,
+            manage_chain=manage_chain,
+            signer_key=signer_key,
+            signer_cert=signer_cert,
+            chain_content=chain_content,
+        )
+
     directory_changed = False
     chain_changed = False
     if manage_directory:

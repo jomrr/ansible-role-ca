@@ -27,6 +27,11 @@ Profile defaults come from `ca_profiles`:
 Supported export formats are `pem`, `der`, `txt`, `pfx`, `p12`, `fullchain`,
 and `fritzbox`.
 
+Certificate models that set `csr_path` or `csr_content` are treated as
+CSR-signed certificates. The helper allows `common_name` to be omitted in that
+mode, rejects `pfx`, `p12`, and `fritzbox`, and lets the X.509 helper copy the
+CSR into the managed CSR path before signing it.
+
 The helper validates certificate type, issuer existence, required profile
 fields, PFX passphrase requirements, merged subject defaults, renewal policy
 overrides, and MSKDC Kerberos realm propagation before calling the X.509 helper.

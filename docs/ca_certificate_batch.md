@@ -6,12 +6,16 @@ profiles.
 `ca_certificate_batch` is the public module used by the role task for
 `ca_certificates`. It uses the same internal engine as `ca_certificate`, so PEM,
 DER, text, PKCS#12, fullchain, and FritzBox bundle generation live in one place.
+Certificate models can also reference `csr_path` or `csr_content` to sign an
+external CSR through the same issuer grouping and inventory flow.
 
 ## Behavior
 
 - Accepts the same CA context parameters as `ca_certificate`.
 - Accepts `certificates`, a list of certificate model dictionaries.
 - Resolves and validates every certificate before issuing.
+- Signs external CSRs for certificate models that set `csr_path` or
+  `csr_content`.
 - Groups work by issuer to keep the run deterministic and ready for issuer-level
   caching.
 - Creates all certificate artifacts through the shared certificate engine.

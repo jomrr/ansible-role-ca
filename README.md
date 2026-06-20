@@ -17,6 +17,7 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - PEM, DER, and text exports for all CA certificates
 - Issuing CA chain files
 - Declarative certificates in `ca_certificates`
+- Signing external CSRs with managed issuing CAs
 - Persistent non-secret CA inventory and state fragments below `<ca_base_dir>/inventory`
 - Optional certificate fullchain PEM bundles
 - TLS server and TLS client certificates from the Component CA
@@ -28,8 +29,7 @@ It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 - PEM and DER CRLs
 - Declarative certificate revocation by certificate name, fingerprint, or serial number
 - CRL Number, Authority Key Identifier, reason, and optional Invalidity Date in CRLs
-- Renewal warning state, scheduled renewal, same-key renewal, and re-key renewal
-- Serial-specific issuing CA chain files for CA rollover and key changeover
+- Certificate renewal warning state, scheduled renewal, same-key renewal, and certificate re-key renewal
 - Embedded AIA and CDP URLs
 - Optional AIA/CDP artifact publishing to SSH targets
 
@@ -71,8 +71,8 @@ The following variables are part of the public role interface.
 | `ca_group` | `str` | `false` | `root` | Group for managed CA files. |
 | `ca_no_log` | `bool` | `false` | `True` | Suppress task output that can contain private key passphrases or PFX passphrases. |
 | `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: '{{ ca_name }} SE'<br />organizational_unit: '{{ ca_name }} Certificate Authority' | Default X.509 subject attributes added before the certificate common name. |
-| `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of keys, certificates, CRLs, and exports where supported. |
-| `ca_renewal` | `dict` | `false` | warn_before_days: 30<br />renew_before_days: 0<br />renew_at: ''<br />rekey: false | Default renewal policy for CA authorities and certificates.<br>`warn_before_days` marks renewal warning state in CA inventory but does not renew by itself.<br>`renew_before_days` renews when the existing certificate reaches that remaining-validity window.<br>`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ` timestamp, but only for certificates issued before that timestamp.<br>`rekey=true` generates a new private key when renewal is triggered; otherwise renewal keeps the existing key.<br>Replaced generations are archived below `<ca_base_dir>/archive`; issuing CA chains also get serial-specific files below `<ca_base_dir>/chains`. |
+| `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of managed certificates, CRLs, and exports where supported. |
+| `ca_renewal` | `dict` | `false` | warn_before_days: 30<br />renew_before_days: 0<br />renew_at: ''<br />rekey: false | Default renewal policy for managed certificates.<br>`warn_before_days` marks renewal warning state in CA inventory but does not renew by itself.<br>`renew_before_days` renews when the existing certificate reaches that remaining-validity window.<br>`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ` timestamp, but only for certificates issued before that timestamp.<br>`rekey=true` generates a new private key when renewal is triggered; otherwise renewal keeps the existing key.<br>Replaced managed certificate generations are archived below `<ca_base_dir>/archive`. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_revocations` | `dict` | `false` | root: []<br />component: []<br />network: []<br />identity: [] | Revoked certificate entries keyed by issuing authority name.<br>Missing authority keys mean that no certificate is revoked for that authority.<br>Each list item must identify one certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.<br>Names and fingerprints are resolved from the managed CA inventory; serial numbers can be decimal, `0x` hex, or colon-separated hex.<br>Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.<br>Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`, `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`, and `aa_compromise`.<br>PEM and DER CRLs are regenerated from one shared CRL object, so both formats have identical CRL Number, AKI, timestamps, and revoked entries. |
 | `ca_certificates` | `list` | `false` | [] | Certificates to manage. |
@@ -132,14 +132,15 @@ The following variables are part of the public role interface.
 - Certificate output formats default in the modules: standard certificates and MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses `pem,der,txt,fritzbox`.
 - The role processes `ca_certificates` through the batched `ca_certificate_batch` module; direct single-certificate use is still available through `ca_certificate`.
 - Add `fullchain` to a certificate `formats` list to write `<name>-fullchain.pem`.
+- Set `csr_path` or `csr_content` on a certificate entry to sign an external CSR with the profile's issuing CA. The CSR subject and public key are used for the issued certificate; `common_name` is optional and, when set, must match the CSR common name.
+- CSR-signed certificates can write `pem`, `der`, `txt`, and `fullchain`. Formats that require the private key on the CA host, such as `pfx`, `p12`, and `fritzbox`, are rejected for CSR-signed certificates.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - `ca_renewal.warn_before_days` only marks inventory `renewal_status`; it does not renew certificates.
 - `ca_renewal.renew_before_days` triggers renewal when an existing certificate reaches the configured remaining-validity window.
 - `ca_renewal.renew_at` triggers one planned renewal for certificates issued before that timestamp; after renewal, the same timestamp does not cause another renewal.
-- `ca_renewal.rekey=true` generates a new private key when renewal is due; otherwise renewal keeps the existing key.
-- Per-authority and per-certificate `renewal` dictionaries override the global `ca_renewal` defaults.
-- Replaced certificate generations are archived below `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted private key is archived with private file permissions.
-- Issuing CA chains are also written as `<ca>-ca-chain-<serial>.pem`, so old and new CA chains can exist in parallel during rollover.
+- `ca_renewal.rekey=true` generates a new private key when certificate renewal is due; otherwise renewal keeps the existing key.
+- Per-certificate `renewal` dictionaries override the global `ca_renewal` defaults.
+- Replaced managed certificate generations are archived below `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted private key is archived with private file permissions.
 - The CA inventory is maintained by internal state hooks in the authority, certificate, and CRL modules; it contains non-secret metadata such as serial numbers, fingerprints, subjects, issuers, validity windows, current certificate pointers, issued certificate history, revocation events, CRL metadata, status, and managed artifact paths.
 - X.509 material, authority chains, certificate bundles, CRLs, and inventory composition use internal advisory locks below `<ca_base_dir>/.locks` so concurrent jobs for the same CA object cannot interleave their file writes.
 - FritzBox bundles are assembled in the fixed order `certificate`, `chain`, `private_key`.
@@ -181,10 +182,6 @@ Creates the Root CA and the three issuing CAs without certificates.
           - name: pki-web-02
             path: /var/www/pki
             become: true
-        ca_renewal:
-          warn_before_days: 45
-          renew_before_days: 14
-          rekey: false
         ca_authorities:
           - name: root
             common_name: Example Root CA
@@ -200,9 +197,6 @@ Creates the Root CA and the three issuing CAs without certificates.
             default_days: 397
             crl_days: 30
             key_passphrase: vaulted-component-passphrase
-            renewal:
-              renew_at: "2027-01-01T00:00:00Z"
-              rekey: true
           - name: network
             common_name: Example Network CA
             parent: root
@@ -244,6 +238,10 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
           - name: pki-web-02
             path: /var/www/pki
             become: true
+        ca_renewal:
+          warn_before_days: 45
+          renew_before_days: 14
+          rekey: false
         ca_authorities:
           - name: root
             common_name: Example Root CA
@@ -301,6 +299,14 @@ Issues Component, Identity, and Network certificates with embedded AIA/CDP URLs.
             common_name: wifi-user@example.org
             san:
               - email:wifi-user@example.org
+          - name: external-web01
+            type: tls_server
+            csr_path: /srv/pki/requests/external-web01.csr
+            formats:
+              - pem
+              - der
+              - txt
+              - fullchain
 ```
 
 ## Author

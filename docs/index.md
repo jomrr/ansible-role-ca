@@ -16,7 +16,8 @@ The role tasks use the public modules in this order:
 2. `ca_chain` derives issuing CA chain files from the generated CA certificates.
 3. `ca_certificate_batch` dispatches the declarative `ca_certificates` list to
    the built-in certificate profiles and writes all requested certificate export
-   formats. `ca_certificate` uses the same engine for one certificate.
+   formats. Certificate entries can also sign external CSRs with `csr_path` or
+   `csr_content`. `ca_certificate` uses the same engine for one certificate.
 4. `ca_fritzbox_deploy` can deploy a generated FritzBox bundle to FRITZ!OS.
 5. `ca_crl` resolves declared revocations and creates PEM/DER CRL exports for
    every CA.
@@ -120,6 +121,8 @@ All public modules currently use `supports_check_mode: false`.
 | Archive | `<base_dir>/archive/authorities/<name>/<serial>/...` | `<base_dir>/archive/certificates/<name>/<serial>/...` |
 
 For certificates, `output_dir` defaults to `<base_dir>/certs/<name>`.
+CSR-signed certificates do not create `<output_dir>/<name>.key`; the CSR subject
+and public key are used instead.
 
 ## Common Value Sets
 

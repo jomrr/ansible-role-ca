@@ -150,7 +150,7 @@ def _desired_authority_key_identifier(ca_cert) -> bytes | None:
 
 def _load_existing_crls(paths: dict[str, str]) -> dict[str, object | None]:
     """Load existing CRLs for all requested formats."""
-    existing = {}
+    existing: dict[str, object | None] = {}
     for crl_format, path in paths.items():
         try:
             existing[crl_format] = _load_crl(path)

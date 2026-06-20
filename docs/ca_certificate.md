@@ -10,8 +10,10 @@ X.509 module.
 
 ## Behavior
 
-- Requires `certificate.name`, `certificate.type`, and
-  `certificate.common_name`.
+- Requires `certificate.name`, `certificate.type`, and `certificate.common_name`
+  for CA-generated certificates.
+- Allows `certificate.csr_path` or `certificate.csr_content` instead of
+  `certificate.common_name` when signing an external CSR.
 - Validates `certificate.type` against the built-in profiles and the provided
   `certificate_types` map.
 - Resolves the issuer and issuer passphrase from `authorities`.
@@ -21,6 +23,8 @@ X.509 module.
   and raw extensions.
 - Creates the output directory.
 - Generates or reuses the private key and CSR.
+- For external CSR signing, verifies the CSR signature, uses the CSR subject
+  and public key, and does not create a private key on the CA host.
 - Issues a PEM certificate and optional DER and text exports.
 - Copies the issuer chain into the certificate output directory.
 - Writes requested PKCS#12, fullchain, and FritzBox bundles directly.
@@ -70,13 +74,15 @@ These keys are accepted inside `certificate`.
 | --- | --- | --- | --- | --- | --- | --- |
 | `name` | str | yes | none | letters, digits, dots, underscores, hyphens | no | Certificate short name and file stem. |
 | `type` | str | yes | none | built-in profile name | no | Certificate profile. |
-| `common_name` | str | yes | none | any string | no | Common Name. |
+| `common_name` | str | conditional | none | any string | no | Common Name. Required for CA-generated certificates. Optional for CSR-signed certificates; when set, it must match the CSR common name. |
+| `csr_path` | path | no | none | readable PEM CSR path on the managed CA host | no | External CSR to sign. Mutually exclusive with `csr_content`. |
+| `csr_content` | str | no | none | PEM CSR content | no | Inline external CSR to sign. Mutually exclusive with `csr_path`. |
 | `days` | int | no | issuer `default_days` | positive integer | no | Certificate validity. |
-| `formats` | list[str] | no | profile default | `pem`, `der`, `txt`, `pfx`, `p12`, `fullchain`, `fritzbox` | no | Output and export formats. |
+| `formats` | list[str] | no | profile default | `pem`, `der`, `txt`, `pfx`, `p12`, `fullchain`, `fritzbox` | no | Output and export formats. CSR-signed certificates reject `pfx`, `p12`, and `fritzbox`. |
 | `output_dir` | path | no | `<base_dir>/certs/<name>` | any path | no | Directory for key, certificate, chain copy, and bundles. |
 | `key_type` | str | no | `RSA` | see [index](index.md#common-value-sets) | no | Private key algorithm. |
 | `key_size` | int | no | `4096` | RSA bit size, or `256`/`384` for generic ECDSA | no | Key size or curve selector. |
-| `key_passphrase` | str | no | none | any string | yes | Optional certificate private key passphrase. |
+| `key_passphrase` | str | no | none | any string | yes | Optional certificate private key passphrase. Ignored for CSR-signed certificates. |
 | `pfx_passphrase` | str | conditional | none | any string | yes | Required when `formats` contains `pfx` or `p12`, unless `passphrase` is set. |
 | `friendly_name` | str | no | `common_name` or `name` | any string | no | Friendly name for PKCS#12 exports. |
 | `renewal` | dict | no | module `renewal` | see below | no | Certificate-local renewal and rekey policy. |
@@ -134,6 +140,9 @@ For `name: web01`, `issuer: component`, and `base_dir: /etc/pki/example`:
 - Inventory fragments below `/etc/pki/example/inventory/state`
 - `/etc/pki/example/inventory/ca-inventory.json` when `ca_name` is set
 - `/etc/pki/example/archive/certificates/web01/<serial>/*` for replaced generations
+
+CSR-signed certificates also store a normalized copy of the CSR at
+`<base_dir>/csr/<name>.csr`, but do not create `<output_dir>/<name>.key`.
 
 ## Return Values
 
@@ -210,6 +219,29 @@ Issue an identity certificate with PKCS#12 export:
     certificate_types:
       identity:
         issuer: identity
+    authorities: "{{ ca_authorities }}"
+```
+
+Sign an external CSR with the Component CA:
+
+```yaml
+- name: Sign external web CSR
+  ca_certificate:
+    base_dir: /etc/pki/example
+    ca_name: example
+    base_url: http://pki.example.test
+    certificate:
+      name: external-web01
+      type: tls_server
+      csr_path: /srv/pki/requests/external-web01.csr
+      formats:
+        - pem
+        - der
+        - txt
+        - fullchain
+    certificate_types:
+      tls_server:
+        issuer: component
     authorities: "{{ ca_authorities }}"
 ```
 

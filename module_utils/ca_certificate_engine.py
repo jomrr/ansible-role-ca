@@ -110,12 +110,21 @@ def _resolve_certificate(
         "certificate",
     )
     name = safe_name(require_value(certificate, "name", "Certificate"), "Certificate")
+    csr_path = string_value(certificate.get("csr_path")).strip()
+    csr_content = string_value(certificate.get("csr_content")).strip()
+    csr_mode = bool(csr_path or csr_content)
+    if csr_path and csr_content:
+        raise ValueError(f"Certificate {name} uses both csr_path and csr_content")
+
     cert_type = string_value(
         require_value(certificate, "type", f"Certificate {name}")
     ).strip()
-    common_name = string_value(
-        require_value(certificate, "common_name", f"Certificate {name}")
-    ).strip()
+    if csr_mode:
+        common_name = string_value(certificate.get("common_name")).strip()
+    else:
+        common_name = string_value(
+            require_value(certificate, "common_name", f"Certificate {name}")
+        ).strip()
 
     if cert_type not in CERTIFICATE_PROFILE_DEFAULTS:
         raise ValueError(f"Certificate {name} uses unknown profile {cert_type}")
@@ -133,6 +142,8 @@ def _resolve_certificate(
         raise ValueError(f"Certificate type {cert_type} references unknown issuer {issuer}")
 
     issuer_authority = authorities[issuer]
+    if csr_mode and string_value(issuer_authority.get("parent")).strip() == issuer:
+        raise ValueError(f"Certificate {name} CSR signing requires an issuing CA")
     issuer_passphrase = string_value(
         require_value(issuer_authority, "key_passphrase", f"Authority {issuer}")
     )
@@ -148,6 +159,14 @@ def _resolve_certificate(
         require_value(certificate, string_value(field), f"Certificate {name}")
 
     formats = _profile_formats(certificate.get("formats"), cert_type)
+    if csr_mode:
+        unsupported = sorted(set(formats).intersection({"pfx", "p12", "fritzbox"}))
+        if unsupported:
+            raise ValueError(
+                f"Certificate {name} CSR signing cannot create formats that "
+                "require a private key: "
+                + ", ".join(unsupported)
+            )
     if set(formats).intersection({"pfx", "p12"}) and not string_value(
         certificate.get("pfx_passphrase") or certificate.get("passphrase")
     ):
@@ -171,6 +190,8 @@ def _resolve_certificate(
             "formats": formats,
             "subject": subject,
             "renewal": renewal,
+            "csr_mode": csr_mode,
+            "csr_san_from_request": csr_mode and "san" not in certificate,
         }
     )
     if cert_type == "mskdc":
@@ -206,6 +227,8 @@ def prepare_certificate_artifacts(
         default_formats=CERTIFICATE_DEFAULT_FORMATS[model["type"]],
     )
     x509_params = apply_certificate_profile(x509_params, model["type"])
+    if model.get("csr_san_from_request"):
+        x509_params["san"] = []
     return model, x509_params
 
 
@@ -236,12 +259,19 @@ def _finalize_prepared_certificate_result(
     return result
 
 
+def _sync_model_common_name(model: dict[str, Any], result: dict[str, Any]) -> None:
+    """Copy a CSR-derived common name into the inventory model when needed."""
+    if not model.get("common_name") and result.get("common_name"):
+        model["common_name"] = result["common_name"]
+
+
 def ensure_certificate_artifacts(
     params: dict[str, Any], certificate: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Ensure one managed certificate and update its inventory state."""
     model, x509_params = prepare_certificate_artifacts(params, certificate)
     result = _ensure_prepared_certificate_artifacts(model, x509_params)
+    _sync_model_common_name(model, result)
     inventory_changed = update_certificate_inventory(x509_params, model, result)
     result["inventory_changed"] = inventory_changed
     result["changed"] = result["changed"] or inventory_changed
@@ -278,6 +308,7 @@ def ensure_certificate_batch(params: dict[str, Any]) -> dict[str, Any]:
     changed = False
     for (index, model, x509_params), raw_result in zip(prepared, raw_results):
         result = _finalize_prepared_certificate_result(model, raw_result)
+        _sync_model_common_name(model, result)
         result["inventory_changed"] = False
         results[index] = result
         inventory_records.append((x509_params, model, result))
