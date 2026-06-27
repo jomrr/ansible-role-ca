@@ -1,6 +1,6 @@
 ---
 # role: ca
-# file: .github/workflows/main-full-gate.yml
+# file: .github/workflows/main.yml
 
 name: main full gate
 
@@ -34,7 +34,6 @@ jobs:
 
     strategy:
       fail-fast: false
-      max-parallel: 4
       matrix:
         include:
           - name: ca-almalinux-latest
