@@ -69,8 +69,8 @@ example in Split-DNS setups.
 - The archive contains fixed top-level `aia/` and `crl/` directories plus a
   `.ca-publish-manifest.json` in each directory.
 - Target webroot, `aia`, and `crl` directories are created before unpacking.
-- Targets are unpacked only when their manifest checksums differ from the
-  generated archive manifests.
+- `ansible.builtin.unarchive` compares the actual target files with the archive.
+  Missing or altered files are repaired even when their manifests are unchanged.
 
 ## Not Managed
 

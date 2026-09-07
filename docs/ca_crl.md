@@ -20,7 +20,9 @@ Serial parsing and timestamp normalization are delegated to the internal
   Number, AKI, `lastUpdate`, `nextUpdate`, and revoked entries.
 - Rewrites the CRL when the issuer, digest, next update, or revoked serial list
   differs, when CRL Number or AKI is missing or inconsistent, when the existing
-  CRL is expired, or when `force: true` is set.
+  CRL enters its renewal window, or when `force: true` is set.
+- CRLs renew seven days before nextUpdate by default. `renew_before_days` may be fractional, must be nonnegative, and must be less than `next_update_days`.
+- CRL sequence numbers are persisted before export in `inventory/state/crl_numbers/<name>.json`, independently of PEM and DER exports. Corrupt counter state fails instead of resetting the sequence.
 - The default signature digest is `sha384`.
 - Adds CRL Number and Authority Key Identifier extensions.
 - Supports CRL Reason and Invalidity Date revoked-certificate extensions.
@@ -45,6 +47,7 @@ module as `revoked_certificates`.
 | `common_name` | str | yes | none | any string | no | CA subject Common Name. |
 | `subject` | dict | no | `{}` | supported subject keys | no | Subject defaults for the CRL issuer name. |
 | `next_update_days` | int | yes | none | positive integer | no | Number of days until CRL `nextUpdate`. |
+| `renew_before_days` | float | no | `7` | nonnegative, less than `next_update_days` | no | Renew before expiry; role default is `ca_crl_renew_before_days`, with per-authority `crl_renew_before_days` overrides. |
 | `revoked_certificates` | list[dict] | no | `[]` | see below | no | Declarative revoked certificate entries. |
 | `digest` | str | no | `sha384` | `sha1`, `sha224`, `sha256`, `sha384`, `sha512` | no | Signature digest for RSA and ECDSA CA keys. |
 | `owner` | str | no | none | user name or UID | no | Owner for the CRL and inventory files. |
@@ -91,6 +94,7 @@ For `name: component` and `base_dir: /etc/pki/example`:
 - `/etc/pki/example/crl/component-ca.crl.pem` when `pem` is requested
 - `/etc/pki/example/crl/component-ca.crl` when `der` is requested
 - `/etc/pki/example/inventory/state/crls/component/<format>.json`
+- `/etc/pki/example/inventory/state/crl_numbers/component.json`
 - `/etc/pki/example/inventory/state/revocations/component/<serial>.json`
 - `/etc/pki/example/inventory/ca-inventory.json` when `ca_name` is set
 
@@ -120,6 +124,7 @@ Create a PEM CRL:
       organization: Example
       organizational_unit: Example PKI
     next_update_days: 7
+    renew_before_days: 1
     key_passphrase: "{{ ca_component_passphrase }}"
 ```
 
@@ -133,6 +138,7 @@ Create default PEM and DER CRLs with one revoked certificate by name:
     name: component
     common_name: Example Component CA
     next_update_days: 7
+    renew_before_days: 1
     key_passphrase: "{{ ca_component_passphrase }}"
     revoked_certificates:
       - name: web01
@@ -150,6 +156,7 @@ Revoke by SHA-256 fingerprint:
     name: component
     common_name: Example Component CA
     next_update_days: 7
+    renew_before_days: 1
     key_passphrase: "{{ ca_component_passphrase }}"
     revoked_certificates:
       - sha256: "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"

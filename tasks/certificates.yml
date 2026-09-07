@@ -16,7 +16,6 @@
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
     force: "{{ ca_force_reissue | bool }}"
-  register: __ca_certificate_material_status
   no_log: true
 
 - name: "CA | Deploy FritzBox certificates"

@@ -3,8 +3,23 @@
 # file: tasks/crls.yml
 
 - name: "CA | Manage authority CRLs"
-  ansible.builtin.include_tasks: crl.yml
+  ca_crl:
+    base_dir: "{{ ca_base_dir }}"
+    base_url: "{{ ca_base_url }}"
+    ca_name: "{{ ca_name }}"
+    name: "{{ __ca_authority.name }}"
+    key_passphrase: "{{ __ca_authority.key_passphrase }}"
+    common_name: "{{ __ca_authority.common_name }}"
+    subject: "{{ ca_subject | combine(__ca_authority.subject | default({})) }}"
+    next_update_days: "{{ __ca_authority.crl_days }}"
+    renew_before_days: "{{ __ca_authority.crl_renew_before_days | default(ca_crl_renew_before_days) }}"
+    revoked_certificates: "{{ ca_revocations.get(__ca_authority.name, []) }}"
+    digest: "{{ __ca_authority.crl_digest | default(omit) }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    force: "{{ ca_force_reissue | bool }}"
+  no_log: true
   loop: "{{ ca_authorities }}"
   loop_control:
-    loop_var: ca_authority
-    label: "{{ ca_authority.name }}"
+    loop_var: __ca_authority
+    label: "{{ __ca_authority.name }}"

@@ -92,8 +92,8 @@ argument_specs:
         type: bool
         required: false
         default: false
-        description: Force regeneration of managed certificates, CRLs, and exports where
-          supported.
+        description: Force regeneration of authority and certificate keys, certificates,
+          CRLs, and exports.
       ca_renewal:
         type: dict
         required: false
@@ -103,7 +103,7 @@ argument_specs:
           renew_at: ''
           rekey: false
         description:
-          - Default renewal policy for managed certificates.
+          - Default renewal policy for managed authorities and certificates.
           - '`warn_before_days` marks renewal warning state in CA inventory but does not
             renew by itself.'
           - '`renew_before_days` renews when the existing certificate reaches that remaining-validity
@@ -181,6 +181,28 @@ argument_specs:
             type: int
             required: true
             description: CRL validity in days.
+          crl_renew_before_days:
+            type: float
+            required: false
+            description: Optional CRL renewal window in days, overriding `ca_crl_renew_before_days`.
+              Must be nonnegative and less than `crl_days`.
+          renewal:
+            type: dict
+            required: false
+            description: Authority renewal policy override merged with `ca_renewal`.
+            options:
+              warn_before_days:
+                type: int
+                description: Remaining-validity warning window in days.
+              renew_before_days:
+                type: int
+                description: Remaining-validity renewal window in days.
+              renew_at:
+                type: str
+                description: Optional scheduled renewal timestamp.
+              rekey:
+                type: bool
+                description: Generate a new private key when renewal is due.
           key_passphrase:
             type: str
             required: true
@@ -189,6 +211,16 @@ argument_specs:
             type: str
             required: false
             description: Optional CRL message digest override.
+      ca_crl_renew_before_days:
+        type: float
+        required: false
+        default: 7
+        description:
+          - Renew CRLs this many days before nextUpdate, even when revocations are unchanged.
+          - Must be nonnegative and less than the authority `crl_days`; fractional days
+            are supported.
+          - An authority may override this window with `crl_renew_before_days`.
+          - Run the role more frequently than the renewal window, allowing time for publication.
       ca_revocations:
         type: dict
         required: false

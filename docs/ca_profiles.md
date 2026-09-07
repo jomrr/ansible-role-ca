@@ -56,4 +56,3 @@ params = apply_certificate_profile(params, model["type"])
 ## Used By
 
 - `ca_certificate`
-

@@ -6,5 +6,5 @@
   ansible.builtin.include_tasks: authority.yml
   loop: "{{ ca_authorities }}"
   loop_control:
-    loop_var: ca_authority
-    label: "{{ ca_authority.name }}"
+    loop_var: __ca_authority
+    label: "{{ __ca_authority.name }}"

@@ -2,17 +2,14 @@
 
 Internal Ansible filter plugin for CA role variable normalization.
 
-`filter_plugins/ca.py` exposes authority validation and publish manifest
-comparison filters. It is used by role tasks to validate and address
-`ca_authorities` by name and to decide whether target publish directories need
-an archive extraction.
+`filter_plugins/ca.py` exposes authority validation. Role tasks use it to
+validate and address `ca_authorities` by name.
 
 ## Exported Filters
 
 | Filter | Purpose |
 | --- | --- |
 | `ca_authority_map` | Returns authorities keyed by `name` after validating list shape, safe names, uniqueness, and parent references. |
-| `ca_publish_needs_unpack` | Compares target manifest checksums with a generated publish archive and returns whether extraction is required. |
 
 ## Behavior
 
@@ -24,8 +21,6 @@ an archive extraction.
 - Names must match `^[A-Za-z0-9_.-]+$`.
 - Duplicate names fail.
 - Every `parent` must reference an authority in the same list.
-- Publish extraction is skipped when all target manifest checksums match the
-  manifest checksums returned by `ca_publish_archive`.
 
 ## Defaults
 

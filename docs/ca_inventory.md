@@ -126,3 +126,8 @@ inventory_changed = update_certificate_inventory(params, model, result)
 - `ca_certificate`
 - `ca_certificate_batch`
 - `ca_crl`
+
+Storage, certificate summaries, record construction, and revocation resolution
+are separated into `ca_inventory_store`, `ca_inventory_summary`,
+`ca_inventory_records`, and `ca_inventory_revocation`. The `ca_inventory` module
+retains the public update and composition entry points.

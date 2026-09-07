@@ -137,6 +137,10 @@ ca_authorities:
 # Certificate revocation
 ################################################################################
 
+# Renew CRLs this many days before nextUpdate; must be less than crl_days.
+# Authorities may override this window with crl_renew_before_days.
+ca_crl_renew_before_days: 7
+
 # Declarative revocations keyed by issuing authority name.
 #
 # Each item identifies one issued certificate by name, fingerprint, or serial.

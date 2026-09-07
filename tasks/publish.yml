@@ -40,76 +40,53 @@
 
     - name: "CA | Register publish target hosts"
       ansible.builtin.add_host:
-        name: "{{ ca_publish_target.name }}"
-        ansible_host: "{{ ca_publish_target.ansible_host | default(omit) }}"
-        ansible_user: "{{ ca_publish_target.ansible_user | default(omit) }}"
-        ansible_port: "{{ ca_publish_target.ansible_port | default(omit) }}"
-        ansible_ssh_private_key_file: "{{ ca_publish_target.ansible_ssh_private_key_file | default(omit) }}"
+        name: "{{ __ca_publish_target.name }}"
+        ansible_host: "{{ __ca_publish_target.ansible_host | default(omit) }}"
+        ansible_user: "{{ __ca_publish_target.ansible_user | default(omit) }}"
+        ansible_port: "{{ __ca_publish_target.ansible_port | default(omit) }}"
+        ansible_ssh_private_key_file: "{{ __ca_publish_target.ansible_ssh_private_key_file | default(omit) }}"
       loop: "{{ ca_publish_targets }}"
       loop_control:
-        loop_var: ca_publish_target
-        label: "{{ ca_publish_target.name }}"
+        loop_var: __ca_publish_target
+        label: "{{ __ca_publish_target.name }}"
       changed_when: false
       when: >-
-        ca_publish_target.ansible_host is defined
-        or ca_publish_target.ansible_user is defined
-        or ca_publish_target.ansible_port is defined
-        or ca_publish_target.ansible_ssh_private_key_file is defined
+        __ca_publish_target.ansible_host is defined
+        or __ca_publish_target.ansible_user is defined
+        or __ca_publish_target.ansible_port is defined
+        or __ca_publish_target.ansible_ssh_private_key_file is defined
 
     - name: "CA | Create publish directories"
       ansible.builtin.file:
         path: >-
           {{
-            ca_publish_pair.0.path | regex_replace('/+$', '')
-          }}{{ ('/' ~ ca_publish_pair.1) if ca_publish_pair.1 else '' }}
+            __ca_publish_pair.0.path | regex_replace('/+$', '')
+          }}{{ ('/' ~ __ca_publish_pair.1) if __ca_publish_pair.1 else '' }}
         state: directory
-        owner: "{{ ca_publish_pair.0.owner | default(ca_owner) }}"
-        group: "{{ ca_publish_pair.0.group | default(ca_group) }}"
-        mode: "{{ ca_publish_pair.0.directory_mode | default(ca_publish_directory_mode) }}"
+        owner: "{{ __ca_publish_pair.0.owner | default(ca_owner) }}"
+        group: "{{ __ca_publish_pair.0.group | default(ca_group) }}"
+        mode: "{{ __ca_publish_pair.0.directory_mode | default(ca_publish_directory_mode) }}"
       loop: "{{ ca_publish_targets | product(['', 'aia', 'crl']) | list }}"
       loop_control:
-        loop_var: ca_publish_pair
-        label: "{{ ca_publish_pair.0.name }}/{{ ca_publish_pair.1 | default('webroot', true) }}"
-      delegate_to: "{{ ca_publish_pair.0.name }}"
-      become: "{{ ca_publish_pair.0.become | default(false) | bool }}"
-      become_user: "{{ ca_publish_pair.0.become_user | default('root') }}"
-
-    - name: "CA | Check publish target manifests"
-      ansible.builtin.stat:
-        path: >-
-          {{
-            ca_publish_pair.0.path | regex_replace('/+$', '')
-          }}/{{ ca_publish_pair.1 }}/.ca-publish-manifest.json
-        checksum_algorithm: sha256
-      loop: "{{ ca_publish_targets | product(__ca_publish_archive.manifest_sha256.keys() | list) | list }}"
-      loop_control:
-        loop_var: ca_publish_pair
-        label: "{{ ca_publish_pair.0.name }}/{{ ca_publish_pair.1 }}"
-      delegate_to: "{{ ca_publish_pair.0.name }}"
-      become: "{{ ca_publish_pair.0.become | default(false) | bool }}"
-      become_user: "{{ ca_publish_pair.0.become_user | default('root') }}"
-      register: __ca_publish_target_manifests
-      changed_when: false
+        loop_var: __ca_publish_pair
+        label: "{{ __ca_publish_pair.0.name }}/{{ __ca_publish_pair.1 | default('webroot', true) }}"
+      delegate_to: "{{ __ca_publish_pair.0.name }}"
+      become: "{{ __ca_publish_pair.0.become | default(false) | bool }}"
+      become_user: "{{ __ca_publish_pair.0.become_user | default('root') }}"
 
     - name: "CA | Publish artifact archive"
       ansible.builtin.unarchive:
         src: "{{ __ca_publish_stage.path }}/public.tar"
-        dest: "{{ ca_publish_target.path | regex_replace('/+$', '') }}"
-        owner: "{{ ca_publish_target.owner | default(ca_owner) }}"
-        group: "{{ ca_publish_target.group | default(ca_group) }}"
+        dest: "{{ __ca_publish_target.path | regex_replace('/+$', '') }}"
+        owner: "{{ __ca_publish_target.owner | default(ca_owner) }}"
+        group: "{{ __ca_publish_target.group | default(ca_group) }}"
       loop: "{{ ca_publish_targets }}"
       loop_control:
-        loop_var: ca_publish_target
-        label: "{{ ca_publish_target.name }}"
-      delegate_to: "{{ ca_publish_target.name }}"
-      become: "{{ ca_publish_target.become | default(false) | bool }}"
-      become_user: "{{ ca_publish_target.become_user | default('root') }}"
-      when: >-
-        __ca_publish_target_manifests.results
-        | ca_publish_needs_unpack(
-          ca_publish_target.name,
-          __ca_publish_archive.manifest_sha256
-        )
+        loop_var: __ca_publish_target
+        label: "{{ __ca_publish_target.name }}"
+      delegate_to: "{{ __ca_publish_target.name }}"
+      become: "{{ __ca_publish_target.become | default(false) | bool }}"
+      become_user: "{{ __ca_publish_target.become_user | default('root') }}"
   always:
     - name: "CA | Remove local publish staging directory"
       ansible.builtin.file:

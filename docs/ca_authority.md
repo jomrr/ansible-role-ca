@@ -30,7 +30,7 @@ text exports, and CA inventory state for a root or issuing CA.
 | Parameter | Type | Required | Default | Allowed values | Secret | Description |
 | --- | --- | --- | --- | --- | --- | --- |
 | `base_dir` | path | yes | none | any absolute or relative path | no | Base directory for CA artifacts. |
-| `base_url` | str | no | `""` | any URL prefix | no | Base publication URL. If set, AIA defaults to `<base_url>/aia/<name>-ca.der` and CDP to `<base_url>/crl/<name>-ca.crl`. |
+| `base_url` | str | no | `""` | any URL prefix | no | Base publication URL. If set, AIA defaults to `<base_url>/aia/<parent>-ca.der` and CDP to `<base_url>/crl/<parent>-ca.crl`; a root references itself. |
 | `ca_name` | str | no | `""` | any string | no | Enables composed inventory output when non-empty. |
 | `name` | str | yes | none | safe filename stem | no | Authority short name. |
 | `parent` | str | no | `""`, treated as `name` | existing authority name | no | Parent CA name. Same as `name` means self-signed root. |
@@ -50,8 +50,8 @@ text exports, and CA inventory state for a root or issuing CA.
 | `extended_key_usage_critical` | bool | no | `false` | `true`, `false` | no | Marks Extended Key Usage critical. |
 | `san` | list[str] | no | `[]` | supported SAN syntax | no | Subject Alternative Name entries. |
 | `san_critical` | bool | no | `false` | `true`, `false` | no | Marks SAN critical. |
-| `aia_base_url` | str | no | `""` | any URL prefix | no | Explicit AIA URL prefix. The module appends `<name>-ca.der`. |
-| `cdp_base_url` | str | no | `""` | any URL prefix | no | Explicit CDP URL prefix. The module appends `<name>-ca.crl`. |
+| `aia_base_url` | str | no | `""` | any URL prefix | no | Explicit AIA URL prefix. The module appends `<parent>-ca.der` (the root name for a root). |
+| `cdp_base_url` | str | no | `""` | any URL prefix | no | Explicit CDP URL prefix. The module appends `<parent>-ca.crl` (the root name for a root). |
 | `raw_extensions` | list[dict] | no | `[]` | supported raw extension syntax | no | Additional unrecognized extensions. |
 | `pkinit` | dict | no | `{}` | internal PKINIT shape | no | Internal PKINIT context for SAN otherName encoding. |
 | `days` | int | yes | none | positive integer | no | Certificate validity in days. |

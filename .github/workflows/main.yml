@@ -8,9 +8,23 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - .gitignore
+      - .pre-commit-config.yaml
+      - LICENSE
+      - README.md
+      - docs/**
+      - pyproject.toml
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - .gitignore
+      - .pre-commit-config.yaml
+      - LICENSE
+      - README.md
+      - docs/**
+      - pyproject.toml
   workflow_dispatch:
 
 permissions:
@@ -29,7 +43,7 @@ jobs:
       PY_COLORS: "1"
       ANSIBLE_FORCE_COLOR: "true"
     name: Molecule full ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
 
     strategy:

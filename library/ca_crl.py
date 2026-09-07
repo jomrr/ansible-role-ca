@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import datetime as _dt
+from pathlib import Path
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.basic import (
+    AnsibleModule,  # type: ignore[import-not-found,import-untyped]
+)
+from ansible.module_utils.ca_crl_state import last_crl_number, store_crl_number
 from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
     ca_lock_path,
     file_locks,
@@ -17,7 +21,9 @@ from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found
     resolve_revocation_entries,
     update_crl_inventory,
 )
-from ansible.module_utils.ca_serial import parse_serial  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_serial import (
+    parse_serial,  # type: ignore[import-not-found,import-untyped]
+)
 from ansible.module_utils.ca_time import (  # type: ignore[import-not-found,import-untyped]
     now_utc,
     object_datetime,
@@ -176,8 +182,7 @@ def _same_existing_number(
 ) -> bool:
     """Return whether all requested existing CRLs have the same CRL Number."""
     numbers = [
-        _crl_number(crl) if crl is not None else None
-        for crl in existing_crls.values()
+        _crl_number(crl) if crl is not None else None for crl in existing_crls.values()
     ]
     return bool(numbers) and None not in numbers and len(set(numbers)) == 1
 
@@ -202,7 +207,9 @@ def _needs_rebuild(
             return True
         if crl.signature_algorithm_oid != comparison_crl.signature_algorithm_oid:
             return True
-        if object_datetime(crl, "next_update") <= current_time:
+        if object_datetime(crl, "next_update") <= current_time + _dt.timedelta(
+            days=params["renew_before_days"]
+        ):
             return True
         if _authority_key_identifier(crl) != desired_authority_key:
             return True
@@ -221,9 +228,7 @@ def _build_crl(params, *, crl_number: int, ca_cert, private_key):
         .next_update(now + _dt.timedelta(days=int(params["next_update_days"])))
         .add_extension(x509.CRLNumber(crl_number), critical=False)
         .add_extension(
-            x509.AuthorityKeyIdentifier.from_issuer_public_key(
-                ca_cert.public_key()
-            ),
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),
             critical=False,
         )
     )
@@ -310,6 +315,7 @@ def run_module():
             "common_name": {"type": "str", "required": True},
             "subject": {"type": "dict", "default": {}},
             "next_update_days": {"type": "int", "required": True},
+            "renew_before_days": {"type": "float", "default": 7},
             "revoked_certificates": {"type": "list", "elements": "dict", "default": []},
             "digest": {"type": "str", "default": "sha384"},
             "owner": {"type": "str"},
@@ -328,6 +334,10 @@ def run_module():
     params = _with_derived_paths(module.params)
     inventory_changed = False
     try:
+        if not 0 <= params["renew_before_days"] < params["next_update_days"]:
+            raise ValueError(
+                "renew_before_days must be nonnegative and less than next_update_days"
+            )
         with file_locks(
             [
                 ca_lock_path(params["base_dir"], "authority", params["name"]),
@@ -347,23 +357,35 @@ def run_module():
             )
             existing_crls = _load_existing_crls(params["paths"])
             existing_numbers = _existing_numbers(existing_crls)
-            comparison_number = existing_numbers[0] if existing_numbers else 1
+            previous_number = last_crl_number(params["base_dir"], params["name"])
+            if not previous_number and any(
+                Path(path).exists() for path in params["paths"].values()
+            ):
+                raise ValueError(
+                    "CRL exports exist but their sequence state is missing"
+                )
+            if any(number > previous_number for number in existing_numbers):
+                raise ValueError("CRL export number exceeds the persistent sequence")
             comparison_crl = _build_crl(
                 params,
-                crl_number=comparison_number,
+                crl_number=previous_number or 1,
                 ca_cert=ca_cert,
                 private_key=private_key,
             )
             desired_revoked = _desired_revoked(params["revoked_certificates"])
-            changed = params["force"] or _needs_rebuild(
-                existing_crls=existing_crls,
-                params=params,
-                comparison_crl=comparison_crl,
-                desired_revoked=desired_revoked,
-                desired_authority_key=_desired_authority_key_identifier(ca_cert),
+            changed = (
+                params["force"]
+                or previous_number > max(existing_numbers or [0])
+                or _needs_rebuild(
+                    existing_crls=existing_crls,
+                    params=params,
+                    comparison_crl=comparison_crl,
+                    desired_revoked=desired_revoked,
+                    desired_authority_key=_desired_authority_key_identifier(ca_cert),
+                )
             )
             if changed:
-                crl_number = max(existing_numbers or [0]) + 1
+                crl_number = previous_number + 1
                 crl = _build_crl(
                     params,
                     crl_number=crl_number,
@@ -377,6 +399,7 @@ def run_module():
                     raise ValueError("existing CRL is missing a CRL Number")
                 crl_number = existing_crl_number
 
+            changed = store_crl_number(params, crl_number) or changed
             changed = _write_crls(params, crl) or changed
             inventory_changed = update_crl_inventory(params, crl)
             changed = changed or inventory_changed

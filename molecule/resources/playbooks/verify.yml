@@ -2,11 +2,11 @@
 # role: ca
 # file: molecule/resources/playbooks/verify.yml
 
-- name: "Molecule | verify | ca"
+- name: "CA | Verify CA artifacts"
   hosts: all
   gather_facts: true
   vars:
-    ca_molecule_base: "{{ (ansible_facts.os_family == 'RedHat') | ternary('/etc/pki', '/etc/ssl') }}/{{ ca_name | lower }}"
+    __ca_molecule_base: "{{ (ansible_facts.os_family == 'RedHat') | ternary('/etc/pki', '/etc/ssl') }}/{{ ca_name | lower }}"
   tasks:
     - name: "CA | Load role certificate type vars"
       ansible.builtin.include_vars:
@@ -15,7 +15,7 @@
     - name: "CA | Verify generated CA artifacts"
       ca_verify:
         ca_name: "{{ ca_name }}"
-        base_dir: "{{ ca_molecule_base }}"
+        base_dir: "{{ __ca_molecule_base }}"
         publish_root: /var/www/pki
         authorities: "{{ ca_authorities }}"
         certificates: "{{ ca_certificates }}"
