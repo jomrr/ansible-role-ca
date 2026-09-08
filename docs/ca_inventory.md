@@ -24,7 +24,7 @@ users to call a separate inventory module.
 | `update_certificate_inventory(params, model, result)` | Records one issued certificate and its current pointer, then composes the inventory under one state lock. |
 | `update_certificates_inventory(records)` | Records multiple issued certificate records, then composes the inventory once under one state lock. |
 | `update_crl_inventory(params, crl)` | Records all exported CRL formats and declarative revocation events, then composes the inventory under one state lock. |
-| `resolve_revocation_entries(base_dir, authority, entries)` | Resolves revocation entries by serial, certificate name, or fingerprint. |
+| `resolve_revocation_entries(base_dir, authority, entries)` | Resolves new revocations and includes recorded issuer/serial revocations with persistent name bindings. |
 | `compose_inventory(base_dir, ca_name, base_url)` | Builds the complete inventory dictionary from fragments. |
 | `write_composed_inventory(base_dir, ca_name, base_url, owner, group, mode="0644", force=False)` | Writes `<base_dir>/inventory/ca-inventory.json`. |
 | `compose_inventory_if_configured(params)` | Writes composed inventory when `params.ca_name` is non-empty. |
@@ -92,7 +92,11 @@ Revocation entries can be resolved from:
 - fingerprints through `fingerprint`, `sha1`, or `sha256`
 
 Resolved revocation events can include `reason`, `revocation_date`,
-`invalidity_date`, certificate name, and public fingerprints.
+`invalidity_date`, certificate name, and public fingerprints. `selector_name`
+records a name selector's permanent binding to the selected issuer and serial.
+Reissuing that name does not change the binding or revoke the new generation.
+Recorded revocations remain in later CRLs even if declarations are removed;
+an omitted revocation date preserves the first recorded time.
 
 ## Defaults And Safety
 

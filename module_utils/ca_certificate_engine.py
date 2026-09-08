@@ -4,26 +4,26 @@ from __future__ import annotations
 
 from typing import Any
 
-from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_inventory import (
     update_certificate_inventory,
     update_certificates_inventory,
 )
-from ansible.module_utils.ca_profiles import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_profiles import (
     CERTIFICATE_DEFAULT_FORMATS,
     CERTIFICATE_PROFILE_DEFAULTS,
     apply_certificate_profile,
 )
-from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
-    certificate_params,
-    ensure_x509,
-    ensure_x509_many,
-    normalize_formats,
-)
-from ansible.module_utils.ca_validation import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_validation import (
     authority_map,
     require_value,
     safe_name,
     string_value,
+)
+from ansible.module_utils.ca_x509 import (
+    certificate_params,
+    ensure_x509,
+    ensure_x509_many,
+    normalize_formats,
 )
 
 SUPPORTED_FORMATS = {"pem", "der", "txt", "pfx", "p12", "fullchain", "fritzbox"}
@@ -139,7 +139,9 @@ def _resolve_certificate(
     )
     authorities = authority_map(params["authorities"])
     if issuer not in authorities:
-        raise ValueError(f"Certificate type {cert_type} references unknown issuer {issuer}")
+        raise ValueError(
+            f"Certificate type {cert_type} references unknown issuer {issuer}"
+        )
 
     issuer_authority = authorities[issuer]
     if csr_mode and string_value(issuer_authority.get("parent")).strip() == issuer:
@@ -164,8 +166,7 @@ def _resolve_certificate(
         if unsupported:
             raise ValueError(
                 f"Certificate {name} CSR signing cannot create formats that "
-                "require a private key: "
-                + ", ".join(unsupported)
+                "require a private key: " + ", ".join(unsupported)
             )
     if set(formats).intersection({"pfx", "p12"}) and not string_value(
         certificate.get("pfx_passphrase") or certificate.get("passphrase")
@@ -195,9 +196,11 @@ def _resolve_certificate(
         }
     )
     if cert_type == "mskdc":
-        model["krb5_realm"] = string_value(
-            certificate.get("krb5_realm") or params.get("kerberos_realm")
-        ).strip().upper()
+        model["krb5_realm"] = (
+            string_value(certificate.get("krb5_realm") or params.get("kerberos_realm"))
+            .strip()
+            .upper()
+        )
 
     module_params = {
         "base_dir": params["base_dir"],
@@ -322,6 +325,8 @@ def ensure_certificate_batch(params: dict[str, Any]) -> dict[str, Any]:
         "changed": changed,
         "inventory_changed": inventory_changed,
         "count": len(results),
-        "issuer_groups": {issuer: len(issuer_groups[issuer]) for issuer in issuer_order},
+        "issuer_groups": {
+            issuer: len(issuer_groups[issuer]) for issuer in issuer_order
+        },
         "results": results,
     }

@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from ansible.errors import (
-    AnsibleFilterError,  # type: ignore[import-not-found,import-untyped]
+    AnsibleFilterError,
 )
 
 try:
     from ansible.module_utils.ca_validation import (
-        authority_map,  # type: ignore[import-not-found,import-untyped]
+        authority_map,
     )
 except ModuleNotFoundError:
     spec = importlib.util.spec_from_file_location(

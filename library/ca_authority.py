@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.ca_inventory import (
     update_authority_inventory,
 )
-from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_x509 import (
     CRYPTOGRAPHY_IMPORT_ERROR,
     ca_authority_argument_spec,
     ensure_x509,

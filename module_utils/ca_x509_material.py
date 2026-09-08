@@ -104,7 +104,7 @@ def _ensure_key(params, *, rekey: bool, existing_cert):
     if not params["force"] and not rekey:
         try:
             key = load_private_key(params["key_path"], params["key_passphrase"])
-        except Exception:
+        except FileNotFoundError:
             key = None
         if key is not None and not _key_matches(key, spec):
             _archive_file(params, existing_cert, params["key_path"], params["key_mode"])

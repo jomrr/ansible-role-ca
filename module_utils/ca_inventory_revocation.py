@@ -10,6 +10,7 @@ from ansible.module_utils.ca_inventory_store import (
     _read_collection,
 )
 from ansible.module_utils.ca_serial import normalize_hex, parse_serial, serial_hex
+from ansible.module_utils.ca_time import now_utc, timestamp_z
 
 
 def _split_fingerprint(value: Any) -> tuple[str, str]:
@@ -54,12 +55,12 @@ def _issued_certificate_by_pointer(
 ) -> dict[str, Any] | None:
     """Return the issued certificate record referenced by a current pointer."""
     issuer = str(pointer.get("issuer", ""))
-    serial_hex = str(pointer.get("serial_number_hex", ""))
+    serial = str(pointer.get("serial_number_hex", ""))
     for record in _read_collection(base_dir, "issued_certificates"):
         if (
             str(record.get("issuer", "")) == issuer
             and str(record.get("certificate", {}).get("serial_number_hex", ""))
-            == serial_hex
+            == serial
         ):
             return record
     return None
@@ -124,6 +125,7 @@ def _resolve_revocation_entries_unlocked(
     base_dir: str,
     authority: str,
     entries: list[dict[str, Any]],
+    name_bindings: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Resolve revocation entries while the inventory state lock is held."""
     resolved = []
@@ -139,9 +141,7 @@ def _resolve_revocation_entries_unlocked(
 
         serial = _revocation_field(entry, "serial_number", "serial")
         if serial is not None:
-            item = dict(entry)
-            item["serial_number"] = str(parse_serial(serial))
-            resolved.append(item)
+            resolved.append({**entry, "serial_number": str(parse_serial(serial))})
             continue
 
         certificate_name = _revocation_field(
@@ -151,9 +151,21 @@ def _resolve_revocation_entries_unlocked(
             "certificate_name",
         )
         if certificate_name is not None:
+            certificate_name = str(certificate_name)
+            if certificate_name in name_bindings:
+                resolved.append(
+                    {
+                        **name_bindings[certificate_name],
+                        **entry,
+                        "serial_number": name_bindings[certificate_name][
+                            "serial_number"
+                        ],
+                    }
+                )
+                continue
             pointer = _current_certificate_record(
                 base_dir,
-                name=str(certificate_name),
+                name=certificate_name,
             )
             if pointer is None:
                 raise ValueError(
@@ -169,7 +181,11 @@ def _resolve_revocation_entries_unlocked(
                 raise ValueError(
                     f"Inventory record for certificate {certificate_name} was not found"
                 )
-            resolved.append(_resolved_revocation_from_record(entry, record))
+            resolved.append(
+                _resolved_revocation_from_record(
+                    {**entry, "selector_name": certificate_name}, record
+                )
+            )
             continue
 
         fingerprint_value = _revocation_field(entry, "fingerprint", "sha1", "sha256")
@@ -203,13 +219,34 @@ def resolve_revocation_entries(
     authority: str,
     entries: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Resolve revocation entries by serial number, certificate name, or fingerprint."""
+    """Combine persistent issuer/serial revocations with newly declared entries."""
     with file_lock(_inventory_lock_path(base_dir)):
-        return _resolve_revocation_entries_unlocked(
+        revoked = {
+            str(event["serial_number"]): event
+            for event in _read_collection(base_dir, "revocations")
+            if event["issuer"] == authority
+        }
+        resolved = _resolve_revocation_entries_unlocked(
             base_dir=base_dir,
             authority=authority,
             entries=entries,
+            name_bindings={
+                event["selector_name"]: event
+                for event in revoked.values()
+                if event.get("selector_name")
+            },
         )
+        for entry in resolved:
+            serial = str(parse_serial(entry["serial_number"]))
+            previous = revoked.get(serial, {})
+            event = _revocation_event(authority, {**previous, **entry})
+            event["revocation_date"] = str(
+                entry.get("revocation_date")
+                or previous.get("revocation_date")
+                or timestamp_z(now_utc())
+            )
+            revoked[serial] = event
+        return sorted(revoked.values(), key=lambda event: int(event["serial_number"]))
 
 
 def _revocation_event(authority: str, entry: dict[str, Any]) -> dict[str, Any]:
@@ -228,6 +265,8 @@ def _revocation_event(authority: str, entry: dict[str, Any]) -> dict[str, Any]:
     }
     if entry.get("certificate_name"):
         event["certificate_name"] = str(entry["certificate_name"])
+    if entry.get("selector_name"):
+        event["selector_name"] = str(entry["selector_name"])
     if entry.get("fingerprints"):
         event["fingerprints"] = entry["fingerprints"]
     return event

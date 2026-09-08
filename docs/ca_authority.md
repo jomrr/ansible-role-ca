@@ -16,6 +16,8 @@ text exports, and CA inventory state for a root or issuing CA.
 - The default signature digest is `sha384`.
 - `key_passphrase` is required and is only used in memory by the module.
 - `parent_key_passphrase` is required for issuing CAs.
+- When reusing a key, only a missing file triggers key generation. An unreadable,
+  corrupt, or incorrectly encrypted key causes failure without replacing it.
 - AIA and CDP URLs are added when `base_url`, `aia_base_url`, or
   `cdp_base_url` are set.
 - PEM is always the canonical certificate format. `der` and `txt` add exports.

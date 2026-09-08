@@ -14,8 +14,8 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from http.client import HTTPResponse
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.ca_file import (
     ca_lock_path,
     file_lock,
     read_file,
@@ -73,7 +73,7 @@ def _challenge_response(challenge: str, password: str) -> str:
         return f"{challenge}${second_hash.hex()}"
 
     digest_input = f"{challenge}-{password}".encode("utf-16le")
-    response_hash = hashlib.md5(digest_input).hexdigest()  # noqa: S324
+    response_hash = hashlib.md5(digest_input).hexdigest()
     return f"{challenge}-{response_hash}"
 
 
@@ -122,7 +122,7 @@ def _ssl_context(validate_certs: bool) -> ssl.SSLContext:
     """Return an SSL context matching the certificate validation setting."""
     if validate_certs:
         return ssl.create_default_context()
-    return ssl._create_unverified_context()  # noqa: S323
+    return ssl._create_unverified_context()
 
 
 class FritzBoxClient:
@@ -164,13 +164,13 @@ class FritzBoxClient:
         )
         try:
             if urllib.parse.urlsplit(url).scheme == "https":
-                response_context = urllib.request.urlopen(  # noqa: S310
+                response_context = urllib.request.urlopen(
                     request,
                     timeout=self.timeout,
                     context=self.context,
                 )
             else:
-                response_context = urllib.request.urlopen(  # noqa: S310
+                response_context = urllib.request.urlopen(
                     request,
                     timeout=self.timeout,
                 )

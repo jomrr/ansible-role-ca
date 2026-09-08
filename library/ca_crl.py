@@ -7,30 +7,30 @@ import datetime as _dt
 from pathlib import Path
 
 from ansible.module_utils.basic import (
-    AnsibleModule,  # type: ignore[import-not-found,import-untyped]
+    AnsibleModule,
 )
 from ansible.module_utils.ca_crl_state import last_crl_number, store_crl_number
-from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import (
     ca_lock_path,
     file_locks,
     read_file,
     sanitize_error,
     write_file,
 )
-from ansible.module_utils.ca_inventory import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_inventory import (
     resolve_revocation_entries,
     update_crl_inventory,
 )
 from ansible.module_utils.ca_serial import (
-    parse_serial,  # type: ignore[import-not-found,import-untyped]
+    parse_serial,
 )
-from ansible.module_utils.ca_time import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_time import (
     now_utc,
     object_datetime,
     parse_datetime,
     timestamp_iso,
 )
-from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_x509 import (
     load_certificate,
     load_private_key,
     signature_algorithm,
@@ -90,7 +90,9 @@ def _parse_revocation_date(value):
     return parsed
 
 
-def _revoked_signature(crl):
+def _revoked_signature(
+    crl: x509.CertificateRevocationList,
+) -> list[tuple[int, str, str, str]]:
     """Return comparable revoked certificate entries from an existing CRL."""
     result = []
     for revoked in crl:
@@ -110,11 +112,12 @@ def _revoked_signature(crl):
             )
         except x509.ExtensionNotFound:
             pass
-        result.append((revoked.serial_number, reason, invalidity_date))
+        revocation_date = timestamp_iso(object_datetime(revoked, "revocation_date"))
+        result.append((revoked.serial_number, reason, invalidity_date, revocation_date))
     return sorted(result)
 
 
-def _desired_revoked(entries):
+def _desired_revoked(entries: list[dict]) -> list[tuple[int, str, str, str]]:
     """Return comparable revoked certificate entries from module params."""
     result = []
     for entry in entries or []:
@@ -125,11 +128,14 @@ def _desired_revoked(entries):
             invalidity_date = timestamp_iso(
                 _parse_revocation_date(entry["invalidity_date"])
             )
-        result.append((serial, reason, invalidity_date))
+        revocation_date = timestamp_iso(
+            _parse_revocation_date(entry["revocation_date"])
+        )
+        result.append((serial, reason, invalidity_date, revocation_date))
     return sorted(result)
 
 
-def _crl_number(crl) -> int | None:
+def _crl_number(crl: x509.CertificateRevocationList) -> int | None:
     """Return an existing CRL Number extension value."""
     try:
         return crl.extensions.get_extension_for_class(x509.CRLNumber).value.crl_number
@@ -137,7 +143,7 @@ def _crl_number(crl) -> int | None:
         return None
 
 
-def _authority_key_identifier(crl) -> bytes | None:
+def _authority_key_identifier(crl: x509.CertificateRevocationList) -> bytes | None:
     """Return an existing CRL Authority Key Identifier."""
     try:
         return crl.extensions.get_extension_for_class(
@@ -147,16 +153,16 @@ def _authority_key_identifier(crl) -> bytes | None:
         return None
 
 
-def _desired_authority_key_identifier(ca_cert) -> bytes | None:
+def _desired_authority_key_identifier(ca_cert: x509.Certificate) -> bytes:
     """Return the desired CRL Authority Key Identifier."""
-    return x509.AuthorityKeyIdentifier.from_issuer_public_key(
-        ca_cert.public_key()
-    ).key_identifier
+    return x509.SubjectKeyIdentifier.from_public_key(ca_cert.public_key()).digest
 
 
-def _load_existing_crls(paths: dict[str, str]) -> dict[str, object | None]:
+def _load_existing_crls(
+    paths: dict[str, str],
+) -> dict[str, x509.CertificateRevocationList | None]:
     """Load existing CRLs for all requested formats."""
-    existing: dict[str, object | None] = {}
+    existing: dict[str, x509.CertificateRevocationList | None] = {}
     for crl_format, path in paths.items():
         try:
             existing[crl_format] = _load_crl(path)
@@ -165,7 +171,9 @@ def _load_existing_crls(paths: dict[str, str]) -> dict[str, object | None]:
     return existing
 
 
-def _existing_numbers(existing_crls: dict[str, object | None]) -> list[int]:
+def _existing_numbers(
+    existing_crls: dict[str, x509.CertificateRevocationList | None],
+) -> list[int]:
     """Return all available CRL Number values from existing CRLs."""
     numbers = []
     for crl in existing_crls.values():
@@ -192,7 +200,7 @@ def _needs_rebuild(
     existing_crls: dict[str, x509.CertificateRevocationList | None],
     params: dict,
     comparison_crl: x509.CertificateRevocationList,
-    desired_revoked: list[tuple[int, str, str]],
+    desired_revoked: list[tuple[int, str, str, str]],
     desired_authority_key: bytes | None,
 ) -> bool:
     """Return whether existing CRLs differ from desired CRL state."""
@@ -275,7 +283,7 @@ def _with_derived_paths(params: dict) -> dict:
     return result
 
 
-def _write_crls(params: dict, crl) -> bool:
+def _write_crls(params: dict, crl: x509.CertificateRevocationList) -> bool:
     """Write one CRL object to all requested output formats."""
     changed = False
     for crl_format, path in params["paths"].items():
@@ -400,8 +408,8 @@ def run_module():
                 crl_number = existing_crl_number
 
             changed = store_crl_number(params, crl_number) or changed
-            changed = _write_crls(params, crl) or changed
             inventory_changed = update_crl_inventory(params, crl)
+            changed = _write_crls(params, crl) or changed
             changed = changed or inventory_changed
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))

@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_certificate_engine import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.ca_certificate_engine import (
     batch_certificate_argument_spec,
     ensure_certificate_batch,
 )
-from ansible.module_utils.ca_x509 import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_x509 import (
     CRYPTOGRAPHY_IMPORT_ERROR,
     sanitize_error,
 )

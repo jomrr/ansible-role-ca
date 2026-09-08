@@ -231,11 +231,17 @@ argument_specs:
           identity: []
         description:
           - Revoked certificate entries keyed by issuing authority name.
-          - Missing authority keys mean that no certificate is revoked for that authority.
+          - Missing authority keys declare no new revocations; previously recorded revocations
+            remain in CRLs.
           - Each list item must identify one certificate by `name`, `certificate_name`,
             `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.
           - Names and fingerprints are resolved from the managed CA inventory; serial numbers
             can be decimal, `0x` hex, or colon-separated hex.
+          - A name is permanently bound to the issuer and serial of its first revoked generation.
+            Reissuing the name does not revoke the replacement; use its serial or fingerprint
+            to revoke that generation.
+          - Removing an entry does not undo a recorded revocation. An omitted `revocation_date`
+            retains the first revocation time.
           - Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.
           - Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`,
             `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`,

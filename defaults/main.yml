@@ -144,12 +144,14 @@ ca_crl_renew_before_days: 7
 # Declarative revocations keyed by issuing authority name.
 #
 # Each item identifies one issued certificate by name, fingerprint, or serial.
+# A name binds to its first revoked generation; later generations need a serial
+# or fingerprint selector. Recorded revocations remain even if input is removed.
 # Supported selectors are name, certificate_name, certificate, fingerprint,
 # sha1, sha256, serial, and serial_number.
 #
 # reason is optional and becomes a CRL Reason extension.
 # invalidity_date is optional and becomes an Invalidity Date extension.
-# revocation_date is optional; the current UTC time is used when omitted.
+# revocation_date is optional; the first revocation time is retained when omitted.
 #
 # Supported reasons are key_compromise, ca_compromise, affiliation_changed,
 # superseded, cessation_of_operation, certificate_hold, privilege_withdrawn,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as _dt
 from typing import Any
 
-from ansible.module_utils.ca_time import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_time import (
     now_utc,
     parse_datetime,
 )
@@ -112,14 +112,14 @@ def renewal_status(
     if renew_at is not None:
         scheduled = not_before < renew_at
         scheduled_due = scheduled and renew_at <= current_time
-    renew_window = (
-        policy["renew_before_days"] > 0
-        and current_time >= not_after - _dt.timedelta(days=policy["renew_before_days"])
+    renew_window = policy[
+        "renew_before_days"
+    ] > 0 and current_time >= not_after - _dt.timedelta(
+        days=policy["renew_before_days"]
     )
-    warning = (
-        policy["warn_before_days"] > 0
-        and current_time >= not_after - _dt.timedelta(days=policy["warn_before_days"])
-    )
+    warning = policy[
+        "warn_before_days"
+    ] > 0 and current_time >= not_after - _dt.timedelta(days=policy["warn_before_days"])
     state = "valid"
     if not_after <= current_time:
         state = "expired"

@@ -11,8 +11,8 @@ from collections import defaultdict
 from pathlib import PurePosixPath
 from typing import Any
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.ca_file import (
     ca_lock_path,
     file_lock,
     read_file,
@@ -20,7 +20,7 @@ from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,impo
     set_attrs,
     write_file,
 )
-from ansible.module_utils.ca_validation import authority_map  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_validation import authority_map
 
 AREA_DIRECTORY = {
     "aia": "aia",
@@ -165,10 +165,9 @@ def _manifest_content(directory: str, entries: list[dict[str, Any]]) -> bytes:
         "directory": directory,
         "files": sorted(entries, key=lambda item: item["path"]),
     }
-    return (
-        json.dumps(manifest, sort_keys=True, separators=(",", ":"))
-        + "\n"
-    ).encode("utf-8")
+    return (json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n").encode(
+        "utf-8"
+    )
 
 
 def _archive_content(

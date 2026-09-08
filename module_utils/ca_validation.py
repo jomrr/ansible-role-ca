@@ -6,9 +6,7 @@ import re
 from typing import Any
 
 SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-SAFE_NAME_MESSAGE = (
-    "use only letters, digits, dots, underscores, and hyphens"
-)
+SAFE_NAME_MESSAGE = "use only letters, digits, dots, underscores, and hyphens"
 
 
 def string_value(value: Any) -> str:

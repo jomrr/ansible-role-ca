@@ -5,15 +5,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ansible.module_utils.basic import AnsibleModule  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_file import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.ca_file import (
     ca_lock_path,
     file_locks,
     sanitize_error,
     write_file,
 )
-from ansible.module_utils.ca_text import certificate_text  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_x509 import load_certificates  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_text import certificate_text
+from ansible.module_utils.ca_x509 import load_certificates
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
@@ -42,10 +42,7 @@ def _formats(value) -> list[str]:
 def _chain_paths(base_dir: str, name: str, formats: list[str]) -> dict[str, str]:
     """Return derived CA chain output paths."""
     base = f"{base_dir.rstrip('/')}/chains/{name}-ca-chain"
-    return {
-        chain_format: f"{base}.{chain_format}"
-        for chain_format in formats
-    }
+    return {chain_format: f"{base}.{chain_format}" for chain_format in formats}
 
 
 def _authority_name(path: Path) -> str:
@@ -88,9 +85,7 @@ def _authority_key_identifier(cert: x509.Certificate) -> bytes | None:
 def _subject_key_identifier(cert: x509.Certificate) -> bytes | None:
     """Return the certificate Subject Key Identifier when present."""
     try:
-        value = cert.extensions.get_extension_for_class(
-            x509.SubjectKeyIdentifier
-        ).value
+        value = cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
     except x509.ExtensionNotFound:
         return None
     return value.digest
@@ -176,13 +171,11 @@ def _chain_content(certificates: list[x509.Certificate], chain_format: str) -> b
         )
     if chain_format == "der":
         return b"".join(
-            cert.public_bytes(serialization.Encoding.DER)
-            for cert in certificates
+            cert.public_bytes(serialization.Encoding.DER) for cert in certificates
         )
     if chain_format == "txt":
         return b"".join(
-            certificate_text(cert).rstrip() + b"\n"
-            for cert in certificates
+            certificate_text(cert).rstrip() + b"\n" for cert in certificates
         )
     raise ValueError(f"Unsupported CA chain format: {chain_format}")
 
@@ -231,14 +224,17 @@ def run_module():
                 changed = False
                 for chain_format, path in paths.items():
                     content = _chain_content(certificates, chain_format)
-                    changed = write_file(
-                        path,
-                        content,
-                        params["owner"],
-                        params["group"],
-                        params["mode"],
-                        force=params["force"],
-                    ) or changed
+                    changed = (
+                        write_file(
+                            path,
+                            content,
+                            params["owner"],
+                            params["group"],
+                            params["mode"],
+                            force=params["force"],
+                        )
+                        or changed
+                    )
                 state = "present"
     except Exception as exc:
         module.fail_json(msg=sanitize_error(exc, module.params))

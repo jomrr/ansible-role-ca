@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from ansible.module_utils.ca_file import write_file  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_serial import colon_hex  # type: ignore[import-not-found,import-untyped]
-from ansible.module_utils.ca_time import (  # type: ignore[import-not-found,import-untyped]
+from ansible.module_utils.ca_file import write_file
+from ansible.module_utils.ca_serial import colon_hex
+from ansible.module_utils.ca_time import (
     certificate_not_valid_after,
     certificate_not_valid_before,
     datetime_text,
 )
 from cryptography import x509
-from cryptography.hazmat.primitives.asymmetric import ec, ed25519, ed448, rsa
+from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, rsa
 
 
 def _oid_name(oid) -> str:
@@ -153,7 +153,8 @@ def certificate_text(cert) -> bytes:
             suffix = "critical" if extension.critical else ""
             lines.append(f"            {_oid_name(extension.oid)}: {suffix}".rstrip())
             lines.extend(
-                f"                {line}" for line in _extension_value_text(extension.value)
+                f"                {line}"
+                for line in _extension_value_text(extension.value)
             )
     lines.append(f"    Signature Algorithm: {_oid_name(cert.signature_algorithm_oid)}")
     return ("\n".join(lines) + "\n").encode()

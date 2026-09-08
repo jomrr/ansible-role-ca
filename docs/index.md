@@ -215,6 +215,9 @@ generated. A revocation entry can identify a certificate by:
 
 Name and fingerprint selectors are resolved through the internal CA inventory.
 The resolved serial number is written into CRLs and revocation inventory state.
+Name selectors bind to that first generation; revoke a replacement by its serial
+or fingerprint. Recorded revocations remain in later CRLs even if an input entry
+is removed, and an omitted revocation date preserves the original recorded time.
 
 Each revocation can also set:
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+from collections.abc import Iterable
 
 from ansible.module_utils.ca_x509_encoding import (
     _der_bmp_string,
@@ -108,7 +109,7 @@ def _basic_constraints(values):
     return x509.BasicConstraints(ca=ca, path_length=path_length)
 
 
-def _key_usage(values):
+def _key_usage(values: Iterable[str] | None) -> x509.KeyUsage:
     """Build a KeyUsage extension value from role tokens."""
     names = {str(value) for value in values or []}
     key_agreement = "keyAgreement" in names
@@ -120,8 +121,8 @@ def _key_usage(values):
         key_agreement=key_agreement,
         key_cert_sign="keyCertSign" in names,
         crl_sign="cRLSign" in names,
-        encipher_only=("encipherOnly" in names) if key_agreement else None,
-        decipher_only=("decipherOnly" in names) if key_agreement else None,
+        encipher_only=key_agreement and "encipherOnly" in names,
+        decipher_only=key_agreement and "decipherOnly" in names,
     )
 
 

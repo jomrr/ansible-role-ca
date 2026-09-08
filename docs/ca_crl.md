@@ -28,7 +28,11 @@ Serial parsing and timestamp normalization are delegated to the internal
 - Supports CRL Reason and Invalidity Date revoked-certificate extensions.
 - Resolves revocations by certificate name or fingerprint through CA inventory
   state.
-- Revocation events are recorded as inventory fragments.
+- Revocation events are recorded by issuer and serial before exporting the CRL.
+  They remain in later CRLs even when their declarations are removed.
+- A name selector binds to its first revoked generation. A reissued certificate
+  is not automatically revoked; select its serial or fingerprint to revoke it.
+- An omitted revocation date retains the first recorded revocation time.
 
 ## Parameters
 
