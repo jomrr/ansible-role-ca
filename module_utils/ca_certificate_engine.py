@@ -245,10 +245,7 @@ def _ensure_prepared_certificate_artifacts(
         manage_directory=True,
         manage_chain=True,
     )
-    result["name"] = model["name"]
-    result["profile"] = model["type"]
-    result["formats"] = [str(item).lower() for item in model["formats"]]
-    return result
+    return _finalize_prepared_certificate_result(model, result)
 
 
 def _finalize_prepared_certificate_result(
@@ -291,13 +288,11 @@ def ensure_certificate_batch(params: dict[str, Any]) -> dict[str, Any]:
         )
         prepared.append((index, model, x509_params))
 
-    issuer_order: list[str] = []
     issuer_groups: dict[str, list[tuple[int, dict[str, Any], dict[str, Any]]]] = {}
     for item in prepared:
         issuer = str(item[1]["issuer"])
         if issuer not in issuer_groups:
             issuer_groups[issuer] = []
-            issuer_order.append(issuer)
         issuer_groups[issuer].append(item)
 
     raw_results = ensure_x509_many(
@@ -326,7 +321,7 @@ def ensure_certificate_batch(params: dict[str, Any]) -> dict[str, Any]:
         "inventory_changed": inventory_changed,
         "count": len(results),
         "issuer_groups": {
-            issuer: len(issuer_groups[issuer]) for issuer in issuer_order
+            issuer: len(group) for issuer, group in issuer_groups.items()
         },
         "results": results,
     }

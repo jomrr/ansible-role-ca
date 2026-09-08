@@ -141,10 +141,21 @@ def _check_chains(
             errors.append(f"{name} has no issuer in certificate_types")
             continue
         try:
-            _verify_chain(
-                _load_pem_cert(_certificate_pem_path(base_dir, certificate)),
-                _issuer_chain(base_dir, issuer),
-            )
+            leaf = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
+            chain = _issuer_chain(base_dir, issuer)
+            _verify_chain(leaf, chain)
+            for bundle_format in set(_certificate_formats(certificate)).intersection(
+                {"fullchain", "fritzbox"}
+            ):
+                bundle = _load_pem_certs(
+                    _certificate_output_dir(base_dir, certificate)
+                    / f"{name}-{bundle_format}.pem"
+                )
+                _verify_chain(bundle[0], bundle[1:])
+                if bundle != [leaf, *chain]:
+                    errors.append(
+                        f"{name} {bundle_format} bundle has stale certificates"
+                    )
             checked += 1
         except Exception as exc:
             errors.append(f"chain validation failed for {name}: {exc}")
@@ -271,7 +282,7 @@ def _check_pkcs12(
                 errors.append(f"{name} PKCS#12 bundle has no configured passphrase")
                 continue
             try:
-                key, cert, _additional = pkcs12.load_key_and_certificates(
+                key, cert, additional = pkcs12.load_key_and_certificates(
                     _read(
                         _certificate_output_dir(base_dir, certificate)
                         / f"{name}.{bundle_format}"
@@ -287,6 +298,8 @@ def _check_pkcs12(
                 errors.append(
                     f"PKCS#12 bundle for {name}.{bundle_format} does not contain key and certificate"
                 )
+            else:
+                _verify_chain(cert, list(additional or []))
 
 
 def _revoked_has_reason(

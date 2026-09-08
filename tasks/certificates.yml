@@ -21,17 +21,17 @@
 - name: "CA | Deploy FritzBox certificates"
   ca_fritzbox_deploy:
     base_dir: "{{ ca_base_dir }}"
-    certificate: "{{ ca_certificate }}"
-    deploy: "{{ ca_certificate.fritzbox_deploy | default({}) }}"
-    name: "{{ ca_certificate.name }}"
+    certificate: "{{ __ca_certificate }}"
+    deploy: "{{ __ca_certificate.fritzbox_deploy | default({}) }}"
+    name: "{{ __ca_certificate.name }}"
     force: "{{ ca_force_reissue | bool }}"
   loop: "{{ ca_certificates }}"
   loop_control:
-    loop_var: ca_certificate
-    label: "{{ ca_certificate.name }}"
+    loop_var: __ca_certificate
+    label: "{{ __ca_certificate.name }}"
   when:
     - >-
-      ca_certificate.type == 'fritzbox'
-      or 'fritzbox' in (ca_certificate.formats | default([]))
-    - ca_certificate.fritzbox_deploy.enabled | default(false) | bool
+      __ca_certificate.type == 'fritzbox'
+      or 'fritzbox' in (__ca_certificate.formats | default([]))
+    - __ca_certificate.fritzbox_deploy.enabled | default(false) | bool
   no_log: true

@@ -17,6 +17,7 @@
         ca_name: "{{ ca_name }}"
         base_dir: "{{ __ca_molecule_base }}"
         publish_root: /var/www/pki
+        publish_mode: "{{ ca_publish_targets[0].mode }}"
         authorities: "{{ ca_authorities }}"
         certificates: "{{ ca_certificates }}"
         certificate_types: "{{ ca_certificate_types }}"

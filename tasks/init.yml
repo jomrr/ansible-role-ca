@@ -4,14 +4,15 @@
 
 - name: "CA | Create CA private directory"
   ansible.builtin.file:
-    path: "{{ item.path }}"
+    path: "{{ __ca_directory.path }}"
     state: directory
     owner: "{{ ca_owner }}"
     group: "{{ ca_group }}"
-    mode: "{{ item.mode }}"
+    mode: "{{ __ca_directory.mode }}"
   loop:
     - { path: "{{ ca_base_dir }}", mode: "0755" }
     - { path: "{{ ca_base_dir }}/private", mode: "0700" }
   loop_control:
-    label: "{{ item.path }}"
-  tags: init-dirs
+    loop_var: __ca_directory
+    label: "{{ __ca_directory.path }}"
+  tags: ca_init_dirs

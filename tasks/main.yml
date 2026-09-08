@@ -4,7 +4,7 @@
 
 - name: "CA | Assert role configuration"
   ansible.builtin.import_tasks: assert.yml
-  tags: assert
+  tags: ca_assert
 
 - name: "CA | Load platform variables"
   ansible.builtin.include_vars: "{{ ansible_facts.os_family }}.yml"
@@ -14,26 +14,29 @@
   ansible.builtin.package:
     name: "{{ ca_packages }}"
     state: present
-  tags: install
+  tags: ca_install
 
 - name: "CA | Initialize filesystem layout"
   ansible.builtin.import_tasks: init.yml
-  tags: init
+  tags: ca_init
 
 - name: "CA | Manage CA authorities"
   ansible.builtin.import_tasks: authorities.yml
-  tags: authorities
+  tags: ca_authorities
 
 - name: "CA | Manage certificates"
   ansible.builtin.import_tasks: certificates.yml
   when: ca_certificates | length > 0
-  tags: create
+  tags: ca_create
 
 - name: "CA | Manage CRLs"
   ansible.builtin.import_tasks: crls.yml
-  tags: crl
+  tags: ca_crl
 
 - name: "CA | Publish AIA and CDP artifacts"
-  ansible.builtin.include_tasks: publish.yml
+  ansible.builtin.include_tasks:
+    file: publish.yml
+    apply:
+      tags: ca_publish
   when: ca_publish_targets | length > 0
-  tags: publish
+  tags: ca_publish

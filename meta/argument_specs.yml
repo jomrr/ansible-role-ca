@@ -50,12 +50,6 @@ argument_specs:
         required: false
         default: root
         description: Group for managed CA files.
-      ca_no_log:
-        type: bool
-        required: false
-        default: true
-        description: Suppress task output that can contain private key passphrases or PFX
-          passphrases.
       ca_subject:
         type: dict
         required: false
@@ -99,7 +93,7 @@ argument_specs:
         required: false
         default:
           warn_before_days: 30
-          renew_before_days: 0
+          renew_before_days: 7
           renew_at: ''
           rekey: false
         description:
@@ -107,7 +101,7 @@ argument_specs:
           - '`warn_before_days` marks renewal warning state in CA inventory but does not
             renew by itself.'
           - '`renew_before_days` renews when the existing certificate reaches that remaining-validity
-            window.'
+            window; defaults to 7 days.'
           - '`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ`
             timestamp, but only for certificates issued before that timestamp.'
           - '`rekey=true` generates a new private key when renewal is triggered; otherwise
@@ -122,7 +116,7 @@ argument_specs:
           renew_before_days:
             type: int
             required: false
-            default: 0
+            default: 7
             description: Remaining-validity renewal window in days. `0` disables automatic
               window renewal.
           renew_at:

@@ -3,6 +3,8 @@
 # file: tasks/publish.yml
 
 - name: "CA | Publish AIA and CDP artifacts"
+  vars:
+    __ca_publish_modes: "{{ ca_publish_targets | map(attribute='mode', default=ca_publish_mode) | unique | list }}"
   block:
     - name: "CA | Create remote publish staging directory"
       ansible.builtin.tempfile:
@@ -14,13 +16,15 @@
     - name: "CA | Create remote publish archive"
       ca_publish_archive:
         base_dir: "{{ ca_base_dir }}"
-        dest: "{{ __ca_publish_remote_stage.path }}/public.tar"
+        dest: "{{ __ca_publish_remote_stage.path }}/public-{{ __ca_publish_file_mode }}.tar"
         authorities: "{{ ca_authorities }}"
-        artifact_mode: "{{ ca_publish_mode }}"
+        artifact_mode: "{{ __ca_publish_file_mode }}"
         owner: "{{ ca_owner }}"
         group: "{{ ca_group }}"
         mode: "0600"
-      register: __ca_publish_archive
+      loop: "{{ __ca_publish_modes }}"
+      loop_control:
+        loop_var: __ca_publish_file_mode
       changed_when: false
 
     - name: "CA | Create local publish staging directory"
@@ -33,9 +37,12 @@
 
     - name: "CA | Stage publish archive on controller"
       ansible.builtin.fetch:
-        src: "{{ __ca_publish_archive.path }}"
-        dest: "{{ __ca_publish_stage.path }}/public.tar"
+        src: "{{ __ca_publish_remote_stage.path }}/public-{{ __ca_publish_file_mode }}.tar"
+        dest: "{{ __ca_publish_stage.path }}/public-{{ __ca_publish_file_mode }}.tar"
         flat: true
+      loop: "{{ __ca_publish_modes }}"
+      loop_control:
+        loop_var: __ca_publish_file_mode
       changed_when: false
 
     - name: "CA | Register publish target hosts"
@@ -76,7 +83,7 @@
 
     - name: "CA | Publish artifact archive"
       ansible.builtin.unarchive:
-        src: "{{ __ca_publish_stage.path }}/public.tar"
+        src: "{{ __ca_publish_stage.path }}/public-{{ __ca_publish_target.mode | default(ca_publish_mode) }}.tar"
         dest: "{{ __ca_publish_target.path | regex_replace('/+$', '') }}"
         owner: "{{ __ca_publish_target.owner | default(ca_owner) }}"
         group: "{{ __ca_publish_target.group | default(ca_group) }}"

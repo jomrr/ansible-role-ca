@@ -56,6 +56,21 @@ def _check_files(
     return len(expected) + len(published)
 
 
+def _check_publication_modes(
+    publish_root: Path,
+    authorities: list[dict[str, Any]],
+    publish_mode: str,
+    errors: list[str],
+) -> None:
+    """Check file mode overrides independently of publication directory modes."""
+    for path in _publish_paths(publish_root, authorities):
+        if path.stat().st_mode & 0o7777 != int(publish_mode, 8):
+            errors.append(f"published file mode differs from {publish_mode}: {path}")
+    for path in (publish_root, publish_root / "aia", publish_root / "crl"):
+        if path.stat().st_mode & 0o7777 != 0o755:
+            errors.append(f"publish directory mode differs from 0755: {path}")
+
+
 def _find_named(items: list[dict[str, Any]], name: str) -> dict[str, Any]:
     """Return one inventory item by name."""
     for item in items:
@@ -155,6 +170,7 @@ def run_module() -> None:
             "ca_name": {"type": "str", "required": True},
             "base_dir": {"type": "path", "required": True},
             "publish_root": {"type": "path", "required": True},
+            "publish_mode": {"type": "str", "default": "0644"},
             "authorities": {
                 "type": "list",
                 "elements": "dict",
@@ -185,6 +201,9 @@ def run_module() -> None:
         base_dir, publish_root, authorities, certificates, errors
     )
     checks = (
+        lambda: _check_publication_modes(
+            publish_root, authorities, module.params["publish_mode"], errors
+        ),
         lambda: _check_inventory(
             base_dir,
             module.params["ca_name"],

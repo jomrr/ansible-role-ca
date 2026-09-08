@@ -20,7 +20,7 @@ one place.
 | Key | Default | Behavior |
 | --- | --- | --- |
 | `warn_before_days` | `0` | Marks inventory warning state only. |
-| `renew_before_days` | `0` | Renews when remaining validity reaches this window. |
+| `renew_before_days` | `7` | Renews when remaining validity reaches this window. |
 | `renew_at` | empty | Renews once at or after the timestamp for certificates issued before it. |
 | `rekey` | `false` | Generates a new private key when renewal is due. |
 

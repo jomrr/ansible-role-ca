@@ -2,8 +2,9 @@
 
 `ca_publish_archive` is a role-local module used by the CA role's publish tasks.
 It creates one deterministic tar archive on the CA host from managed authority
-definitions or from an explicit list of public AIA/CDP artifacts. The controller
-fetches this archive once and unpacks it on every configured publish target.
+definitions or from an explicit list of public AIA/CDP artifacts. The role
+builds one archive per distinct target file mode, fetches each once, and unpacks
+the matching archive on each configured publish target.
 
 The module is mostly role-internal. Users normally configure
 `ca_publish_targets` instead of calling this module directly.
@@ -42,11 +43,9 @@ When `authorities` is used, the module derives the role defaults:
 
 - The archive is deterministic: file mtimes are `0`, uid/gid are `0`, owner and
   group names are empty, and files are sorted.
-- Each top-level directory gets a `.ca-publish-manifest.json` with file path,
-  source path, size, and SHA-256 digest.
-- The module returns SHA-256 digests for those manifests. Publish tasks compare
-  these digests with the target manifests and skip unpacking when the target is
-  already current.
+- Publish tasks let
+  `ansible.builtin.unarchive` compare the actual target files with the archive
+  and restore missing or changed files.
 - The module compares the generated archive with the existing `dest` content
   and only rewrites on content or metadata changes, unless `force=true`.
 - Writes are protected by the role's publish archive lock below
@@ -75,4 +74,3 @@ When `authorities` is used, the module derives the role defaults:
 | `changed` | `bool` | Whether the archive file was written or its metadata changed. |
 | `path` | `str` | Archive path on the managed host. |
 | `archive_paths` | `list` | Relative paths stored in the archive. |
-| `manifest_sha256` | `dict` | SHA-256 checksums of generated manifests keyed by archive directory, for example `aia` and `crl`. |

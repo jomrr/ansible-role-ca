@@ -3,11 +3,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import io
-import json
 import tarfile
-from collections import defaultdict
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -27,7 +24,6 @@ AREA_DIRECTORY = {
     "cdp": "crl",
     "crl": "crl",
 }
-MANIFEST_NAME = ".ca-publish-manifest.json"
 MTIME = 0
 
 
@@ -158,27 +154,13 @@ def _add_bytes(
     archive.addfile(info, io.BytesIO(content))
 
 
-def _manifest_content(directory: str, entries: list[dict[str, Any]]) -> bytes:
-    """Return deterministic JSON manifest content for one publish directory."""
-    manifest = {
-        "schema_version": 1,
-        "directory": directory,
-        "files": sorted(entries, key=lambda item: item["path"]),
-    }
-    return (json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n").encode(
-        "utf-8"
-    )
-
-
 def _archive_content(
     artifacts: list[dict[str, Any]],
     artifact_mode: Any,
-) -> tuple[bytes, list[str], dict[str, str]]:
+) -> tuple[bytes, list[str]]:
     """Return deterministic tar bytes and archive paths for public artifacts."""
     mode = _mode(artifact_mode)
     archive_paths: set[str] = set()
-    manifests: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
-    manifest_sha256: dict[str, str] = {}
     buffer = io.BytesIO()
 
     with tarfile.open(fileobj=buffer, mode="w") as archive:
@@ -193,32 +175,10 @@ def _archive_content(
             if archive_path in archive_paths:
                 raise ValueError(f"Duplicate publish archive path: {archive_path}")
             content = read_file(source)
-            digest = hashlib.sha256(content).hexdigest()
-            directory = archive_path.split("/", 1)[0]
             _add_bytes(archive, archive_path, content, mode)
             archive_paths.add(archive_path)
-            manifests[directory].append(
-                {
-                    "path": archive_path,
-                    "source": source,
-                    "size": len(content),
-                    "sha256": digest,
-                }
-            )
 
-        for directory in sorted(manifests):
-            manifest_path = str(PurePosixPath(directory) / MANIFEST_NAME)
-            manifest_content = _manifest_content(directory, manifests[directory])
-            _add_bytes(
-                archive,
-                manifest_path,
-                manifest_content,
-                mode,
-            )
-            manifest_sha256[directory] = hashlib.sha256(manifest_content).hexdigest()
-            archive_paths.add(manifest_path)
-
-    return buffer.getvalue(), sorted(archive_paths), manifest_sha256
+    return buffer.getvalue(), sorted(archive_paths)
 
 
 def run_module() -> None:
@@ -251,7 +211,7 @@ def run_module() -> None:
     try:
         with file_lock(ca_lock_path(params["base_dir"], "publish", "archive")):
             artifacts = _resolve_artifacts(params)
-            content, archive_paths, manifest_sha256 = _archive_content(
+            content, archive_paths = _archive_content(
                 artifacts,
                 params["artifact_mode"],
             )
@@ -287,7 +247,6 @@ def run_module() -> None:
         changed=changed,
         path=params["dest"],
         archive_paths=archive_paths,
-        manifest_sha256=manifest_sha256,
     )
 
 

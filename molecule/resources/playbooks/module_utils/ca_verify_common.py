@@ -193,10 +193,7 @@ def _authority_paths(base_dir: Path, authorities: list[dict[str, Any]]) -> list[
 
 def _publish_paths(publish_root: Path, authorities: list[dict[str, Any]]) -> list[Path]:
     """Return expected published CA and CRL artifacts."""
-    paths = [
-        publish_root / "aia" / ".ca-publish-manifest.json",
-        publish_root / "crl" / ".ca-publish-manifest.json",
-    ]
+    paths: list[Path] = []
     for authority in authorities:
         stem = _authority_file(authority)
         paths.extend(

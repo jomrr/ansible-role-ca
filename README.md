@@ -70,10 +70,9 @@ The following variables are part of the public role interface.
 | `ca_kerberos_realm` | `str` | `false` | `` | Optional default Kerberos realm for MSKDC PKINIT SAN encoding. |
 | `ca_owner` | `str` | `false` | `root` | Owner for managed CA files. |
 | `ca_group` | `str` | `false` | `root` | Group for managed CA files. |
-| `ca_no_log` | `bool` | `false` | `True` | Suppress task output that can contain private key passphrases or PFX passphrases. |
 | `ca_subject` | `dict` | `false` | country: DE<br />state: Bayern<br />locality: Erlangen<br />organization: '{{ ca_name }} SE'<br />organizational_unit: '{{ ca_name }} Certificate Authority' | Default X.509 subject attributes added before the certificate common name. |
 | `ca_force_reissue` | `bool` | `false` | `False` | Force regeneration of authority and certificate keys, certificates, CRLs, and exports. |
-| `ca_renewal` | `dict` | `false` | warn_before_days: 30<br />renew_before_days: 0<br />renew_at: ''<br />rekey: false | Default renewal policy for managed authorities and certificates.<br>`warn_before_days` marks renewal warning state in CA inventory but does not renew by itself.<br>`renew_before_days` renews when the existing certificate reaches that remaining-validity window.<br>`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ` timestamp, but only for certificates issued before that timestamp.<br>`rekey=true` generates a new private key when renewal is triggered; otherwise renewal keeps the existing key.<br>Replaced managed certificate generations are archived below `<ca_base_dir>/archive`. |
+| `ca_renewal` | `dict` | `false` | warn_before_days: 30<br />renew_before_days: 7<br />renew_at: ''<br />rekey: false | Default renewal policy for managed authorities and certificates.<br>`warn_before_days` marks renewal warning state in CA inventory but does not renew by itself.<br>`renew_before_days` renews when the existing certificate reaches that remaining-validity window; defaults to 7 days.<br>`renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ` timestamp, but only for certificates issued before that timestamp.<br>`rekey=true` generates a new private key when renewal is triggered; otherwise renewal keeps the existing key.<br>Replaced managed certificate generations are archived below `<ca_base_dir>/archive`. |
 | `ca_authorities` | `list` | `false` |  | Managed CA topology. Store real `key_passphrase` values in Ansible Vault. |
 | `ca_crl_renew_before_days` | `float` | `false` | `7` | Renew CRLs this many days before nextUpdate, even when revocations are unchanged.<br>Must be nonnegative and less than the authority `crl_days`; fractional days are supported.<br>An authority may override this window with `crl_renew_before_days`.<br>Run the role more frequently than the renewal window, allowing time for publication. |
 | `ca_revocations` | `dict` | `false` | root: []<br />component: []<br />network: []<br />identity: [] | Revoked certificate entries keyed by issuing authority name.<br>Missing authority keys declare no new revocations; previously recorded revocations remain in CRLs.<br>Each list item must identify one certificate by `name`, `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.<br>Names and fingerprints are resolved from the managed CA inventory; serial numbers can be decimal, `0x` hex, or colon-separated hex.<br>A name is permanently bound to the issuer and serial of its first revoked generation. Reissuing the name does not revoke the replacement; use its serial or fingerprint to revoke that generation.<br>Removing an entry does not undo a recorded revocation. An omitted `revocation_date` retains the first revocation time.<br>Optional item fields are `reason`, `revocation_date`, and `invalidity_date`.<br>Supported reasons are `key_compromise`, `ca_compromise`, `affiliation_changed`, `superseded`, `cessation_of_operation`, `certificate_hold`, `privilege_withdrawn`, and `aa_compromise`.<br>PEM and DER CRLs are regenerated from one shared CRL object, so both formats have identical CRL Number, AKI, timestamps, and revoked entries. |
@@ -113,6 +112,7 @@ The following variables are part of the public role interface.
 
 ## Operational Notes
 
+- Role phases use the tags `ca_assert`, `ca_install`, `ca_init`, `ca_init_dirs`, `ca_authorities`, `ca_create`, `ca_crl`, and `ca_publish`.
 - Certificate SANs use OpenSSL-style syntax such as `DNS:host.example.org`, `IP:192.0.2.10`, `email:user@example.org`, and `otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user@example.org`.
 - MSKDC `krb5_realm` is uppercased before encoding and becomes `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
 - MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs are converted to AD byte order for the NTDS replication extension.
@@ -123,8 +123,8 @@ The following variables are part of the public role interface.
 - CRL numbers are reserved below `<ca_base_dir>/inventory/state/crl_numbers` before export. The counter is independent of PEM and DER exports; unreadable counter state fails instead of resetting the sequence.
 - `ca_publish_targets` publishes all CA certificates and issuing CA chains to each target `path/aia`, and all CRLs to each target `path/crl`.
 - Multiple targets can use the same AIA/CDP paths on different hosts. This supports Split-DNS or active/standby HTTP endpoints that serve the same AIA/CDP URL from different machines.
-- Publishing builds one deterministic archive on the CA host, fetches that archive once to the controller, and unpacks it on every target.
-- Publishing compares the actual target files with the archive and repairs missing or changed artifacts even when target manifests have not changed.
+- Publishing builds one deterministic archive per distinct target file mode, fetches each archive once to the controller, and unpacks the matching archive on each target. Directory permissions are configured separately.
+- Publishing compares the actual target files with the archive and repairs missing or changed artifacts.
 - Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
 - Published CDP files are `*-ca.crl.pem` and `*-ca.crl`.
 - Webserver package installation and virtual-host configuration remain outside this role; configure the HTTP server to serve the configured paths.
@@ -145,7 +145,7 @@ The following variables are part of the public role interface.
 - CSR-signed certificates can write `pem`, `der`, `txt`, and `fullchain`. Formats that require the private key on the CA host, such as `pfx`, `p12`, and `fritzbox`, are rejected for CSR-signed certificates.
 - Default certificate validity comes from the issuing authority `default_days`; per-certificate `days` overrides it.
 - `ca_renewal.warn_before_days` only marks inventory `renewal_status`; it does not renew certificates.
-- `ca_renewal.renew_before_days` triggers renewal when an existing certificate reaches the configured remaining-validity window.
+- `ca_renewal.renew_before_days` defaults to 7 and triggers renewal of authorities and certificates within seven days of expiry. `0` disables this window. Renewal takes place when the role runs.
 - `ca_renewal.renew_at` triggers one planned renewal for certificates issued before that timestamp; after renewal, the same timestamp does not cause another renewal.
 - `ca_renewal.rekey=true` generates a new private key when certificate renewal is due; otherwise renewal keeps the existing key.
 - Per-authority and per-certificate `renewal` dictionaries override the global `ca_renewal` defaults.

@@ -24,9 +24,6 @@ ca_owner: root
 # Group used for generated CA files.
 ca_group: root
 
-# Suppress task output that may include private key or export passphrases.
-ca_no_log: true
-
 ################################################################################
 # Subject defaults
 ################################################################################
@@ -49,10 +46,16 @@ ca_force_reissue: false
 # Default renewal policy for CA authorities and managed certificates.
 #
 # warn_before_days marks inventory renewal_status before expiry.
-# renew_before_days renews objects inside this remaining-validity window.
+# renew_before_days renews objects inside this window; default 7 days, 0 disables it.
 # renew_at triggers one planned renewal for certificates issued before the date.
 # rekey controls whether renewal replaces the private key.
 #
+ca_renewal:
+  warn_before_days: 30
+  renew_before_days: 7
+  renew_at: ""
+  rekey: false
+
 # Example: renew certificates 14 days before expiry without replacing keys.
 # ca_renewal:
 #   warn_before_days: 45
@@ -66,11 +69,6 @@ ca_force_reissue: false
 #   renew_before_days: 0
 #   renew_at: "2027-01-01T00:00:00Z"
 #   rekey: true
-ca_renewal:
-  warn_before_days: 30
-  renew_before_days: 0
-  renew_at: ""
-  rekey: false
 
 ################################################################################
 # Managed CA topology
@@ -84,25 +82,6 @@ ca_renewal:
 # default_days is the default validity for certificates issued by this CA.
 # crl_days is the CRL nextUpdate interval.
 #
-# Example: add a separate issuing CA with a custom renewal policy.
-# ca_authorities:
-#   - name: root
-#     common_name: Example Root CA
-#     parent: root
-#     days: 3652
-#     default_days: 397
-#     crl_days: 30
-#     key_passphrase: "{{ vault_ca_root_passphrase }}"
-#   - name: component
-#     common_name: Example Component CA
-#     parent: root
-#     days: 1826
-#     default_days: 397
-#     crl_days: 30
-#     key_passphrase: "{{ vault_ca_component_passphrase }}"
-#     renewal:
-#       renew_at: "2027-01-01T00:00:00Z"
-#       rekey: true
 ca_authorities:
   - name: root
     common_name: "{{ ca_name }} Root CA"
@@ -133,6 +112,26 @@ ca_authorities:
     crl_days: 30
     key_passphrase: ""
 
+# Example: add a separate issuing CA with a custom renewal policy.
+# ca_authorities:
+#   - name: root
+#     common_name: Example Root CA
+#     parent: root
+#     days: 3652
+#     default_days: 397
+#     crl_days: 30
+#     key_passphrase: "{{ vault_ca_root_passphrase }}"
+#   - name: component
+#     common_name: Example Component CA
+#     parent: root
+#     days: 1826
+#     default_days: 397
+#     crl_days: 30
+#     key_passphrase: "{{ vault_ca_component_passphrase }}"
+#     renewal:
+#       renew_at: "2027-01-01T00:00:00Z"
+#       rekey: true
+
 ################################################################################
 # Certificate revocation
 ################################################################################
@@ -157,6 +156,12 @@ ca_crl_renew_before_days: 7
 # superseded, cessation_of_operation, certificate_hold, privilege_withdrawn,
 # and aa_compromise.
 #
+ca_revocations:
+  root: []
+  component: []
+  network: []
+  identity: []
+
 # Example: revoke a managed TLS certificate by inventory name.
 # ca_revocations:
 #   component:
@@ -175,11 +180,6 @@ ca_crl_renew_before_days: 7
 #   identity:
 #     - sha256: "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"
 #       reason: privilege_withdrawn
-ca_revocations:
-  root: []
-  component: []
-  network: []
-  identity: []
 
 ################################################################################
 # Managed certificates
@@ -191,6 +191,8 @@ ca_revocations:
 # common_name becomes the certificate CN.
 # formats are optional; module defaults are used when omitted.
 #
+ca_certificates: []
+
 # Example: issue a TLS server certificate with a fullchain bundle.
 # ca_certificates:
 #   - name: web01
@@ -215,7 +217,6 @@ ca_revocations:
 #     san:
 #       - DNS:dc01.example.org
 #       - DNS:dc01
-ca_certificates: []
 
 ################################################################################
 # AIA / CDP publishing
@@ -226,6 +227,8 @@ ca_certificates: []
 # Each target receives CA certificates and chains below path/aia, and CRLs
 # below path/crl. Use multiple targets for Split-DNS or redundant webroots.
 #
+ca_publish_targets: []
+
 # Example: publish public CA material to two HTTP webroots.
 # ca_publish_targets:
 #   - name: pki-web-01
@@ -242,10 +245,9 @@ ca_certificates: []
 #     owner: root
 #     group: root
 #     become: true
-ca_publish_targets: []
 
 # Directory mode for created publish webroot, aia, and crl directories.
 ca_publish_directory_mode: "0755"
 
-# File mode for published public CA, chain, CRL, and manifest files.
+# File mode for published public CA, chain, and CRL files.
 ca_publish_mode: "0644"

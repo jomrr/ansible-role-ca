@@ -69,8 +69,9 @@ desired content and only rewrite when the content or file attributes differ, or
 when `force: true` is set. Certificate renewal should normally use the
 `renewal` policy instead of `force`.
 
-Renewal policy supports warning windows, automatic renewal windows, one-time
-scheduled renewal, and same-key versus re-key renewal:
+Authorities and certificates renew seven days before expiry by default, when
+the role runs. Setting `renew_before_days: 0` disables advance renewal. The policy
+also supports warning windows, scheduled renewal, and renewal with a new key:
 
 ```yaml
 ca_renewal:

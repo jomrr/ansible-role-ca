@@ -25,15 +25,15 @@ provisioner:
   inventory:
     group_vars:
       all:
-        ca_no_log: false
         ca_name: "Example"
         ca_base_url: "http://pki.molecule.test"
         ca_publish_targets:
           - name: "{{ inventory_hostname }}"
             path: "/var/www/pki"
+            mode: "0640"
         ca_renewal:
           warn_before_days: 400
-          renew_before_days: 0
+          renew_before_days: 7
           renew_at: ""
           rekey: false
         ca_authorities:

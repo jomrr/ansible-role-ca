@@ -3,7 +3,10 @@
 # file: tasks/authorities.yml
 
 - name: "CA | Manage authority"
-  ansible.builtin.include_tasks: authority.yml
+  ansible.builtin.include_tasks:
+    file: authority.yml
+    apply:
+      tags: ca_authorities
   loop: "{{ ca_authorities }}"
   loop_control:
     loop_var: __ca_authority

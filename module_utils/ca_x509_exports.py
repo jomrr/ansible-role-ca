@@ -41,7 +41,7 @@ def _ensure_chain(params):
 
 def _chain_content(params, signer_cert) -> bytes:
     """Return the issuing chain content for certificate export bundles."""
-    for path in (params.get("chain_path"), params.get("chain_src_path")):
+    for path in (params.get("chain_src_path"), params.get("chain_path")):
         if not path:
             continue
         try:
@@ -55,7 +55,7 @@ def _chain_content(params, signer_cert) -> bytes:
 
 def _chain_certificates(params, signer_cert):
     """Return issuing chain certificates for PKCS#12 exports."""
-    for path in (params.get("chain_path"), params.get("chain_src_path")):
+    for path in (params.get("chain_src_path"), params.get("chain_path")):
         if not path:
             continue
         try:

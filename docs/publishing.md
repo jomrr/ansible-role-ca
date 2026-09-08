@@ -64,13 +64,15 @@ example in Split-DNS setups.
 
 ## Behavior
 
-- The normal role run builds one deterministic publish archive on the CA host,
-  fetches it once to the controller, and unpacks it on each target.
-- The archive contains fixed top-level `aia/` and `crl/` directories plus a
-  `.ca-publish-manifest.json` in each directory.
+- The normal role run builds one deterministic publish archive per distinct
+  target file mode on the CA host, fetches each once to the controller, and
+  unpacks the matching archive on each target. Targets with the same file mode
+  share an archive. Directory modes are managed separately.
+- The archive contains public CA and CRL files below fixed `aia/` and `crl/`
+  paths.
 - Target webroot, `aia`, and `crl` directories are created before unpacking.
 - `ansible.builtin.unarchive` compares the actual target files with the archive.
-  Missing or altered files are repaired even when their manifests are unchanged.
+  Missing or altered files are restored from the archive.
 
 ## Not Managed
 

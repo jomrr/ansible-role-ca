@@ -17,18 +17,17 @@
 - name: "CA | Assert authority passphrases are set"
   ansible.builtin.assert:
     that:
-      - ca_authority.key_passphrase | default('') | string | length > 0
+      - __ca_authority.key_passphrase | length > 0
     fail_msg: "Every managed CA needs a non-empty key_passphrase."
   loop: "{{ ca_authorities }}"
   loop_control:
-    loop_var: ca_authority
-    label: "{{ ca_authority.name | default('unnamed') }}"
+    loop_var: __ca_authority
+    label: "{{ __ca_authority.name }}"
   no_log: true
 
 - name: "CA | Assert revocation definitions target known authorities"
   ansible.builtin.assert:
     that:
-      - ca_revocations is mapping
       - >-
         ca_revocations.keys()
         | list
@@ -37,27 +36,8 @@
         == 0
     fail_msg: "ca_revocations keys must match managed authority names."
 
-- name: "CA | Assert managed certificates are consistent"
+- name: "CA | Assert managed certificate names are unique"
   ansible.builtin.assert:
     that:
-      - >-
-        ca_certificates
-        | map(attribute='name')
-        | list
-        | length
-        ==
-        ca_certificates
-        | map(attribute='name')
-        | unique
-        | list
-        | length
-      - >-
-        ca_certificates
-        | map(attribute='type')
-        | list
-        | difference(ca_certificate_types.keys() | list)
-        | length
-        == 0
-    fail_msg: "ca_certificates need unique names and types defined in ca_certificate_types."
-  when: ca_certificates | length > 0
-  no_log: "{{ ca_no_log | bool }}"
+      - (ca_certificates | map(attribute='name') | unique | length) == (ca_certificates | length)
+    fail_msg: "ca_certificates need unique names."

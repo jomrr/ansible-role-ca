@@ -30,7 +30,7 @@ def renewal_policy(value: Any) -> dict[str, Any]:
     policy = value if isinstance(value, dict) else {}
     return {
         "warn_before_days": _int(policy.get("warn_before_days"), 0),
-        "renew_before_days": _int(policy.get("renew_before_days"), 0),
+        "renew_before_days": _int(policy.get("renew_before_days"), 7),
         "renew_at": str(policy.get("renew_at") or ""),
         "rekey": _bool(policy.get("rekey", False)),
     }

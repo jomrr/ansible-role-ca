@@ -119,7 +119,7 @@ Dotted OIDs are accepted for additional EKUs.
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `warn_before_days` | int | `0` | Adds warning state to inventory when remaining validity is inside this window. |
-| `renew_before_days` | int | `0` | Renews when remaining validity is inside this window. |
+| `renew_before_days` | int | `7` | Renews when remaining validity is inside this window. |
 | `renew_at` | str | `""` | Planned renewal timestamp as ISO-8601 or `YYYYMMDDHHMMSSZ`. It only affects certificates issued before that timestamp. |
 | `rekey` | bool | `false` | Generates a new private key when renewal is due. |
 
