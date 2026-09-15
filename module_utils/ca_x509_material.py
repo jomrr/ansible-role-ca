@@ -148,6 +148,7 @@ def _ensure_csr(params, key, subject, csr_extensions):
             existing = _load_csr(params["csr_path"])
             changed = (
                 existing.subject != subject
+                or existing.signature_algorithm_oid != csr.signature_algorithm_oid
                 or _csr_public_key_bytes(existing) != _public_key_bytes(key)
                 or not _extensions_equal(existing.extensions, csr_extensions)
             )
@@ -249,6 +250,7 @@ def _ensure_certificate(
             else:
                 changed = (
                     existing.subject != subject
+                    or existing.signature_algorithm_oid != cert.signature_algorithm_oid
                     or existing.issuer != issuer
                     or _cert_public_key_bytes(existing) != _public_key_bytes(key)
                     or not _extensions_equal(existing.extensions, cert_extensions)

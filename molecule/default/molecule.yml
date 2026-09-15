@@ -46,6 +46,8 @@ provisioner:
             default_days: 397
             crl_days: 30
             key_passphrase: "molecule-root-passphrase"
+            digest: "sha512"
+            crl_digest: "sha224"
           - name: "component"
             common_name: "Example Component CA"
             parent: "root"
@@ -53,6 +55,9 @@ provisioner:
             default_days: 397
             crl_days: 30
             key_passphrase: "molecule-component-passphrase"
+            key_type: "P-384"
+            digest: "sha256"
+            crl_digest: "sha512"
             certificate_policies:
               - oid: "1.3.6.1.4.1.32473.1.1.1"
                 cps_uri: "https://pki.molecule.test/cps"
@@ -68,6 +73,7 @@ provisioner:
             default_days: 397
             crl_days: 30
             key_passphrase: "molecule-network-passphrase"
+            key_type: "Ed25519"
           - name: "identity"
             common_name: "Example Identity CA"
             parent: "root"
@@ -75,6 +81,7 @@ provisioner:
             default_days: 730
             crl_days: 30
             key_passphrase: "molecule-identity-passphrase"
+            key_type: "Ed448"
             certificate_policies:
               - oid: "1.3.6.1.4.1.32473.1.1.3"
         ca_revocations:
@@ -137,6 +144,7 @@ provisioner:
                 cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "ec-p256-client.molecule.test"
+            digest: "sha256"
             key_type: "ECDSA"
             key_size: 256
           - name: "ec-p384-client"
@@ -145,6 +153,7 @@ provisioner:
                 cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "ec-p384-client.molecule.test"
+            digest: "sha512"
             key_type: "ECDSA"
             key_size: 384
           - name: "ed25519-client"
@@ -153,6 +162,7 @@ provisioner:
                 cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "ed25519-client.molecule.test"
+            digest: "sha224"
             key_type: "Ed25519"
           - name: "ed448-client"
             certificate_policies:

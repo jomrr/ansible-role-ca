@@ -358,145 +358,238 @@ ca_publish_mode: '0644'
 
 ## Operational Notes
 
-- `certificate_policies` on authorities and certificates is a list of `oid`
-  entries with optional absolute HTTP/HTTPS `cps_uri` values. It defaults to
-  `[]`, is noncritical, and is never inherited or inferred from a profile.
-- A policy-bearing issuer requires every end certificate to contain a nonempty
-  subset of its actual certificate's policy OIDs. CPS URLs need not match. Both
-  empty lists preserve issuance without policies. External CSR policies are
-  ignored; configured policies govern issuance.
-- Sub-CAs with policies may set `policy_constraints.require_explicit_policy`,
-  `policy_constraints.inhibit_policy_mapping`, and `inhibit_any_policy` to
-  nonnegative integers. Omitted values emit no constraint; `0` activates it
-  immediately. Both constraint extensions are critical. Roots and end
-  certificates cannot carry these constraints through this role.
-- Concrete policy OIDs are required on sub-CAs and end certificates; `anyPolicy`
-  is supported only on self-signed roots. Root policies do not constrain sub-CA
-  issuance. Policy extensions cannot be supplied through `raw_extensions`;
-  policyMappings and User Notices are not supported.
-- Local issuance checks are stricter than unconstrained client path validation.
-  A policy OID records an issuer assertion; it does not prove identity checks or
-  hardware key protection. Client support and requested policies determine
-  authorization; the role does not configure clients.
-- Adding critical sub-CA constraints can invalidate previously accepted chains.
-  A broader sub-CA policy list cannot add a missing end-certificate policy.
-  Re-signing a sub-CA with the same key does not disable a still-valid older
-  unconstrained chain. Policy changes cause certificate reissuance; list
-  reordering does not. CP/CPS authoring and publication remain external.
-- Role phases use the tags `ca_assert`, `ca_install`, `ca_init`, `ca_init_dirs`,
-  `ca_authorities`, `ca_create`, `ca_crl`, and `ca_publish`.
-- Certificate SANs use OpenSSL-style syntax such as `DNS:host.example.org`,
-  `IP:192.0.2.10`, `email:user@example.org`, and
-  `otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user@example.org`.
-- MSKDC `krb5_realm` is uppercased before encoding and becomes
-  `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
-- MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example
-  `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs
-  are converted to AD byte order for the NTDS replication extension.
-- AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
-- Issuing CA certificates reference their parent CA certificate and CRL; leaf
-  certificates reference their issuing CA.
-- CRLs renew `ca_crl_renew_before_days` days before nextUpdate (default 7), with
-  optional per-authority `crl_renew_before_days` overrides. Each window must be
-  nonnegative and less than that authority's `crl_days`.
-- Schedule role runs more frequently than the CRL renewal window and allow time
-  to publish the renewed CRL before expiry.
-- CRL numbers are reserved below `<ca_base_dir>/inventory/state/crl_numbers`
-  before export. The counter is independent of PEM and DER exports; unreadable
-  counter state fails instead of resetting the sequence.
-- `ca_publish_targets` publishes all CA certificates and issuing CA chains to
-  each target `path/aia`, and all CRLs to each target `path/crl`.
-- Multiple targets can use the same AIA/CDP paths on different hosts. This
-  supports Split-DNS or active/standby HTTP endpoints that serve the same
-  AIA/CDP URL from different machines.
-- Publishing builds one deterministic archive per distinct target file mode,
-  fetches each archive once to the controller, and unpacks the matching archive
-  on each target. Directory permissions are configured separately.
-- Publishing compares the actual target files with the archive and repairs
-  missing or changed artifacts.
-- Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing
-  `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
-- Published CDP files are `*-ca.crl.pem` and `*-ca.crl`.
-- Webserver package installation and virtual-host configuration remain outside
-  this role; configure the HTTP server to serve the configured paths.
-- The default CA working directory is derived from `ca_name | lower` below the
-  platform PKI base path.
-- `ca_subject` supplies the default X.509 subject attributes; per-authority or
-  per-certificate `subject` values override individual fields.
-- The managed CA topology is declared in `ca_authorities`; `parent == name`
+- ### CA Layout and Execution
+
+  The managed CA topology is declared in `ca_authorities`; `parent == name`
   creates a self-signed authority.
-- Self-signed root CAs do not get a separate chain file because it would be
+
+  The default CA working directory is derived from `ca_name | lower` below the
+  platform PKI base path.
+
+  `ca_subject` supplies the default X.509 subject attributes; per-authority or
+  per-certificate `subject` values override individual fields.
+
+  Self-signed root CAs do not get a separate chain file because it would be
   identical to the root certificate.
-- Revocations are declared in `ca_revocations`, keyed by issuing authority name;
-  each entry can identify a managed certificate by `name`, `certificate_name`,
-  `fingerprint`, `sha1`, `sha256`, `serial_number`, or `serial`.
-- Name-based revocations bind permanently to the first selected issuer and
-  serial. A replacement certificate requires its own serial or fingerprint
-  selector to revoke it.
-- Recorded revocations remain in subsequent CRLs even when declarations are
-  removed. Their original revocation time is retained unless explicitly changed.
-- CRL PEM and DER files are exported from the same generated CRL object, so both
-  formats share the same CRL Number, Authority Key Identifier, lastUpdate,
-  nextUpdate, and revoked certificate entries.
-- Revocation entries support `reason`, `revocation_date`, and `invalidity_date`;
-  `reason` is encoded as CRL Reason and `invalidity_date` as Invalidity Date.
-- Private keys default to RSA 4096. `key_type` and optional `key_size` can be
-  set per authority or certificate; supported key types are RSA, ECDSA
-  P-256/P-384, Ed25519, and Ed448.
-- Certificate output formats default in the modules: standard certificates and
-  MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses
-  `pem,der,txt,fritzbox`.
-- The role processes `ca_certificates` through the batched
-  `ca_certificate_batch` module; direct single-certificate use is still
-  available through `ca_certificate`.
-- Add `fullchain` to a certificate `formats` list to write
-  `<name>-fullchain.pem`.
-- Set `csr_path` or `csr_content` on a certificate entry to sign an external CSR
-  with the profile's issuing CA. The CSR subject and public key are used for the
-  issued certificate; `common_name` is optional and, when set, must match the
-  CSR common name.
-- CSR-signed certificates can write `pem`, `der`, `txt`, and `fullchain`.
-  Formats that require the private key on the CA host, such as `pfx`, `p12`, and
-  `fritzbox`, are rejected for CSR-signed certificates.
-- Default certificate validity comes from the issuing authority `default_days`;
-  per-certificate `days` overrides it.
-- `ca_renewal.warn_before_days` only marks inventory `renewal_status`; it does
-  not renew certificates.
-- `ca_renewal.renew_before_days` defaults to 7 and triggers renewal of
-  authorities and certificates within seven days of expiry. `0` disables this
-  window. Renewal takes place when the role runs.
-- `ca_renewal.renew_at` triggers one planned renewal for certificates issued
-  before that timestamp; after renewal, the same timestamp does not cause
-  another renewal.
-- `ca_renewal.rekey=true` generates a new private key when certificate renewal
-  is due; otherwise renewal keeps the existing key.
-- Per-authority and per-certificate `renewal` dictionaries override the global
-  `ca_renewal` defaults.
-- `ca_force_reissue=true` also regenerates authority keys and certificates. A
-  Root CA key change requires updating client trust; planned renewal normally
-  retains the key.
-- Replaced managed certificate generations are archived below
-  `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted
-  private key is archived with private file permissions.
-- The CA inventory is maintained by internal state hooks in the authority,
+
+  Role phases use the tags `ca_assert`, `ca_install`, `ca_init`,
+  `ca_init_dirs`, `ca_authorities`, `ca_create`, `ca_crl`, and `ca_publish`.
+
+  The CA inventory is maintained by internal state hooks in the authority,
   certificate, and CRL modules; it contains non-secret metadata such as serial
   numbers, fingerprints, subjects, issuers, validity windows, current
   certificate pointers, issued certificate history, revocation events, CRL
   metadata, status, and managed artifact paths.
-- X.509 material, authority chains, certificate bundles, CRLs, and inventory
+
+  X.509 material, authority chains, certificate bundles, CRLs, and inventory
   composition use internal advisory locks below `<ca_base_dir>/.locks` so
   concurrent jobs for the same CA object cannot interleave their file writes.
-- FritzBox bundles are assembled in the fixed order `certificate`, `chain`,
-  `private_key`.
-- FritzBox deployment runs only for certificate entries with
-  `fritzbox_deploy.enabled=true`; it compares the desired leaf certificate with
-  the current FRITZ!Box HTTPS certificate and uploads only when they differ,
-  unless `ca_force_reissue=true`.
-- FritzBox deployment uses `fritzbox_deploy.url`, defaults to
-  `https://fritz.box`, and disables certificate verification by default because
-  FRITZ!OS usually starts with a self-signed HTTPS certificate.
-- Existing certificates are reissued when their key, CSR, certificate profile,
+
+- ### Private Keys and Signature Algorithms
+
+  Private keys default to RSA 4096. `key_type` and optional `key_size` can be
+  set per authority or certificate; supported key types are RSA, ECDSA
+  P-256/P-384, Ed25519, and Ed448.
+
+  Set `key_type` to `RSA`, `ECDSA`, `P-256`, `P-384`, `Ed25519`, or `Ed448` on
+  an entry in `ca_authorities` or `ca_certificates`. RSA uses `key_size` as
+  its bit length. Generic ECDSA accepts `256` or `384` (default `256`); named
+  curves and EdDSA do not need a size. Documented aliases remain available in
+  the argument choices.
+
+  Set `digest` per authority or certificate and `crl_digest` per authority.
+  Allowed signature hashes are `sha224`, `sha256`, `sha384`, and `sha512`; the
+  default is `sha384`. SHA-1 signatures are explicitly rejected. FritzBox
+  profiles additionally reject `sha512`. SHA-1 certificate fingerprints remain
+  identifiers for inventory and revocation lookup.
+
+  Certificate signatures use the issuer's key; CSR signatures use the
+  subject's key. An Ed25519 or Ed448 signing key fixes its own hash, so
+  `digest` has no effect on that signature. External CSRs retain their
+  original key and signature. Changing the effective signature hash reissues
+  managed certificates and CSRs without replacing their keys.
+
+  Profile KeyUsage defaults include `keyEncipherment` only for RSA public
+  keys. ECDSA, Ed25519, and Ed448 retain the profile's signing usages. This
+  selection uses the actual public key, including keys from external CSRs.
+
+- ### Certificate Issuance, Formats, and External CSRs
+
+  The role processes `ca_certificates` through the batched
+  `ca_certificate_batch` module; direct single-certificate use is still
+  available through `ca_certificate`.
+
+  Certificate SANs use OpenSSL-style syntax such as `DNS:host.example.org`,
+  `IP:192.0.2.10`, `email:user@example.org`, and
+  `otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user@example.org`.
+
+  Default certificate validity comes from the issuing authority
+  `default_days`; per-certificate `days` overrides it.
+
+  Certificate output formats default in the modules: standard certificates and
+  MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses
+  `pem,der,txt,fritzbox`.
+
+  Add `fullchain` to a certificate `formats` list to write
+  `<name>-fullchain.pem`.
+
+  Set `csr_path` or `csr_content` on a certificate entry to sign an external
+  CSR with the profile's issuing CA. The CSR subject and public key are used
+  for the issued certificate; `common_name` is optional and, when set, must
+  match the CSR common name.
+
+  CSR-signed certificates can write `pem`, `der`, `txt`, and `fullchain`.
+  Formats that require the private key on the CA host, such as `pfx`, `p12`,
+  and `fritzbox`, are rejected for CSR-signed certificates.
+
+- ### Certificate Policies and Constraints
+
+  `certificate_policies` on authorities and certificates is a list of `oid`
+  entries with optional absolute HTTP/HTTPS `cps_uri` values. It defaults to
+  `[]`, is noncritical, and is never inherited or inferred from a profile.
+
+  A policy-bearing issuer requires every end certificate to contain a nonempty
+  subset of its actual certificate's policy OIDs. CPS URLs need not match.
+  Both empty lists preserve issuance without policies. External CSR policies
+  are ignored; configured policies govern issuance.
+
+  Sub-CAs with policies may set `policy_constraints.require_explicit_policy`,
+  `policy_constraints.inhibit_policy_mapping`, and `inhibit_any_policy` to
+  nonnegative integers. Omitted values emit no constraint; `0` activates it
+  immediately. Both constraint extensions are critical. Roots and end
+  certificates cannot carry these constraints through this role.
+
+  Concrete policy OIDs are required on sub-CAs and end certificates;
+  `anyPolicy` is supported only on self-signed roots. Root policies do not
+  constrain sub-CA issuance. Policy extensions cannot be supplied through
+  `raw_extensions`; policyMappings and User Notices are not supported.
+
+  Local issuance checks are stricter than unconstrained client path
+  validation. A policy OID records an issuer assertion; it does not prove
+  identity checks or hardware key protection. Client support and requested
+  policies determine authorization; the role does not configure clients.
+
+  Adding critical sub-CA constraints can invalidate previously accepted
+  chains. A broader sub-CA policy list cannot add a missing end-certificate
+  policy. Re-signing a sub-CA with the same key does not disable a still-valid
+  older unconstrained chain. Policy changes cause certificate reissuance; list
+  reordering does not. CP/CPS authoring and publication remain external.
+
+- ### Certificate Renewal and Key Changes
+
+  Existing certificates are reissued when their key, CSR, certificate profile,
   or declared extensions change, or when `ca_force_reissue=true`.
+
+  `ca_renewal.warn_before_days` only marks inventory `renewal_status`; it does
+  not renew certificates.
+
+  `ca_renewal.renew_before_days` defaults to 7 and triggers renewal of
+  authorities and certificates within seven days of expiry. `0` disables this
+  window. Renewal takes place when the role runs.
+
+  `ca_renewal.renew_at` triggers one planned renewal for certificates issued
+  before that timestamp; after renewal, the same timestamp does not cause
+  another renewal.
+
+  `ca_renewal.rekey=true` generates a new private key when certificate renewal
+  is due; otherwise renewal keeps the existing key.
+
+  Per-authority and per-certificate `renewal` dictionaries override the global
+  `ca_renewal` defaults.
+
+  `ca_force_reissue=true` also regenerates authority keys and certificates. A
+  Root CA key change requires updating client trust; planned renewal normally
+  retains the key.
+
+  Replaced managed certificate generations are archived below
+  `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted
+  private key is archived with private file permissions.
+
+- ### Revocation and CRL Renewal
+
+  Revocations are declared in `ca_revocations`, keyed by issuing authority
+  name; each entry can identify a managed certificate by `name`,
+  `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or
+  `serial`.
+
+  Name-based revocations bind permanently to the first selected issuer and
+  serial. A replacement certificate requires its own serial or fingerprint
+  selector to revoke it.
+
+  Recorded revocations remain in subsequent CRLs even when declarations are
+  removed. Their original revocation time is retained unless explicitly
+  changed.
+
+  Revocation entries support `reason`, `revocation_date`, and
+  `invalidity_date`; `reason` is encoded as CRL Reason and `invalidity_date`
+  as Invalidity Date.
+
+  CRLs renew `ca_crl_renew_before_days` days before nextUpdate (default 7),
+  with optional per-authority `crl_renew_before_days` overrides. Each window
+  must be nonnegative and less than that authority's `crl_days`.
+
+  Schedule role runs more frequently than the CRL renewal window and allow
+  time to publish the renewed CRL before expiry.
+
+  CRL numbers are reserved below `<ca_base_dir>/inventory/state/crl_numbers`
+  before export. The counter is independent of PEM and DER exports; unreadable
+  counter state fails instead of resetting the sequence.
+
+  CRL PEM and DER files are exported from the same generated CRL object, so
+  both formats share the same CRL Number, Authority Key Identifier,
+  lastUpdate, nextUpdate, and revoked certificate entries.
+
+- ### AIA/CDP Publishing
+
+  AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
+
+  Issuing CA certificates reference their parent CA certificate and CRL; leaf
+  certificates reference their issuing CA.
+
+  `ca_publish_targets` publishes all CA certificates and issuing CA chains to
+  each target `path/aia`, and all CRLs to each target `path/crl`.
+
+  Multiple targets can use the same AIA/CDP paths on different hosts. This
+  supports Split-DNS or active/standby HTTP endpoints that serve the same
+  AIA/CDP URL from different machines.
+
+  Publishing builds one deterministic archive per distinct target file mode,
+  fetches each archive once to the controller, and unpacks the matching
+  archive on each target. Directory permissions are configured separately.
+
+  Publishing compares the actual target files with the archive and repairs
+  missing or changed artifacts.
+
+  Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing
+  `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
+
+  Published CDP files are `*-ca.crl.pem` and `*-ca.crl`.
+
+  Webserver package installation and virtual-host configuration remain outside
+  this role; configure the HTTP server to serve the configured paths.
+
+- ### MSKDC Certificates
+
+  MSKDC `krb5_realm` is uppercased before encoding and becomes
+  `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
+
+  MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example
+  `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs
+  are converted to AD byte order for the NTDS replication extension.
+
+- ### FritzBox Deployment
+
+  FritzBox bundles are assembled in the fixed order `certificate`, `chain`,
+  `private_key`.
+
+  FritzBox deployment runs only for certificate entries with
+  `fritzbox_deploy.enabled=true`; it compares the desired leaf certificate
+  with the current FRITZ!Box HTTPS certificate and uploads only when they
+  differ, unless `ca_force_reissue=true`.
+
+  FritzBox deployment uses `fritzbox_deploy.url`, defaults to
+  `https://fritz.box`, and disables certificate verification by default
+  because FRITZ!OS usually starts with a self-signed HTTPS certificate.
 
 ## Supported Platforms
 
@@ -510,6 +603,26 @@ ca_publish_mode: '0644'
 | Debian | Ubuntu | latest | [jomrr/molecule-ubuntu:latest](https://hub.docker.com/r/jomrr/molecule-ubuntu) |
 
 ## Example Playbook
+
+### Key and signature hash selection
+
+These fields belong to individual authority or certificate entries;
+add them to the complete definitions shown below.
+
+```yaml
+# Fields on an existing ca_authorities entry:
+key_type: P-384
+digest: sha384
+crl_digest: sha256
+
+# Example ca_certificates entry for the default topology:
+ca_certificates:
+  - name: web-ec
+    type: tls_server
+    common_name: web-ec.example.org
+    key_type: P-256
+    digest: sha256
+```
 
 ### Minimal two-tier PKI
 

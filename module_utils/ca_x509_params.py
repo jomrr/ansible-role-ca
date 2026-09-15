@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ansible.module_utils.ca_file import ca_lock_path
+from ansible.module_utils.ca_x509_keys import DIGESTS, KEY_TYPES, digest_algorithm
 from ansible.module_utils.ca_x509_policies import (
     normalize_policy_params,
     policy_argument_spec,
@@ -37,6 +38,7 @@ def _with_derived_paths(
 ) -> dict:
     """Derive managed file paths and publication URLs from base parameters."""
     result = dict(params)
+    result["digest"] = digest_algorithm(result["digest"]).name
     base_dir = str(result["base_dir"]).rstrip("/")
     name = str(result["name"])
     formats = normalize_formats(result.get("formats"))
@@ -119,7 +121,7 @@ def ca_authority_argument_spec(
             "elements": "str",
             "default": ["pem", "der", "txt"],
         },
-        "key_type": {"type": "str", "default": "RSA"},
+        "key_type": {"type": "str", "default": "RSA", "choices": KEY_TYPES},
         "key_size": {"type": "int", "default": 4096},
         "subject_ordered": {"type": "list", "elements": "dict", "default": []},
         "common_name": {"type": "str"},
@@ -141,7 +143,7 @@ def ca_authority_argument_spec(
         "pkinit": {"type": "dict", "default": {}},
         "days": {"type": "int", "required": True},
         "renewal": {"type": "dict", "default": {}},
-        "digest": {"type": "str", "default": "sha384"},
+        "digest": {"type": "str", "default": "sha384", "choices": list(DIGESTS)},
         "include_identifiers": {"type": "bool", "default": True},
         "owner": {"type": "str"},
         "group": {"type": "str"},

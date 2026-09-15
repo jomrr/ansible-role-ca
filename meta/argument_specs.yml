@@ -151,6 +151,27 @@ argument_specs:
           key_type:
             type: str
             required: false
+            choices:
+              - RSA
+              - ECDSA
+              - P-256
+              - P-384
+              - Ed25519
+              - Ed448
+              - EC
+              - P256
+              - P384
+              - ECDSA_P256
+              - ECDSA_P384
+              - EC_P256
+              - EC_P384
+              - prime256v1
+              - secp256r1
+              - secp384r1
+              - ED25519
+              - ED448
+              - EdDSA25519
+              - EdDSA448
             description: Optional authority key type. Supported values include `RSA`, `ECDSA`,
               `P-256`, `P-384`, `Ed25519`, and `Ed448`; defaults to `RSA`.
           key_size:
@@ -158,6 +179,21 @@ argument_specs:
             required: false
             description: Optional authority key size. RSA defaults to `4096`; ECDSA accepts
               `256` or `384`; Ed25519 and Ed448 do not use a key size.
+          digest:
+            type: str
+            required: false
+            default: sha384
+            choices:
+              - sha224
+              - sha256
+              - sha384
+              - sha512
+            description:
+              - Hash for this authority's certificate and CSR signatures. SHA-1 is forbidden.
+              - Ed25519 and Ed448 signing keys determine their own hash; this setting has
+                no effect on those signatures.
+              - Changing the effective signature algorithm reissues the certificate or CSR
+                while retaining the key.
           parent:
             type: str
             required: true
@@ -246,7 +282,14 @@ argument_specs:
           crl_digest:
             type: str
             required: false
-            description: Optional CRL message digest override.
+            default: sha384
+            choices:
+              - sha224
+              - sha256
+              - sha384
+              - sha512
+            description: CRL signature hash. SHA-1 is forbidden; Ed25519 and Ed448 signing
+              keys determine their own hash.
       ca_crl_renew_before_days:
         type: float
         required: false
@@ -393,6 +436,27 @@ argument_specs:
           key_type:
             type: str
             required: false
+            choices:
+              - RSA
+              - ECDSA
+              - P-256
+              - P-384
+              - Ed25519
+              - Ed448
+              - EC
+              - P256
+              - P384
+              - ECDSA_P256
+              - ECDSA_P384
+              - EC_P256
+              - EC_P384
+              - prime256v1
+              - secp256r1
+              - secp384r1
+              - ED25519
+              - ED448
+              - EdDSA25519
+              - EdDSA448
             description: Optional certificate key type. Supported values include `RSA`,
               `ECDSA`, `P-256`, `P-384`, `Ed25519`, and `Ed448`; defaults to `RSA`.
           key_size:
@@ -400,6 +464,22 @@ argument_specs:
             required: false
             description: Optional certificate key size. RSA defaults to `4096`; ECDSA accepts
               `256` or `384`; Ed25519 and Ed448 do not use a key size.
+          digest:
+            type: str
+            required: false
+            default: sha384
+            choices:
+              - sha224
+              - sha256
+              - sha384
+              - sha512
+            description:
+              - Hash for the certificate signature and locally generated CSR. SHA-1 is forbidden;
+                FritzBox excludes sha512.
+              - The issuer key determines the certificate signature algorithm; Ed25519 and
+                Ed448 have no separate hash selection.
+              - Changing the effective signature algorithm reissues the certificate or CSR
+                while retaining the key.
           key_passphrase:
             type: str
             required: false

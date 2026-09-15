@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 
 from ansible.module_utils.ca_file import read_file
@@ -16,20 +17,44 @@ PEM_CERT_RE = re.compile(
     re.DOTALL,
 )
 
+KEY_TYPES = (
+    "RSA",
+    "ECDSA",
+    "P-256",
+    "P-384",
+    "Ed25519",
+    "Ed448",
+    "EC",
+    "P256",
+    "P384",
+    "ECDSA_P256",
+    "ECDSA_P384",
+    "EC_P256",
+    "EC_P384",
+    "prime256v1",
+    "secp256r1",
+    "secp384r1",
+    "ED25519",
+    "ED448",
+    "EdDSA25519",
+    "EdDSA448",
+)
+DIGESTS: dict[str, Callable[[], hashes.HashAlgorithm]] = {
+    "sha224": hashes.SHA224,
+    "sha256": hashes.SHA256,
+    "sha384": hashes.SHA384,
+    "sha512": hashes.SHA512,
+}
+
 
 def digest_algorithm(name: str) -> hashes.HashAlgorithm:
     """Return a cryptography hash object for a digest name."""
     normalized = name.replace("-", "").lower()
-    digests: dict[str, Any] = {
-        "sha1": hashes.SHA1,
-        "sha224": hashes.SHA224,
-        "sha256": hashes.SHA256,
-        "sha384": hashes.SHA384,
-        "sha512": hashes.SHA512,
-    }
-    if normalized not in digests:
+    if normalized == "sha1":
+        raise ValueError("SHA-1 is not allowed for signatures")
+    if normalized not in DIGESTS:
         raise ValueError(f"Unsupported digest {name}")
-    return digests[normalized]()
+    return DIGESTS[normalized]()
 
 
 def _key_type(value: Any) -> str:
@@ -115,9 +140,10 @@ def _generate_private_key(spec: dict[str, Any]):
 
 def signature_algorithm(private_key, digest: str):
     """Return the signing hash or None for EdDSA private keys."""
+    algorithm = digest_algorithm(digest)
     if isinstance(private_key, (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)):
         return None
-    return digest_algorithm(digest)
+    return algorithm
 
 
 def load_private_key(path: str, passphrase: str | None):

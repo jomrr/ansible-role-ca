@@ -13,6 +13,7 @@ from ansible.module_utils.ca_certificate_engine import (
     ensure_certificate_batch,
 )
 from ansible.module_utils.ca_verify_common import _load_pem_cert, _public_key_bytes
+from ansible.module_utils.ca_verify_algorithms import check_algorithm_changes
 from cryptography import x509
 
 
@@ -156,6 +157,7 @@ def _check_issuance(params: dict[str, Any]) -> None:
         if ensure_certificate_artifacts(params, certificate)["changed"]:
             raise ValueError("Changed policy certificate is not idempotent")
         original = renewed
+    check_algorithm_changes(params, certificate)
     valid = dict(certificate, name="batch-valid")
     for index, policies in enumerate(([], [{"oid": "1.3.6.1.4.1.32473.1.1.3"}])):
         invalid = dict(

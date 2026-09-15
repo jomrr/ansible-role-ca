@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric import rsa
+
 __all__ = [
     "CERTIFICATE_DEFAULT_FORMATS",
     "CERTIFICATE_PROFILE_DEFAULTS",
@@ -13,6 +15,7 @@ __all__ = [
     "STANDARD_CERTIFICATE_DEFAULTS",
     "apply_certificate_profile",
     "apply_profile_defaults",
+    "profile_key_usage",
 ]
 
 
@@ -96,7 +99,7 @@ CERTIFICATE_DEFAULT_FORMATS: dict[str, list[str]] = {
     "identity_full": ["pem", "der", "txt", "pfx"],
     "fritzbox": ["pem", "der", "txt", "fritzbox"],
 }
-FRITZBOX_DIGESTS = {"sha1", "sha224", "sha256", "sha384"}
+FRITZBOX_DIGESTS = {"sha224", "sha256", "sha384"}
 
 
 def _merge_raw_extensions(defaults, overrides):
@@ -173,10 +176,8 @@ def _apply_mskdc_extensions(params: dict) -> dict:
 def apply_profile_defaults(params: dict, defaults: dict) -> dict:
     """Apply certificate profile defaults without overriding explicit values."""
     result = dict(params)
-    for key in ("key_usage", "extended_key_usage"):
-        value = defaults.get(key)
-        if value is not None and not result.get(key):
-            result[key] = list(value)
+    if defaults.get("extended_key_usage") and not result.get("extended_key_usage"):
+        result["extended_key_usage"] = list(defaults["extended_key_usage"])
 
     if defaults.get("raw_extensions"):
         result["raw_extensions"] = _merge_raw_extensions(
@@ -195,6 +196,18 @@ def apply_profile_defaults(params: dict, defaults: dict) -> dict:
         result["san"] = san
 
     return result
+
+
+def profile_key_usage(params: dict, public_key) -> list[str]:
+    """Resolve default key usage against the actual certificate or CSR key."""
+    if params["key_usage"] or not params.get("profile"):
+        return list(params["key_usage"] or [])
+    usages = CERTIFICATE_PROFILE_DEFAULTS[params["profile"]]["key_usage"]
+    return [
+        usage
+        for usage in usages
+        if usage != "keyEncipherment" or isinstance(public_key, rsa.RSAPublicKey)
+    ]
 
 
 def apply_certificate_profile(params: dict, profile: str) -> dict:

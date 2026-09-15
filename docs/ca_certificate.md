@@ -79,7 +79,12 @@ X.509 module.
   `clientAuth`; Extra behavior: Adds DNS SAN and limits the digest to `sha384`
   or weaker because FRITZ!OS rejects stronger hashes.
 
-All profiles default to `digest: sha384`.
+All profiles default to `digest: sha384`. SHA-1 signatures are forbidden.
+
+The Key Usage lists above describe RSA defaults. Non-RSA subject keys omit
+`keyEncipherment`, using the actual key from an external CSR when supplied.
+Changing the effective signature digest reissues the certificate and managed
+CSR with the existing key. An external CSR retains its original signature.
 
 ## Module Parameters
 
@@ -248,8 +253,8 @@ These keys are accepted inside `certificate`.
 
 - **`digest`**: Signature digest for RSA and ECDSA. FritzBox profiles reject
   values stronger than `sha384`.
-  Type: str; Required: no; Default: `sha384`; Allowed values: `sha1`, `sha224`,
-  `sha256`, `sha384`, `sha512`; Secret: no
+  Type: str; Required: no; Default: `sha384`; Allowed values: `sha224`, `sha256`,
+  `sha384`, `sha512`; Secret: no
 
 - **`include_identifiers`**: Adds SKI and AKI.
   Type: bool; Required: no; Default: `true`; Allowed values: `true`, `false`;

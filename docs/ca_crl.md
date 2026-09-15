@@ -26,7 +26,7 @@ Serial parsing and timestamp normalization are delegated to the internal
 - CRL sequence numbers are persisted before export in
   `inventory/state/crl_numbers/<name>.json`, independently of PEM and DER
   exports. Corrupt counter state fails instead of resetting the sequence.
-- The default signature digest is `sha384`.
+- The default signature digest is `sha384`; SHA-1 signatures are forbidden.
 - Adds CRL Number and Authority Key Identifier extensions.
 - Supports CRL Reason and Invalidity Date revoked-certificate extensions.
 - Resolves revocations by certificate name or fingerprint through CA inventory
@@ -89,8 +89,8 @@ module as `revoked_certificates`.
   Secret: no
 
 - **`digest`**: Signature digest for RSA and ECDSA CA keys.
-  Type: str; Required: no; Default: `sha384`; Allowed values: `sha1`, `sha224`,
-  `sha256`, `sha384`, `sha512`; Secret: no
+  Type: str; Required: no; Default: `sha384`; Allowed values: `sha224`, `sha256`,
+  `sha384`, `sha512`; Secret: no
 
 - **`owner`**: Owner for the CRL and inventory files.
   Type: str; Required: no; Default: none; Allowed values: user name or UID;

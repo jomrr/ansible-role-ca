@@ -8,13 +8,17 @@ certificate profile defaults used by [`ca_certificate`](ca_certificate.md).
 ## Public Helpers
 
 - **`apply_profile_defaults(params, defaults)`**
-  Purpose: Applies default key usage, EKU, digest, raw extensions, and DNS SAN
+  Purpose: Applies default EKU, digest, raw extensions, and DNS SAN
   behavior without overriding explicit values.
 
 - **`apply_certificate_profile(params, profile)`**
   Purpose: Applies one built-in profile and profile-specific validation.
 
 ## Profile Defaults
+
+Key Usage lists below describe RSA defaults. `profile_key_usage` resolves
+them against the actual public key during extension construction and omits
+`keyEncipherment` for ECDSA, Ed25519, and Ed448, including external CSRs.
 
 - **`tls_server`**
   Formats: `pem`, `der`, `txt`; Digest: `sha384`; Key Usage: `digitalSignature`,
@@ -74,7 +78,7 @@ The `mskdc` profile adds:
 | --- | --- |
 | `CERTIFICATE_DEFAULT_FORMATS` | per-profile format map above |
 | `CERTIFICATE_PROFILE_DEFAULTS` | per-profile extension defaults above |
-| `FRITZBOX_DIGESTS` | `sha1`, `sha224`, `sha256`, `sha384` |
+| `FRITZBOX_DIGESTS` | `sha224`, `sha256`, `sha384` |
 
 ## Internal Example
 

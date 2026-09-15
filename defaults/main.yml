@@ -81,6 +81,12 @@ ca_renewal:
 # days is the CA certificate validity.
 # default_days is the default validity for certificates issued by this CA.
 # crl_days is the CRL nextUpdate interval.
+# key_type defaults to RSA; alternatives are ECDSA, P-256, P-384, Ed25519, Ed448.
+# key_size defaults to 4096 for RSA and 256 for generic ECDSA (or 384).
+# Named curves and EdDSA do not need key_size.
+# digest signs the authority certificate/CSR; crl_digest signs its CRLs.
+# Both default to sha384; sha224, sha256, sha384, sha512 are allowed, never sha1.
+# EdDSA signing keys determine their own hash.
 # certificate_policies defaults to []; entries contain oid and optional cps_uri.
 # Sub-CAs may set policy_constraints.require_explicit_policy,
 # policy_constraints.inhibit_policy_mapping, and inhibit_any_policy to integers
@@ -133,6 +139,9 @@ ca_authorities:
 #     default_days: 397
 #     crl_days: 30
 #     key_passphrase: "{{ vault_ca_component_passphrase }}"
+#     key_type: P-384
+#     digest: sha384
+#     crl_digest: sha256
 #     certificate_policies:
 #       - oid: 1.3.6.1.4.1.32473.1.1.1
 #         cps_uri: https://pki.example.org/cps
@@ -201,6 +210,11 @@ ca_revocations:
 # type selects a built-in profile from role vars.
 # common_name becomes the certificate CN.
 # formats are optional; module defaults are used when omitted.
+# key_type/key_size select the subject key, defaulting to RSA 4096.
+# digest defaults to sha384; allowed: sha224, sha256, sha384, sha512 (never sha1).
+# The issuer key determines the certificate signature algorithm; EdDSA fixes
+# its hash. A digest change re-signs managed material with the existing key.
+# Profile keyEncipherment defaults apply only to RSA, including external CSRs.
 # certificate_policies defaults to []; entries contain oid and optional cps_uri.
 # A policy-bearing issuer requires a nonempty subset of its OIDs on each EE.
 # Policy constraints and anyPolicy are not supported on end certificates.
@@ -212,6 +226,8 @@ ca_certificates: []
 #   - name: web01
 #     type: tls_server
 #     common_name: web01.example.org
+#     key_type: P-256
+#     digest: sha256
 #     san:
 #       - DNS:web01.example.org
 #       - DNS:web01

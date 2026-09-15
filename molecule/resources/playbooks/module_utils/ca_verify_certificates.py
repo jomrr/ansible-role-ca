@@ -34,25 +34,67 @@ from cryptography.x509.oid import (
 )
 
 
-def _check_default_digests(
-    base_dir: Path,
-    authorities: list[dict[str, Any]],
-    certificates: list[dict[str, Any]],
-    errors: list[str],
+def _check_digest(
+    signed, signing_key, expected: str, label: str, errors: list[str]
 ) -> None:
-    """Validate default certificate signature digests."""
-    paths = [
-        base_dir / "ca" / f"{_authority_file(authority)}.pem"
-        for authority in authorities
-    ]
-    paths.extend(
-        _certificate_pem_path(base_dir, certificate) for certificate in certificates
+    """Check the configured hash, or EdDSA's algorithm-defined hash mode."""
+    expected_hash = (
+        None
+        if isinstance(signing_key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey))
+        else expected
     )
-    for path in paths:
+    actual = signed.signature_hash_algorithm
+    if (actual.name if actual is not None else None) != expected_hash:
+        errors.append(f"{label} signature digest differs from {expected_hash}")
+
+
+def _check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
+    """Validate CA, certificate, and managed CSR signature hash selection."""
+    for authority in params["authorities"]:
+        path = base_dir / "ca" / f"{authority['name']}-ca.pem"
         cert = _load_pem_cert(path)
-        digest = cert.signature_hash_algorithm
-        if digest is None or digest.name != "sha384":
-            errors.append(f"{path} signature digest is not sha384")
+        issuer = _load_pem_cert(base_dir / "ca" / f"{authority['parent']}-ca.pem")
+        _check_digest(
+            cert,
+            issuer.public_key(),
+            authority.get("digest", "sha384"),
+            str(path),
+            errors,
+        )
+        _check_key_type(cert.public_key(), authority, str(path), errors)
+        csr = x509.load_pem_x509_csr(
+            _read(base_dir / "csr" / f"{authority['name']}-ca.csr")
+        )
+        _check_digest(
+            csr,
+            cert.public_key(),
+            authority.get("digest", "sha384"),
+            str(path) + " CSR",
+            errors,
+        )
+    for certificate in params["certificates"]:
+        path = _certificate_pem_path(base_dir, certificate)
+        cert = _load_pem_cert(path)
+        issuer_name = _certificate_issuer(certificate, params["certificate_types"])
+        issuer = _load_pem_cert(base_dir / "ca" / f"{issuer_name}-ca.pem")
+        _check_digest(
+            cert,
+            issuer.public_key(),
+            certificate.get("digest", "sha384"),
+            str(path),
+            errors,
+        )
+        if not _certificate_uses_csr(certificate):
+            csr = x509.load_pem_x509_csr(
+                _read(base_dir / "csr" / f"{certificate['name']}.csr")
+            )
+            _check_digest(
+                csr,
+                cert.public_key(),
+                certificate.get("digest", "sha384"),
+                str(path) + " CSR",
+                errors,
+            )
 
 
 def _check_public_keys(
@@ -64,6 +106,11 @@ def _check_public_keys(
     for certificate in certificates:
         name = _certificate_name(certificate)
         cert = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
+        usage = cert.extensions.get_extension_for_class(x509.KeyUsage).value
+        if usage.key_encipherment != isinstance(cert.public_key(), rsa.RSAPublicKey):
+            errors.append(
+                f"{name} keyEncipherment default does not match its public key"
+            )
         if _certificate_uses_csr(certificate):
             csr = _certificate_csr(certificate)
             private_key_path = (
@@ -81,41 +128,52 @@ def _check_public_keys(
                 errors.append(f"{name} public key does not match configured CSR")
             continue
 
-        key_type = str(certificate.get("key_type") or "RSA").upper().replace("-", "")
-        key_size = certificate.get("key_size")
-        key = cert.public_key()
-        if key_type == "RSA":
-            expected_size = int(key_size or 4096)
-            if not isinstance(key, rsa.RSAPublicKey) or key.key_size != expected_size:
-                errors.append(f"{name} public key is not RSA {expected_size}")
-        elif key_type in {"ECDSA", "EC", "ECC"}:
-            expected_size = int(key_size or 256)
-            expected_curve = "secp384r1" if expected_size == 384 else "secp256r1"
-            if (
-                not isinstance(key, ec.EllipticCurvePublicKey)
-                or key.curve.name != expected_curve
-            ):
-                errors.append(f"{name} public key is not ECDSA {expected_size}")
-        elif key_type in {"ECDSAP256", "ECP256", "P256", "PRIME256V1", "SECP256R1"}:
-            if (
-                not isinstance(key, ec.EllipticCurvePublicKey)
-                or key.curve.name != "secp256r1"
-            ):
-                errors.append(f"{name} public key is not ECDSA P-256")
-        elif key_type in {"ECDSAP384", "ECP384", "P384", "SECP384R1"}:
-            if (
-                not isinstance(key, ec.EllipticCurvePublicKey)
-                or key.curve.name != "secp384r1"
-            ):
-                errors.append(f"{name} public key is not ECDSA P-384")
-        elif key_type in {"ED25519", "EDDSA25519"}:
-            if not isinstance(key, ed25519.Ed25519PublicKey):
-                errors.append(f"{name} public key is not Ed25519")
-        elif key_type in {"ED448", "EDDSA448"}:
-            if not isinstance(key, ed448.Ed448PublicKey):
-                errors.append(f"{name} public key is not Ed448")
-        else:
-            errors.append(f"{name} uses unsupported verify key_type {key_type}")
+        _check_key_type(cert.public_key(), certificate, name, errors)
+
+
+def _check_key_type(key, certificate: dict, name: str, errors: list[str]) -> None:
+    """Check the requested public key type and size for a CA or end certificate."""
+    key_type = (
+        str(certificate.get("key_type") or "RSA")
+        .upper()
+        .replace("-", "")
+        .replace("_", "")
+    )
+    key_size = certificate.get("key_size")
+    if key_type == "RSA":
+        expected_size = int(key_size or 4096)
+        if not isinstance(key, rsa.RSAPublicKey) or key.key_size != expected_size:
+            errors.append(f"{name} public key is not RSA {expected_size}")
+    elif key_type in {
+        "ECDSA",
+        "EC",
+        "ECDSAP256",
+        "ECP256",
+        "P256",
+        "PRIME256V1",
+        "SECP256R1",
+        "ECDSAP384",
+        "ECP384",
+        "P384",
+        "SECP384R1",
+    }:
+        use_p384 = key_type in {"ECDSAP384", "ECP384", "P384", "SECP384R1"} or (
+            key_type in {"ECDSA", "EC"} and int(key_size or 256) == 384
+        )
+        expected_curve = "secp384r1" if use_p384 else "secp256r1"
+        if (
+            not isinstance(key, ec.EllipticCurvePublicKey)
+            or key.curve.name != expected_curve
+        ):
+            errors.append(f"{name} public key is not ECDSA {expected_curve}")
+    elif key_type in {"ED25519", "EDDSA25519"}:
+        if not isinstance(key, ed25519.Ed25519PublicKey):
+            errors.append(f"{name} public key is not Ed25519")
+    elif key_type in {"ED448", "EDDSA448"}:
+        if not isinstance(key, ed448.Ed448PublicKey):
+            errors.append(f"{name} public key is not Ed448")
+    else:
+        errors.append(f"{name} uses unsupported verify key_type {key_type}")
 
 
 def _issuer_chain(base_dir: Path, issuer: str) -> list[x509.Certificate]:
@@ -247,9 +305,6 @@ def _check_fritzbox(
                     )
 
         cert = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
-        digest = cert.signature_hash_algorithm
-        if digest is None or digest.name != "sha384":
-            errors.append(f"{name} FritzBox certificate signature digest is not sha384")
         try:
             basic_constraints = cert.extensions.get_extension_for_class(
                 x509.BasicConstraints
@@ -335,9 +390,14 @@ def _check_crl(
         stem = _authority_file(authority)
         der_crl = x509.load_der_x509_crl(_read(base_dir / "crl" / f"{stem}.crl"))
         pem_crl = x509.load_pem_x509_crl(_read(base_dir / "crl" / f"{stem}.crl.pem"))
-        digest = der_crl.signature_hash_algorithm
-        if digest is None or digest.name != "sha384":
-            errors.append(f"{name} DER CRL signature digest is not sha384")
+        issuer = _load_pem_cert(base_dir / "ca" / f"{stem}.pem")
+        _check_digest(
+            der_crl,
+            issuer.public_key(),
+            authority.get("crl_digest", "sha384"),
+            name + " CRL",
+            errors,
+        )
         for crl, label in ((der_crl, "DER"), (pem_crl, "PEM")):
             for extension_class, description in (
                 (x509.CRLNumber, "CRL Number"),

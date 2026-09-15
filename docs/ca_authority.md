@@ -13,7 +13,9 @@ text exports, and CA inventory state for a root or issuing CA.
 - Root CA defaults: `basic_constraints: ["CA:TRUE", "pathlen:1"]`.
 - Issuing CA defaults: `basic_constraints: ["CA:TRUE", "pathlen:0"]`.
 - Both authority types default `key_usage` to `["keyCertSign", "cRLSign"]`.
-- The default signature digest is `sha384`.
+- The default signature digest is `sha384`; SHA-1 signatures are forbidden.
+- Changing the signature digest reissues the certificate and CSR with the
+  existing key, unless the signing key fixes its own hash (EdDSA).
 - `key_passphrase` is required and is only used in memory by the module.
 - `parent_key_passphrase` is required for issuing CAs.
 - When reusing a key, only a missing file triggers key generation. An
@@ -143,8 +145,8 @@ text exports, and CA inventory state for a root or issuing CA.
   Type: dict; Required: no; Default: `{}`; Allowed values: see below; Secret: no
 
 - **`digest`**: Signature digest for RSA and ECDSA keys.
-  Type: str; Required: no; Default: `sha384`; Allowed values: `sha1`, `sha224`,
-  `sha256`, `sha384`, `sha512`; Secret: no
+  Type: str; Required: no; Default: `sha384`; Allowed values: `sha224`, `sha256`,
+  `sha384`, `sha512`; Secret: no
 
 - **`include_identifiers`**: Adds SKI and AKI extensions.
   Type: bool; Required: no; Default: `true`; Allowed values: `true`, `false`;

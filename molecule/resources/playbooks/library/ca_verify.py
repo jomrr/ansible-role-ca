@@ -11,7 +11,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.ca_verify_certificates import (
     _check_chains,
     _check_crl,
-    _check_default_digests,
+    _check_digests,
     _check_fritzbox,
     _check_mskdc,
     _check_pkcs12,
@@ -231,7 +231,7 @@ def run_module() -> None:
             publish_root, authorities, module.params["publish_mode"], errors
         ),
         lambda: _check_inventory(base_dir, module.params, errors),
-        lambda: _check_default_digests(base_dir, authorities, certificates, errors),
+        lambda: _check_digests(base_dir, module.params, errors),
         lambda: _check_public_keys(base_dir, certificates, errors),
         lambda: _check_chains(base_dir, certificates, certificate_types, errors),
         lambda: _check_mskdc(base_dir, certificates, errors),

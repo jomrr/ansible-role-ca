@@ -13,6 +13,7 @@
         parent: "{{ __ca_authority.parent }}"
         key_type: "{{ __ca_authority.key_type | default(omit) }}"
         key_size: "{{ __ca_authority.key_size | default(omit) }}"
+        digest: "{{ __ca_authority.digest | default(omit) }}"
         key_passphrase: "{{ __ca_authority.key_passphrase }}"
         parent_key_passphrase: >-
           {{

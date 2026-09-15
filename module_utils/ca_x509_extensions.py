@@ -6,6 +6,7 @@ import ipaddress
 import re
 from collections.abc import Iterable
 
+from ansible.module_utils.ca_profiles import profile_key_usage
 from ansible.module_utils.ca_x509_encoding import (
     _der_bmp_string,
     _der_octet_string,
@@ -216,7 +217,7 @@ def _desired_extensions(params, public_key, signer_public_key, csr_san=None):
         (
             x509.ExtensionOID.KEY_USAGE,
             bool(params["key_usage_critical"]),
-            _key_usage(params["key_usage"]),
+            _key_usage(profile_key_usage(params, public_key)),
         ),
     ]
     if params["extended_key_usage"]:

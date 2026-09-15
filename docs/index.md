@@ -175,6 +175,8 @@ Supported key type aliases:
 
 - `RSA`
 - `ECDSA`
+- `P-256`
+- `P-384`
 - `EC`
 - `P256`
 - `P384`
@@ -188,11 +190,14 @@ Supported key type aliases:
 
 Supported RSA and ECDSA digests:
 
-- `sha1`
 - `sha224`
 - `sha256`
 - `sha384`
 - `sha512`
+
+SHA-1 is explicitly rejected for all signature requests, including EdDSA.
+Allowed `digest` values do not change EdDSA signatures. Signature hashes are
+independent of inventory fingerprints and revocation selectors.
 
 Supported subject keys:
 

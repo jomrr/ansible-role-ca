@@ -37,6 +37,7 @@ from ansible.module_utils.ca_x509 import (
     signature_algorithm,
     subject_from_params,
 )
+from ansible.module_utils.ca_x509_keys import DIGESTS
 
 CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
@@ -198,8 +199,11 @@ def _same_existing_number(
     return bool(numbers) and None not in numbers and len(set(numbers)) == 1
 
 
-def _signature_algorithm_oid(ca_cert: x509.Certificate, digest: str) -> x509.ObjectIdentifier:
+def _signature_algorithm_oid(
+    ca_cert: x509.Certificate, digest: str
+) -> x509.ObjectIdentifier:
     """Derive the CRL signing OID from the CA public key and configured digest."""
+    hash_name = digest_algorithm(digest).name.upper()
     public_key = ca_cert.public_key()
     if isinstance(public_key, ed25519.Ed25519PublicKey):
         return SignatureAlgorithmOID.ED25519
@@ -211,7 +215,6 @@ def _signature_algorithm_oid(ca_cert: x509.Certificate, digest: str) -> x509.Obj
         (dsa.DSAPublicKey, "DSA"),
     ):
         if isinstance(public_key, key_class):
-            hash_name = digest_algorithm(digest).name.upper()
             return getattr(SignatureAlgorithmOID, f"{prefix}_WITH_{hash_name}")
     raise ValueError("Unsupported CA public key for CRL signing")
 
@@ -346,7 +349,7 @@ def run_module():
             "next_update_days": {"type": "int", "required": True},
             "renew_before_days": {"type": "float", "default": 7},
             "revoked_certificates": {"type": "list", "elements": "dict", "default": []},
-            "digest": {"type": "str", "default": "sha384"},
+            "digest": {"type": "str", "default": "sha384", "choices": list(DIGESTS)},
             "owner": {"type": "str"},
             "group": {"type": "str"},
             "mode": {"type": "str", "default": "0644"},
@@ -390,7 +393,9 @@ def run_module():
                 )
             if any(number > previous_number for number in existing_numbers):
                 raise ValueError("CRL export number exceeds the persistent sequence")
-            desired_signature_algorithm = _signature_algorithm_oid(ca_cert, params["digest"])
+            desired_signature_algorithm = _signature_algorithm_oid(
+                ca_cert, params["digest"]
+            )
             desired_revoked = _desired_revoked(params["revoked_certificates"])
             changed = (
                 params["force"]
