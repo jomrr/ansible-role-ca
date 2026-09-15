@@ -31,6 +31,7 @@ from ansible.module_utils.ca_time import (
     timestamp_iso,
 )
 from ansible.module_utils.ca_x509 import (
+    digest_algorithm,
     load_certificate,
     load_private_key,
     signature_algorithm,
@@ -41,6 +42,8 @@ CRYPTOGRAPHY_IMPORT_ERROR: Exception | None
 try:
     from cryptography import x509
     from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import dsa, ec, ed448, ed25519, rsa
+    from cryptography.x509.oid import SignatureAlgorithmOID
 except Exception as exc:  # pragma: no cover
     CRYPTOGRAPHY_IMPORT_ERROR = exc
 else:
@@ -195,11 +198,29 @@ def _same_existing_number(
     return bool(numbers) and None not in numbers and len(set(numbers)) == 1
 
 
+def _signature_algorithm_oid(ca_cert: x509.Certificate, digest: str) -> x509.ObjectIdentifier:
+    """Derive the CRL signing OID from the CA public key and configured digest."""
+    public_key = ca_cert.public_key()
+    if isinstance(public_key, ed25519.Ed25519PublicKey):
+        return SignatureAlgorithmOID.ED25519
+    if isinstance(public_key, ed448.Ed448PublicKey):
+        return SignatureAlgorithmOID.ED448
+    for key_class, prefix in (
+        (rsa.RSAPublicKey, "RSA"),
+        (ec.EllipticCurvePublicKey, "ECDSA"),
+        (dsa.DSAPublicKey, "DSA"),
+    ):
+        if isinstance(public_key, key_class):
+            hash_name = digest_algorithm(digest).name.upper()
+            return getattr(SignatureAlgorithmOID, f"{prefix}_WITH_{hash_name}")
+    raise ValueError("Unsupported CA public key for CRL signing")
+
+
 def _needs_rebuild(
     *,
     existing_crls: dict[str, x509.CertificateRevocationList | None],
     params: dict,
-    comparison_crl: x509.CertificateRevocationList,
+    desired_signature_algorithm: x509.ObjectIdentifier,
     desired_revoked: list[tuple[int, str, str, str]],
     desired_authority_key: bytes | None,
 ) -> bool:
@@ -213,7 +234,7 @@ def _needs_rebuild(
             return True
         if crl.issuer != issuer:
             return True
-        if crl.signature_algorithm_oid != comparison_crl.signature_algorithm_oid:
+        if crl.signature_algorithm_oid != desired_signature_algorithm:
             return True
         if object_datetime(crl, "next_update") <= current_time + _dt.timedelta(
             days=params["renew_before_days"]
@@ -352,17 +373,12 @@ def run_module():
                 ca_lock_path(params["base_dir"], "crl", params["name"]),
             ]
         ):
-            params["privatekey_passphrase"] = params["key_passphrase"]
             params["revoked_certificates"] = resolve_revocation_entries(
                 base_dir=str(params["base_dir"]),
                 authority=str(params["name"]),
                 entries=params["revoked_certificates"],
             )
             ca_cert = load_certificate(params["certificate_path"])
-            private_key = load_private_key(
-                params["privatekey_path"],
-                params["privatekey_passphrase"],
-            )
             existing_crls = _load_existing_crls(params["paths"])
             existing_numbers = _existing_numbers(existing_crls)
             previous_number = last_crl_number(params["base_dir"], params["name"])
@@ -374,12 +390,7 @@ def run_module():
                 )
             if any(number > previous_number for number in existing_numbers):
                 raise ValueError("CRL export number exceeds the persistent sequence")
-            comparison_crl = _build_crl(
-                params,
-                crl_number=previous_number or 1,
-                ca_cert=ca_cert,
-                private_key=private_key,
-            )
+            desired_signature_algorithm = _signature_algorithm_oid(ca_cert, params["digest"])
             desired_revoked = _desired_revoked(params["revoked_certificates"])
             changed = (
                 params["force"]
@@ -387,12 +398,16 @@ def run_module():
                 or _needs_rebuild(
                     existing_crls=existing_crls,
                     params=params,
-                    comparison_crl=comparison_crl,
+                    desired_signature_algorithm=desired_signature_algorithm,
                     desired_revoked=desired_revoked,
                     desired_authority_key=_desired_authority_key_identifier(ca_cert),
                 )
             )
             if changed:
+                private_key = load_private_key(
+                    params["privatekey_path"],
+                    params["key_passphrase"],
+                )
                 crl_number = previous_number + 1
                 crl = _build_crl(
                     params,
