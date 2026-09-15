@@ -25,20 +25,56 @@ the FRITZ!OS certificate import endpoint.
 
 ## Parameters
 
-| Parameter | Type | Required | Default | Allowed values | Secret | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| `base_dir` | path | yes | none | any absolute or relative path | no | Base CA directory. |
-| `certificate` | dict | no | `{}` | certificate model | yes | Optional source for `output_dir` and nested `fritzbox_deploy`. |
-| `deploy` | dict | no | `{}` | deploy model | yes | Explicit deployment settings. Values override nested `certificate.fritzbox_deploy`. |
-| `name` | str | yes | none | certificate name | no | Certificate short name and file stem. |
-| `output_dir` | path | no | `<base_dir>/certs/<name>` | any path | no | Directory containing the generated FritzBox bundle. |
-| `bundle_path` | path | no | `<output_dir>/<name>-fritzbox.pem` | any path | no | Explicit FritzBox bundle path. |
-| `url` | str | no | `https://fritz.box` | absolute `http` or `https` URL | no | FRITZ!Box URL. HTTPS is required for idempotence comparison. |
-| `username` | str | yes | none | FRITZ!OS user name | no | Login user. |
-| `password` | str | yes | none | FRITZ!OS password | yes | Login password. |
-| `timeout` | int | no | `30` | positive integer | no | Network timeout in seconds. |
-| `validate_certs` | bool | no | `false` | `true`, `false` | no | Validate the current FRITZ!Box HTTPS certificate while connecting. |
-| `force` | bool | no | `false` | `true`, `false` | no | Deploy even when the current HTTPS certificate already matches. |
+- **`base_dir`**: Base CA directory.
+  Type: path; Required: yes; Default: none; Allowed values: any absolute or
+  relative path; Secret: no
+
+- **`certificate`**: Optional source for `output_dir` and nested
+  `fritzbox_deploy`.
+  Type: dict; Required: no; Default: `{}`; Allowed values: certificate model;
+  Secret: yes
+
+- **`deploy`**: Explicit deployment settings. Values override nested
+  `certificate.fritzbox_deploy`.
+  Type: dict; Required: no; Default: `{}`; Allowed values: deploy model; Secret:
+  yes
+
+- **`name`**: Certificate short name and file stem.
+  Type: str; Required: yes; Default: none; Allowed values: certificate name;
+  Secret: no
+
+- **`output_dir`**: Directory containing the generated FritzBox bundle.
+  Type: path; Required: no; Default: `<base_dir>/certs/<name>`; Allowed values:
+  any path; Secret: no
+
+- **`bundle_path`**: Explicit FritzBox bundle path.
+  Type: path; Required: no; Default: `<output_dir>/<name>-fritzbox.pem`; Allowed
+  values: any path; Secret: no
+
+- **`url`**: FRITZ!Box URL. HTTPS is required for idempotence comparison.
+  Type: str; Required: no; Default: `https://fritz.box`; Allowed values:
+  absolute `http` or `https` URL; Secret: no
+
+- **`username`**: Login user.
+  Type: str; Required: yes; Default: none; Allowed values: FRITZ!OS user name;
+  Secret: no
+
+- **`password`**: Login password.
+  Type: str; Required: yes; Default: none; Allowed values: FRITZ!OS password;
+  Secret: yes
+
+- **`timeout`**: Network timeout in seconds.
+  Type: int; Required: no; Default: `30`; Allowed values: positive integer;
+  Secret: no
+
+- **`validate_certs`**: Validate the current FRITZ!Box HTTPS certificate while
+  connecting.
+  Type: bool; Required: no; Default: `false`; Allowed values: `true`, `false`;
+  Secret: no
+
+- **`force`**: Deploy even when the current HTTPS certificate already matches.
+  Type: bool; Required: no; Default: `false`; Allowed values: `true`, `false`;
+  Secret: no
 
 The `deploy` dictionary accepts the same deployment keys:
 

@@ -47,20 +47,43 @@ example in Split-DNS setups.
 
 ## Parameters
 
-| Name | Required | Default | Description |
-| ---- | -------- | ------- | ----------- |
-| `name` | yes | | Ansible host receiving the files. |
-| `ansible_host` | no | | SSH address registered with `add_host`. |
-| `ansible_user` | no | | SSH user registered with `add_host`. |
-| `ansible_port` | no | | SSH port registered with `add_host`. |
-| `ansible_ssh_private_key_file` | no | | SSH private key path registered with `add_host`. |
-| `path` | yes | | Remote webroot. CA certificates and chains are unpacked below `path/aia`; CRLs are unpacked below `path/crl`. |
-| `owner` | no | `ca_owner` | Owner for published files and directories. |
-| `group` | no | `ca_group` | Group for published files and directories. |
-| `mode` | no | `ca_publish_mode` | Published file mode. |
-| `directory_mode` | no | `ca_publish_directory_mode` | Published directory mode. |
-| `become` | no | `false` | Whether to use privilege escalation on the target. |
-| `become_user` | no | `root` | Privilege escalation user. |
+- **`name`**: Ansible host receiving the files.
+  Required: yes Default:
+
+- **`ansible_host`**: SSH address registered with `add_host`.
+  Required: no Default:
+
+- **`ansible_user`**: SSH user registered with `add_host`.
+  Required: no Default:
+
+- **`ansible_port`**: SSH port registered with `add_host`.
+  Required: no Default:
+
+- **`ansible_ssh_private_key_file`**: SSH private key path registered with
+  `add_host`.
+  Required: no Default:
+
+- **`path`**: Remote webroot. CA certificates and chains are unpacked below
+  `path/aia`; CRLs are unpacked below `path/crl`.
+  Required: yes Default:
+
+- **`owner`**: Owner for published files and directories.
+  Required: no; Default: `ca_owner`
+
+- **`group`**: Group for published files and directories.
+  Required: no; Default: `ca_group`
+
+- **`mode`**: Published file mode.
+  Required: no; Default: `ca_publish_mode`
+
+- **`directory_mode`**: Published directory mode.
+  Required: no; Default: `ca_publish_directory_mode`
+
+- **`become`**: Whether to use privilege escalation on the target.
+  Required: no; Default: `false`
+
+- **`become_user`**: Privilege escalation user.
+  Required: no; Default: `root`
 
 ## Behavior
 

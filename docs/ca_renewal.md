@@ -8,21 +8,33 @@ one place.
 
 ## Public Helpers
 
-| Helper | Purpose |
-| --- | --- |
-| `renewal_policy(value)` | Normalizes a renewal dictionary and fills defaults. |
-| `renewal_datetime(value)` | Parses an optional planned renewal timestamp. |
-| `renewal_decision(force, not_before, not_after, policy_value, now=None)` | Returns whether a certificate should be renewed and whether renewal should re-key. |
-| `renewal_status(certificate, policy_value, now=None)` | Returns inventory-facing renewal status for a certificate summary. |
+- **`renewal_policy(value)`**
+  Purpose: Normalizes a renewal dictionary and fills defaults.
+
+- **`renewal_datetime(value)`**
+  Purpose: Parses an optional planned renewal timestamp.
+
+- **`renewal_decision(force, not_before, not_after, policy_value, now=None)`**
+  Purpose: Returns whether a certificate should be renewed and whether renewal
+  should re-key.
+
+- **`renewal_status(certificate, policy_value, now=None)`**
+  Purpose: Returns inventory-facing renewal status for a certificate summary.
 
 ## Renewal Policy
 
-| Key | Default | Behavior |
-| --- | --- | --- |
-| `warn_before_days` | `0` | Marks inventory warning state only. |
-| `renew_before_days` | `7` | Renews when remaining validity reaches this window. |
-| `renew_at` | empty | Renews once at or after the timestamp for certificates issued before it. |
-| `rekey` | `false` | Generates a new private key when renewal is due. |
+- **`warn_before_days`**
+  Default: `0`; Behavior: Marks inventory warning state only.
+
+- **`renew_before_days`**
+  Default: `7`; Behavior: Renews when remaining validity reaches this window.
+
+- **`renew_at`**
+  Default: empty; Behavior: Renews once at or after the timestamp for
+  certificates issued before it.
+
+- **`rekey`**
+  Default: `false`; Behavior: Generates a new private key when renewal is due.
 
 `force: true` is handled as an immediate renewal and re-key decision by
 `renewal_decision`.

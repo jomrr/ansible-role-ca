@@ -21,8 +21,11 @@ Serial parsing and timestamp normalization are delegated to the internal
 - Rewrites the CRL when the issuer, digest, next update, or revoked serial list
   differs, when CRL Number or AKI is missing or inconsistent, when the existing
   CRL enters its renewal window, or when `force: true` is set.
-- CRLs renew seven days before nextUpdate by default. `renew_before_days` may be fractional, must be nonnegative, and must be less than `next_update_days`.
-- CRL sequence numbers are persisted before export in `inventory/state/crl_numbers/<name>.json`, independently of PEM and DER exports. Corrupt counter state fails instead of resetting the sequence.
+- CRLs renew seven days before nextUpdate by default. `renew_before_days` may be
+  fractional, must be nonnegative, and must be less than `next_update_days`.
+- CRL sequence numbers are persisted before export in
+  `inventory/state/crl_numbers/<name>.json`, independently of PEM and DER
+  exports. Corrupt counter state fails instead of resetting the sequence.
 - The default signature digest is `sha384`.
 - Adds CRL Number and Authority Key Identifier extensions.
 - Supports CRL Reason and Invalidity Date revoked-certificate extensions.
@@ -40,45 +43,115 @@ At role level, users normally declare revocations with `ca_revocations`, keyed
 by issuing authority name. The role passes `ca_revocations[<authority>]` to this
 module as `revoked_certificates`.
 
-| Parameter | Type | Required | Default | Allowed values | Secret | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| `base_dir` | path | yes | none | any absolute or relative path | no | Base CA directory. |
-| `base_url` | str | no | `""` | any URL prefix | no | Stored in composed inventory when `ca_name` is set. |
-| `ca_name` | str | no | `""` | any string | no | Enables composed inventory output when non-empty. |
-| `name` | str | yes | none | authority name | no | CA authority short name. |
-| `formats` | list[str] | no | `["pem", "der"]` | `pem`, `der` | no | CRL output formats written from one generated CRL object. |
-| `key_passphrase` | str | yes | none | any string | yes | Passphrase for the CA private key. |
-| `common_name` | str | yes | none | any string | no | CA subject Common Name. |
-| `subject` | dict | no | `{}` | supported subject keys | no | Subject defaults for the CRL issuer name. |
-| `next_update_days` | int | yes | none | positive integer | no | Number of days until CRL `nextUpdate`. |
-| `renew_before_days` | float | no | `7` | nonnegative, less than `next_update_days` | no | Renew before expiry; role default is `ca_crl_renew_before_days`, with per-authority `crl_renew_before_days` overrides. |
-| `revoked_certificates` | list[dict] | no | `[]` | see below | no | Declarative revoked certificate entries. |
-| `digest` | str | no | `sha384` | `sha1`, `sha224`, `sha256`, `sha384`, `sha512` | no | Signature digest for RSA and ECDSA CA keys. |
-| `owner` | str | no | none | user name or UID | no | Owner for the CRL and inventory files. |
-| `group` | str | no | none | group name or GID | no | Group for the CRL and inventory files. |
-| `mode` | str | no | `0644` | octal mode string | no | CRL file mode. |
-| `force` | bool | no | `false` | `true`, `false` | no | Rewrites the CRL even if current content matches. |
+- **`base_dir`**: Base CA directory.
+  Type: path; Required: yes; Default: none; Allowed values: any absolute or
+  relative path; Secret: no
+
+- **`base_url`**: Stored in composed inventory when `ca_name` is set.
+  Type: str; Required: no; Default: `""`; Allowed values: any URL prefix;
+  Secret: no
+
+- **`ca_name`**: Enables composed inventory output when non-empty.
+  Type: str; Required: no; Default: `""`; Allowed values: any string; Secret: no
+
+- **`name`**: CA authority short name.
+  Type: str; Required: yes; Default: none; Allowed values: authority name;
+  Secret: no
+
+- **`formats`**: CRL output formats written from one generated CRL object.
+  Type: list[str]; Required: no; Default: `["pem", "der"]`; Allowed values:
+  `pem`, `der`; Secret: no
+
+- **`key_passphrase`**: Passphrase for the CA private key.
+  Type: str; Required: yes; Default: none; Allowed values: any string; Secret:
+  yes
+
+- **`common_name`**: CA subject Common Name.
+  Type: str; Required: yes; Default: none; Allowed values: any string; Secret:
+  no
+
+- **`subject`**: Subject defaults for the CRL issuer name.
+  Type: dict; Required: no; Default: `{}`; Allowed values: supported subject
+  keys; Secret: no
+
+- **`next_update_days`**: Number of days until CRL `nextUpdate`.
+  Type: int; Required: yes; Default: none; Allowed values: positive integer;
+  Secret: no
+
+- **`renew_before_days`**: Renew before expiry; role default is
+  `ca_crl_renew_before_days`, with per-authority `crl_renew_before_days`
+  overrides.
+  Type: float; Required: no; Default: `7`; Allowed values: nonnegative, less
+  than `next_update_days`; Secret: no
+
+- **`revoked_certificates`**: Declarative revoked certificate entries.
+  Type: list[dict]; Required: no; Default: `[]`; Allowed values: see below;
+  Secret: no
+
+- **`digest`**: Signature digest for RSA and ECDSA CA keys.
+  Type: str; Required: no; Default: `sha384`; Allowed values: `sha1`, `sha224`,
+  `sha256`, `sha384`, `sha512`; Secret: no
+
+- **`owner`**: Owner for the CRL and inventory files.
+  Type: str; Required: no; Default: none; Allowed values: user name or UID;
+  Secret: no
+
+- **`group`**: Group for the CRL and inventory files.
+  Type: str; Required: no; Default: none; Allowed values: group name or GID;
+  Secret: no
+
+- **`mode`**: CRL file mode.
+  Type: str; Required: no; Default: `0644`; Allowed values: octal mode string;
+  Secret: no
+
+- **`force`**: Rewrites the CRL even if current content matches.
+  Type: bool; Required: no; Default: `false`; Allowed values: `true`, `false`;
+  Secret: no
 
 Each `revoked_certificates` item accepts one certificate selector:
 
-| Key | Type | Required | Default | Allowed values | Description |
-| --- | --- | --- | --- | --- | --- |
-| `name` | str | conditional | none | managed certificate name | Current certificate name resolved through CA inventory. |
-| `certificate_name` | str | conditional | none | managed certificate name | Alias for `name`. |
-| `certificate` | str | conditional | none | managed certificate name | Alias for `name`. |
-| `fingerprint` | str | conditional | none | SHA-1 or SHA-256 hex, optionally prefixed with `sha1:` or `sha256:` | Certificate fingerprint resolved through CA inventory. |
-| `sha1` | str | conditional | none | SHA-1 hex | SHA-1 certificate fingerprint. |
-| `sha256` | str | conditional | none | SHA-256 hex | SHA-256 certificate fingerprint. |
-| `serial` | int/str | conditional | none | decimal, `0x` hex, or colon-separated hex | Certificate serial number. |
-| `serial_number` | int/str | conditional | none | decimal, `0x` hex, or colon-separated hex | Certificate serial number. |
+- **`name`**: Current certificate name resolved through CA inventory.
+  Type: str; Required: conditional; Default: none; Allowed values: managed
+  certificate name
+
+- **`certificate_name`**: Alias for `name`.
+  Type: str; Required: conditional; Default: none; Allowed values: managed
+  certificate name
+
+- **`certificate`**: Alias for `name`.
+  Type: str; Required: conditional; Default: none; Allowed values: managed
+  certificate name
+
+- **`fingerprint`**: Certificate fingerprint resolved through CA inventory.
+  Type: str; Required: conditional; Default: none; Allowed values: SHA-1 or
+  SHA-256 hex, optionally prefixed with `sha1:` or `sha256:`
+
+- **`sha1`**: SHA-1 certificate fingerprint.
+  Type: str; Required: conditional; Default: none; Allowed values: SHA-1 hex
+
+- **`sha256`**: SHA-256 certificate fingerprint.
+  Type: str; Required: conditional; Default: none; Allowed values: SHA-256 hex
+
+- **`serial`**: Certificate serial number.
+  Type: int/str; Required: conditional; Default: none; Allowed values: decimal,
+  `0x` hex, or colon-separated hex
+
+- **`serial_number`**: Certificate serial number.
+  Type: int/str; Required: conditional; Default: none; Allowed values: decimal,
+  `0x` hex, or colon-separated hex
 
 Each item also accepts:
 
-| Key | Type | Required | Default | Allowed values | Description |
-| --- | --- | --- | --- | --- | --- |
-| `revocation_date` | str | no | current UTC time | ISO-8601 or `YYYYMMDDHHMMSSZ` | Revocation timestamp. |
-| `reason` | str | no | none | see reason list | CRL reason extension. |
-| `invalidity_date` | str | no | none | ISO-8601 or `YYYYMMDDHHMMSSZ` | Invalidity Date extension. |
+- **`revocation_date`**: Revocation timestamp.
+  Type: str; Required: no; Default: current UTC time; Allowed values: ISO-8601
+  or `YYYYMMDDHHMMSSZ`
+
+- **`reason`**: CRL reason extension.
+  Type: str; Required: no; Default: none; Allowed values: see reason list
+
+- **`invalidity_date`**: Invalidity Date extension.
+  Type: str; Required: no; Default: none; Allowed values: ISO-8601 or
+  `YYYYMMDDHHMMSSZ`
 
 Supported revocation reasons:
 

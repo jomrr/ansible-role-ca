@@ -12,6 +12,10 @@ from ansible.module_utils.ca_x509_encoding import (
     _der_pkinit_principal,
     _der_utf8_string,
 )
+from ansible.module_utils.ca_x509_policies import (
+    policy_extension_token,
+    policy_extensions,
+)
 from cryptography import x509
 from cryptography.x509.oid import (
     AuthorityInformationAccessOID,
@@ -275,6 +279,7 @@ def _desired_extensions(params, public_key, signer_public_key, csr_san=None):
                 ),
             )
         )
+    extensions.extend(policy_extensions(params))
     for extension in params["raw_extensions"] or []:
         oid = x509.ObjectIdentifier(str(extension["oid"]))
         extensions.append(
@@ -321,16 +326,19 @@ def _extension_maps(extensions):
     return {ext.oid.dotted_string: ext for ext in extensions}
 
 
+GENERAL_NAME_PREFIXES = {
+    x509.DNSName: "DNS",
+    x509.RFC822Name: "email",
+    x509.UniformResourceIdentifier: "URI",
+    x509.IPAddress: "IP",
+}
+
+
 def _name_token(name):
     """Return a comparable token for a GeneralName."""
-    if isinstance(name, x509.DNSName):
-        return ("DNS", name.value)
-    if isinstance(name, x509.RFC822Name):
-        return ("email", name.value)
-    if isinstance(name, x509.UniformResourceIdentifier):
-        return ("URI", name.value)
-    if isinstance(name, x509.IPAddress):
-        return ("IP", str(name.value))
+    for name_type, prefix in GENERAL_NAME_PREFIXES.items():
+        if isinstance(name, name_type):
+            return (prefix, str(name.value))
     if isinstance(name, x509.RegisteredID):
         return ("RID", name.value.dotted_string)
     if isinstance(name, x509.OtherName):
@@ -354,25 +362,18 @@ def _distribution_point_token(point):
 def _extension_token(extension):
     """Return a comparable token for an X.509 extension."""
     value = extension.value
-    if isinstance(value, x509.BasicConstraints):
-        return ("basic_constraints", value.ca, value.path_length)
-    if isinstance(value, x509.KeyUsage):
-        return (
-            "key_usage",
-            value.digital_signature,
-            value.content_commitment,
-            value.key_encipherment,
-            value.data_encipherment,
-            value.key_agreement,
-            value.key_cert_sign,
-            value.crl_sign,
-            value.encipher_only if value.key_agreement else None,
-            value.decipher_only if value.key_agreement else None,
-        )
-    if isinstance(value, x509.ExtendedKeyUsage):
-        return ("extended_key_usage", tuple(oid.dotted_string for oid in value))
-    if isinstance(value, x509.SubjectAlternativeName):
-        return ("subject_alt_name", tuple(_name_token(name) for name in value))
+    if isinstance(
+        value,
+        (
+            x509.BasicConstraints,
+            x509.KeyUsage,
+            x509.ExtendedKeyUsage,
+            x509.SubjectAlternativeName,
+            x509.SubjectKeyIdentifier,
+            x509.UnrecognizedExtension,
+        ),
+    ):
+        return (value.__class__.__name__, value)
     if isinstance(value, x509.AuthorityInformationAccess):
         return (
             "authority_information_access",
@@ -389,8 +390,6 @@ def _extension_token(extension):
             "crl_distribution_points",
             tuple(_distribution_point_token(point) for point in value),
         )
-    if isinstance(value, x509.SubjectKeyIdentifier):
-        return ("subject_key_identifier", value.digest)
     if isinstance(value, x509.AuthorityKeyIdentifier):
         issuers = tuple(_name_token(name) for name in value.authority_cert_issuer or [])
         return (
@@ -399,9 +398,7 @@ def _extension_token(extension):
             issuers,
             value.authority_cert_serial_number,
         )
-    if isinstance(value, x509.UnrecognizedExtension):
-        return ("unrecognized", value.oid.dotted_string, value.value)
-    return (value.__class__.__name__, repr(value))
+    return policy_extension_token(value) or (value.__class__.__name__, repr(value))
 
 
 def _extensions_equal(existing, desired) -> bool:

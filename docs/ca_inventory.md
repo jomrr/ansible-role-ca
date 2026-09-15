@@ -18,16 +18,35 @@ users to call a separate inventory module.
 
 ## Transactional Hooks
 
-| Helper | Purpose |
-| --- | --- |
-| `update_authority_inventory(params, result)` | Records one authority certificate and derived artifact paths, then composes the inventory under one state lock. |
-| `update_certificate_inventory(params, model, result)` | Records one issued certificate and its current pointer, then composes the inventory under one state lock. |
-| `update_certificates_inventory(records)` | Records multiple issued certificate records, then composes the inventory once under one state lock. |
-| `update_crl_inventory(params, crl)` | Records all exported CRL formats and declarative revocation events, then composes the inventory under one state lock. |
-| `resolve_revocation_entries(base_dir, authority, entries)` | Resolves new revocations and includes recorded issuer/serial revocations with persistent name bindings. |
-| `compose_inventory(base_dir, ca_name, base_url)` | Builds the complete inventory dictionary from fragments. |
-| `write_composed_inventory(base_dir, ca_name, base_url, owner, group, mode="0644", force=False)` | Writes `<base_dir>/inventory/ca-inventory.json`. |
-| `compose_inventory_if_configured(params)` | Writes composed inventory when `params.ca_name` is non-empty. |
+- **`update_authority_inventory(params, result)`**
+  Purpose: Records one authority certificate and derived artifact paths, then
+  composes the inventory under one state lock.
+
+- **`update_certificate_inventory(params, model, result)`**
+  Purpose: Records one issued certificate and its current pointer, then composes
+  the inventory under one state lock.
+
+- **`update_certificates_inventory(records)`**
+  Purpose: Records multiple issued certificate records, then composes the
+  inventory once under one state lock.
+
+- **`update_crl_inventory(params, crl)`**
+  Purpose: Records all exported CRL formats and declarative revocation events,
+  then composes the inventory under one state lock.
+
+- **`resolve_revocation_entries(base_dir, authority, entries)`**
+  Purpose: Resolves new revocations and includes recorded issuer/serial
+  revocations with persistent name bindings.
+
+- **`compose_inventory(base_dir, ca_name, base_url)`**
+  Purpose: Builds the complete inventory dictionary from fragments.
+
+- **`write_composed_inventory(base_dir, ca_name, base_url, owner, group,
+  mode="0644", force=False)`**
+  Purpose: Writes `<base_dir>/inventory/ca-inventory.json`.
+
+- **`compose_inventory_if_configured(params)`**
+  Purpose: Writes composed inventory when `params.ca_name` is non-empty.
 
 The `record_*_inventory` helpers are intentionally low-level fragment writers.
 Public modules use the `update_*_inventory` hooks so related fragments and the
@@ -35,15 +54,26 @@ composed inventory are updated in one inventory transaction.
 
 ## Stored Files
 
-| State | Path |
-| --- | --- |
-| Authority record | `<base_dir>/inventory/state/authorities/<name>.json` |
-| Authority generation record | `<base_dir>/inventory/state/authority_certificates/<name>/<serial>.json` |
-| Issued certificate record | `<base_dir>/inventory/state/issued_certificates/<issuer>/<serial>.json` |
-| Current certificate pointer | `<base_dir>/inventory/state/current_certificates/<name>.json` |
-| CRL record | `<base_dir>/inventory/state/crls/<authority>/<format>.json` |
-| Revocation record | `<base_dir>/inventory/state/revocations/<authority>/<serial>.json` |
-| Composed inventory | `<base_dir>/inventory/ca-inventory.json` |
+- **Authority record**
+  Path: `<base_dir>/inventory/state/authorities/<name>.json`
+
+- **Authority generation record**
+  Path: `<base_dir>/inventory/state/authority_certificates/<name>/<serial>.json`
+
+- **Issued certificate record**
+  Path: `<base_dir>/inventory/state/issued_certificates/<issuer>/<serial>.json`
+
+- **Current certificate pointer**
+  Path: `<base_dir>/inventory/state/current_certificates/<name>.json`
+
+- **CRL record**
+  Path: `<base_dir>/inventory/state/crls/<authority>/<format>.json`
+
+- **Revocation record**
+  Path: `<base_dir>/inventory/state/revocations/<authority>/<serial>.json`
+
+- **Composed inventory**
+  Path: `<base_dir>/inventory/ca-inventory.json`
 
 ## Composed Inventory Shape
 
@@ -100,14 +130,24 @@ an omitted revocation date preserves the first recorded time.
 
 ## Defaults And Safety
 
-| Setting | Value |
-| --- | --- |
-| Schema version | `1` |
-| State file mode | `0644` |
-| Composed inventory mode | `0644` |
-| Secret storage | none |
-| Fingerprints | `sha1`, `sha256` |
-| Revocation selectors | serial, current certificate name, SHA-1 fingerprint, SHA-256 fingerprint |
+- **Schema version**
+  Value: `1`
+
+- **State file mode**
+  Value: `0644`
+
+- **Composed inventory mode**
+  Value: `0644`
+
+- **Secret storage**
+  Value: none
+
+- **Fingerprints**
+  Value: `sha1`, `sha256`
+
+- **Revocation selectors**
+  Value: serial, current certificate name, SHA-1 fingerprint, SHA-256
+  fingerprint
 
 The inventory does not store private keys, passphrases, PKCS#12 passphrases, or
 FRITZ!OS credentials. It stores certificate metadata, public fingerprints,

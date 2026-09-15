@@ -7,22 +7,51 @@ certificate profile defaults used by [`ca_certificate`](ca_certificate.md).
 
 ## Public Helpers
 
-| Helper | Purpose |
-| --- | --- |
-| `apply_profile_defaults(params, defaults)` | Applies default key usage, EKU, digest, raw extensions, and DNS SAN behavior without overriding explicit values. |
-| `apply_certificate_profile(params, profile)` | Applies one built-in profile and profile-specific validation. |
+- **`apply_profile_defaults(params, defaults)`**
+  Purpose: Applies default key usage, EKU, digest, raw extensions, and DNS SAN
+  behavior without overriding explicit values.
+
+- **`apply_certificate_profile(params, profile)`**
+  Purpose: Applies one built-in profile and profile-specific validation.
 
 ## Profile Defaults
 
-| Profile | Formats | Digest | Key Usage | Extended Key Usage | Extra behavior |
-| --- | --- | --- | --- | --- | --- |
-| `tls_server` | `pem`, `der`, `txt` | `sha384` | `digitalSignature`, `keyEncipherment` | `serverAuth` | Adds `DNS:<common_name>` if no DNS SAN exists. |
-| `tls_client` | `pem`, `der`, `txt` | `sha384` | `digitalSignature`, `keyEncipherment` | `clientAuth` | none |
-| `eap_tls_client` | `pem`, `der`, `txt` | `sha384` | `digitalSignature`, `keyEncipherment` | `clientAuth` | none |
-| `identity` | `pem`, `der`, `txt`, `pfx` | `sha384` | `digitalSignature`, `keyEncipherment`, `nonRepudiation` | `clientAuth`, `emailProtection`, `1.3.6.1.4.1.311.20.2.2` | Smartcard logon and S/MIME. |
-| `identity_full` | `pem`, `der`, `txt`, `pfx` | `sha384` | `digitalSignature`, `keyEncipherment`, `nonRepudiation` | `clientAuth`, `emailProtection`, `codeSigning`, `1.3.6.1.4.1.311.20.2.2` | Smartcard logon, S/MIME, and code signing. |
-| `mskdc` | `pem`, `der`, `txt` | `sha384` | `digitalSignature`, `keyEncipherment` | `serverAuth`, `clientAuth`, `1.3.6.1.5.2.3.5` | Adds DNS SAN, KRB5PrincipalName SAN, NTDS objectGUID, and DomainController template extension. |
-| `fritzbox` | `pem`, `der`, `txt`, `fritzbox` | `sha384` | `digitalSignature`, `keyEncipherment` | `serverAuth`, `clientAuth` | Adds DNS SAN and rejects digests stronger than `sha384`. |
+- **`tls_server`**
+  Formats: `pem`, `der`, `txt`; Digest: `sha384`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `serverAuth`; Extra behavior: Adds
+  `DNS:<common_name>` if no DNS SAN exists.
+
+- **`tls_client`**
+  Formats: `pem`, `der`, `txt`; Digest: `sha384`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `clientAuth`; Extra behavior: none
+
+- **`eap_tls_client`**
+  Formats: `pem`, `der`, `txt`; Digest: `sha384`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `clientAuth`; Extra behavior: none
+
+- **`identity`**
+  Formats: `pem`, `der`, `txt`, `pfx`; Digest: `sha384`; Key Usage:
+  `digitalSignature`, `keyEncipherment`, `nonRepudiation`; Extended Key Usage:
+  `clientAuth`, `emailProtection`, `1.3.6.1.4.1.311.20.2.2`; Extra behavior:
+  Smartcard logon and S/MIME.
+
+- **`identity_full`**
+  Formats: `pem`, `der`, `txt`, `pfx`; Digest: `sha384`; Key Usage:
+  `digitalSignature`, `keyEncipherment`, `nonRepudiation`; Extended Key Usage:
+  `clientAuth`, `emailProtection`, `codeSigning`, `1.3.6.1.4.1.311.20.2.2`;
+  Extra behavior: Smartcard logon, S/MIME, and code signing.
+
+- **`mskdc`**
+  Formats: `pem`, `der`, `txt`; Digest: `sha384`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `serverAuth`, `clientAuth`,
+  `1.3.6.1.5.2.3.5`; Extra behavior: Adds DNS SAN, KRB5PrincipalName SAN, NTDS
+  objectGUID, and DomainController template extension.
+
+- **`fritzbox`**
+  Formats: `pem`, `der`, `txt`, `fritzbox`; Digest: `sha384`; Key Usage:
+  `digitalSignature`, `keyEncipherment`; Extended Key Usage: `serverAuth`,
+  `clientAuth`; Extra behavior: Adds DNS SAN and rejects digests stronger than
+  `sha384`.
 
 ## MSKDC Extensions
 

@@ -70,7 +70,8 @@ when `force: true` is set. Certificate renewal should normally use the
 `renewal` policy instead of `force`.
 
 Authorities and certificates renew seven days before expiry by default, when
-the role runs. Setting `renew_before_days: 0` disables advance renewal. The policy
+the role runs. Setting `renew_before_days: 0` disables advance renewal. The
+policy
 also supports warning windows, scheduled renewal, and renewal with a new key:
 
 ```yaml
@@ -82,7 +83,8 @@ ca_renewal:
 ```
 
 Per-authority and per-certificate `renewal` dictionaries override the global
-role defaults. `warn_before_days` only affects inventory state. `renew_before_days`
+role defaults. `warn_before_days` only affects inventory state.
+`renew_before_days`
 and `renew_at` trigger renewal. `rekey: true` replaces the private key when
 renewal is due; otherwise the existing key is reused.
 
@@ -105,21 +107,53 @@ All public modules currently use `supports_check_mode: false`.
 
 ## Derived Path Layout
 
-| Artifact | Authority path | Certificate path |
-| --- | --- | --- |
-| Private key | `<base_dir>/private/<name>-ca.key` | `<output_dir>/<name>.key` |
-| CSR | `<base_dir>/csr/<name>-ca.csr` | `<base_dir>/csr/<name>.csr` |
-| PEM certificate | `<base_dir>/ca/<name>-ca.pem` | `<output_dir>/<name>.pem` |
-| DER certificate | `<base_dir>/ca/<name>-ca.der` | `<output_dir>/<name>.der` |
-| Text certificate | `<base_dir>/ca/<name>-ca.txt` | `<output_dir>/<name>.txt` |
-| CA chain | `<base_dir>/chains/<name>-ca-chain.{pem,der,txt}` for issuing CAs | copied to `<output_dir>/<name>-chain.pem` |
-| Versioned CA chain | `<base_dir>/chains/<name>-ca-chain-<serial>.{pem,der,txt}` for issuing CAs | none |
-| Fullchain bundle | none | `<output_dir>/<name>-fullchain.pem` |
-| FritzBox bundle | none | `<output_dir>/<name>-fritzbox.pem` |
-| CRL PEM | `<base_dir>/crl/<name>-ca.crl.pem` | none |
-| CRL DER | `<base_dir>/crl/<name>-ca.crl` | none |
-| Inventory | `<base_dir>/inventory/ca-inventory.json` | `<base_dir>/inventory/ca-inventory.json` |
-| Archive | `<base_dir>/archive/authorities/<name>/<serial>/...` | `<base_dir>/archive/certificates/<name>/<serial>/...` |
+- **Private key**
+  Authority path: `<base_dir>/private/<name>-ca.key`; Certificate path:
+  `<output_dir>/<name>.key`
+
+- **CSR**
+  Authority path: `<base_dir>/csr/<name>-ca.csr`; Certificate path:
+  `<base_dir>/csr/<name>.csr`
+
+- **PEM certificate**
+  Authority path: `<base_dir>/ca/<name>-ca.pem`; Certificate path:
+  `<output_dir>/<name>.pem`
+
+- **DER certificate**
+  Authority path: `<base_dir>/ca/<name>-ca.der`; Certificate path:
+  `<output_dir>/<name>.der`
+
+- **Text certificate**
+  Authority path: `<base_dir>/ca/<name>-ca.txt`; Certificate path:
+  `<output_dir>/<name>.txt`
+
+- **CA chain**
+  Authority path: `<base_dir>/chains/<name>-ca-chain.{pem,der,txt}` for issuing
+  CAs; Certificate path: copied to `<output_dir>/<name>-chain.pem`
+
+- **Versioned CA chain**
+  Authority path: `<base_dir>/chains/<name>-ca-chain-<serial>.{pem,der,txt}` for
+  issuing CAs; Certificate path: none
+
+- **Fullchain bundle**
+  Authority path: none; Certificate path: `<output_dir>/<name>-fullchain.pem`
+
+- **FritzBox bundle**
+  Authority path: none; Certificate path: `<output_dir>/<name>-fritzbox.pem`
+
+- **CRL PEM**
+  Authority path: `<base_dir>/crl/<name>-ca.crl.pem`; Certificate path: none
+
+- **CRL DER**
+  Authority path: `<base_dir>/crl/<name>-ca.crl`; Certificate path: none
+
+- **Inventory**
+  Authority path: `<base_dir>/inventory/ca-inventory.json`; Certificate path:
+  `<base_dir>/inventory/ca-inventory.json`
+
+- **Archive**
+  Authority path: `<base_dir>/archive/authorities/<name>/<serial>/...`;
+  Certificate path: `<base_dir>/archive/certificates/<name>/<serial>/...`
 
 For certificates, `output_dir` defaults to `<base_dir>/certs/<name>`.
 CSR-signed certificates do not create `<output_dir>/<name>.key`; the CSR subject

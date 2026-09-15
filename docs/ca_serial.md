@@ -8,12 +8,19 @@ handling for certificates, CRLs, chains, and inventory state.
 
 ## Public Helpers
 
-| Helper | Purpose |
-| --- | --- |
-| `colon_hex(data)` | Formats bytes as colon-separated uppercase hex. `None` becomes an empty string. |
-| `serial_hex(value)` | Formats an integer certificate serial as even-length uppercase hex. |
-| `parse_serial(value)` | Parses decimal, `0x` hexadecimal, and colon-separated hexadecimal serials. |
-| `normalize_hex(value)` | Removes non-hex separators and returns uppercase hex text. |
+- **`colon_hex(data)`**
+  Purpose: Formats bytes as colon-separated uppercase hex. `None` becomes an
+  empty string.
+
+- **`serial_hex(value)`**
+  Purpose: Formats an integer certificate serial as even-length uppercase hex.
+
+- **`parse_serial(value)`**
+  Purpose: Parses decimal, `0x` hexadecimal, and colon-separated hexadecimal
+  serials.
+
+- **`normalize_hex(value)`**
+  Purpose: Removes non-hex separators and returns uppercase hex text.
 
 ## Accepted Serial Input
 

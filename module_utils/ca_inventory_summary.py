@@ -6,6 +6,7 @@ from typing import Any
 
 from ansible.module_utils.ca_file import read_file
 from ansible.module_utils.ca_serial import colon_hex, serial_hex
+from ansible.module_utils.ca_text import _general_name_text as _general_name
 from ansible.module_utils.ca_time import (
     certificate_not_valid_after,
     certificate_not_valid_before,
@@ -42,25 +43,6 @@ def _oid_name(oid) -> str:
     """Return a readable OID name with dotted-string fallback."""
     name = getattr(oid, "_name", "") or ""
     return name if name and name != "Unknown OID" else oid.dotted_string
-
-
-def _general_name(name) -> str:
-    """Return a compact string representation of a GeneralName."""
-    if isinstance(name, x509.DNSName):
-        return f"DNS:{name.value}"
-    if isinstance(name, x509.RFC822Name):
-        return f"email:{name.value}"
-    if isinstance(name, x509.UniformResourceIdentifier):
-        return f"URI:{name.value}"
-    if isinstance(name, x509.IPAddress):
-        return f"IP:{name.value}"
-    if isinstance(name, x509.RegisteredID):
-        return f"RID:{name.value.dotted_string}"
-    if isinstance(name, x509.OtherName):
-        return f"otherName:{name.type_id.dotted_string};DER:{colon_hex(name.value)}"
-    if isinstance(name, x509.DirectoryName):
-        return f"DirName:{name.value.rfc4514_string()}"
-    return repr(name)
 
 
 def _key_usage(value: x509.KeyUsage) -> list[str]:
@@ -129,6 +111,32 @@ def _extension_summary(cert: x509.Certificate) -> dict[str, Any]:
                 [_general_name(name) for name in point.full_name or []]
                 for point in value
             ]
+        elif isinstance(value, x509.CertificatePolicies):
+            result["certificate_policies"] = {
+                "critical": extension.critical,
+                "value": [
+                    {
+                        "oid": policy.policy_identifier.dotted_string,
+                        "cps_uris": [
+                            qualifier
+                            for qualifier in policy.policy_qualifiers or []
+                            if isinstance(qualifier, str)
+                        ],
+                    }
+                    for policy in value
+                ],
+            }
+        elif isinstance(value, x509.PolicyConstraints):
+            result["policy_constraints"] = {
+                "critical": extension.critical,
+                "require_explicit_policy": value.require_explicit_policy,
+                "inhibit_policy_mapping": value.inhibit_policy_mapping,
+            }
+        elif isinstance(value, x509.InhibitAnyPolicy):
+            result["inhibit_any_policy"] = {
+                "critical": extension.critical,
+                "skip_certs": value.skip_certs,
+            }
     return result
 
 

@@ -22,6 +22,8 @@ provisioner:
   playbooks:
     converge: "../resources/playbooks/converge.yml"
     verify: "../resources/playbooks/verify.yml"
+  env:
+    ANSIBLE_MODULE_UTILS: "${MOLECULE_PROJECT_DIRECTORY}/module_utils:${MOLECULE_PROJECT_DIRECTORY}/molecule/resources/playbooks/module_utils"
   inventory:
     group_vars:
       all:
@@ -51,6 +53,14 @@ provisioner:
             default_days: 397
             crl_days: 30
             key_passphrase: "molecule-component-passphrase"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.1"
+                cps_uri: "https://pki.molecule.test/cps"
+              - oid: "1.3.6.1.4.1.32473.1.1.2"
+            policy_constraints:
+              require_explicit_policy: 0
+              inhibit_policy_mapping: 0
+            inhibit_any_policy: 0
           - name: "network"
             common_name: "Example Network CA"
             parent: "root"
@@ -65,6 +75,8 @@ provisioner:
             default_days: 730
             crl_days: 30
             key_passphrase: "molecule-identity-passphrase"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.3"
         ca_revocations:
           component:
             - name: "web01"
@@ -72,6 +84,9 @@ provisioner:
               invalidity_date: "2026-06-14T00:00:00Z"
         ca_certificates:
           - name: "web01"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.1"
+                cps_uri: "https://pki.molecule.test/cps/1"
             type: "tls_server"
             common_name: "web01.molecule.test"
             formats:
@@ -83,9 +98,15 @@ provisioner:
               - "DNS:web01.molecule.test"
               - "DNS:web01"
           - name: "client01"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.2"
+                cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "client01.molecule.test"
           - name: "external-csr"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.1"
+                cps_uri: "https://pki.molecule.test/cps/1"
             type: "tls_server"
             formats:
               - "pem"
@@ -111,24 +132,39 @@ provisioner:
               Qzu14PIaSg9rxeEweUeoBF3eWGU=
               -----END CERTIFICATE REQUEST-----
           - name: "ec-p256-client"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.2"
+                cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "ec-p256-client.molecule.test"
             key_type: "ECDSA"
             key_size: 256
           - name: "ec-p384-client"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.2"
+                cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "ec-p384-client.molecule.test"
             key_type: "ECDSA"
             key_size: 384
           - name: "ed25519-client"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.2"
+                cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "ed25519-client.molecule.test"
             key_type: "Ed25519"
           - name: "ed448-client"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.2"
+                cps_uri: "https://pki.molecule.test/cps/2"
             type: "tls_client"
             common_name: "ed448-client.molecule.test"
             key_type: "Ed448"
           - name: "dc01"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.1"
+                cps_uri: "https://pki.molecule.test/cps/1"
             type: "mskdc"
             common_name: "dc01.molecule.test"
             krb5_realm: "MOLECULE.TEST"
@@ -137,12 +173,18 @@ provisioner:
               - "DNS:dc01.molecule.test"
               - "DNS:dc01"
           - name: "fritzbox01"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.1"
+                cps_uri: "https://pki.molecule.test/cps/1"
             type: "fritzbox"
             common_name: "fritzbox.molecule.test"
             san:
               - "DNS:fritzbox.molecule.test"
               - "IP:192.0.2.1"
           - name: "user-full"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.3"
+                cps_uri: "https://pki.molecule.test/cps/3"
             type: "identity_full"
             common_name: "Molecule User Full"
             email: "user-full@molecule.test"
@@ -151,6 +193,9 @@ provisioner:
               - "otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user-full@molecule.test"
             pfx_passphrase: "molecule-pfx-passphrase"
           - name: "user-smime"
+            certificate_policies:
+              - oid: "1.3.6.1.4.1.32473.1.1.3"
+                cps_uri: "https://pki.molecule.test/cps/3"
             type: "identity"
             common_name: "Molecule User S/MIME"
             email: "user-smime@molecule.test"

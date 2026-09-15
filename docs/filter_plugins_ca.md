@@ -7,9 +7,9 @@ validate and address `ca_authorities` by name.
 
 ## Exported Filters
 
-| Filter | Purpose |
-| --- | --- |
-| `ca_authority_map` | Returns authorities keyed by `name` after validating list shape, safe names, uniqueness, and parent references. |
+- **`ca_authority_map`**
+  Purpose: Returns authorities keyed by `name` after validating list shape, safe
+  names, uniqueness, and parent references.
 
 ## Behavior
 

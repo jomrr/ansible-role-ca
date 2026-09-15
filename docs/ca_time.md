@@ -8,17 +8,37 @@ inventory state, and deterministic text exports.
 
 ## Public Helpers
 
-| Helper | Purpose |
-| --- | --- |
-| `utc(value)` | Converts a datetime to timezone-aware UTC. Naive datetimes are treated as UTC. |
-| `now_utc(strip_microseconds=False)` | Returns the current UTC time, optionally without microseconds. |
-| `parse_datetime(value)` | Parses ISO-8601 timestamps and ASN.1-style `YYYYMMDDHHMMSSZ` timestamps. Empty values return `None`. |
-| `timestamp_z(value)` | Formats a UTC timestamp as ISO-8601 with a `Z` suffix. |
-| `timestamp_iso(value)` | Formats a UTC timestamp as ISO-8601 with an explicit `+00:00` offset. |
-| `datetime_text(value)` | Formats a timestamp as `YYYY-MM-DD HH:MM:SS UTC`. |
-| `certificate_not_valid_before(cert)` | Returns a certificate not-before timestamp across cryptography versions. |
-| `certificate_not_valid_after(cert)` | Returns a certificate not-after timestamp across cryptography versions. |
-| `object_datetime(obj, name)` | Reads `name_utc` when available, otherwise reads `name` and normalizes it to UTC. |
+- **`utc(value)`**
+  Purpose: Converts a datetime to timezone-aware UTC. Naive datetimes are
+  treated as UTC.
+
+- **`now_utc(strip_microseconds=False)`**
+  Purpose: Returns the current UTC time, optionally without microseconds.
+
+- **`parse_datetime(value)`**
+  Purpose: Parses ISO-8601 timestamps and ASN.1-style `YYYYMMDDHHMMSSZ`
+  timestamps. Empty values return `None`.
+
+- **`timestamp_z(value)`**
+  Purpose: Formats a UTC timestamp as ISO-8601 with a `Z` suffix.
+
+- **`timestamp_iso(value)`**
+  Purpose: Formats a UTC timestamp as ISO-8601 with an explicit `+00:00` offset.
+
+- **`datetime_text(value)`**
+  Purpose: Formats a timestamp as `YYYY-MM-DD HH:MM:SS UTC`.
+
+- **`certificate_not_valid_before(cert)`**
+  Purpose: Returns a certificate not-before timestamp across cryptography
+  versions.
+
+- **`certificate_not_valid_after(cert)`**
+  Purpose: Returns a certificate not-after timestamp across cryptography
+  versions.
+
+- **`object_datetime(obj, name)`**
+  Purpose: Reads `name_utc` when available, otherwise reads `name` and
+  normalizes it to UTC.
 
 ## Accepted Timestamp Input
 

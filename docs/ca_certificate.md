@@ -37,74 +37,244 @@ X.509 module.
 
 ## Certificate Profiles
 
-| Type | Default formats | Key Usage | Extended Key Usage | Extra behavior |
-| --- | --- | --- | --- | --- |
-| `tls_server` | `pem`, `der`, `txt` | `digitalSignature`, `keyEncipherment` | `serverAuth` | Adds `DNS:<common_name>` when no DNS SAN is set. |
-| `tls_client` | `pem`, `der`, `txt` | `digitalSignature`, `keyEncipherment` | `clientAuth` | Standard TLS client certificate. |
-| `eap_tls_client` | `pem`, `der`, `txt` | `digitalSignature`, `keyEncipherment` | `clientAuth` | Network EAP-TLS client certificate. |
-| `identity` | `pem`, `der`, `txt`, `pfx` | `digitalSignature`, `keyEncipherment`, `nonRepudiation` | `clientAuth`, `emailProtection`, `1.3.6.1.4.1.311.20.2.2` | Smartcard logon and S/MIME. Requires `pfx_passphrase` unless formats are overridden without `pfx`/`p12`. |
-| `identity_full` | `pem`, `der`, `txt`, `pfx` | `digitalSignature`, `keyEncipherment`, `nonRepudiation` | `clientAuth`, `emailProtection`, `codeSigning`, `1.3.6.1.4.1.311.20.2.2` | Smartcard logon, S/MIME, and code signing. Requires `pfx_passphrase` unless formats are overridden without `pfx`/`p12`. |
-| `mskdc` | `pem`, `der`, `txt` | `digitalSignature`, `keyEncipherment` | `serverAuth`, `clientAuth`, `1.3.6.1.5.2.3.5` | Adds DNS SAN, KRB5PrincipalName PKINIT SAN, NTDS objectGUID extension, and `DomainController` template extension. Requires `ad_object_guid` and `krb5_realm` or module `kerberos_realm`. |
-| `fritzbox` | `pem`, `der`, `txt`, `fritzbox` | `digitalSignature`, `keyEncipherment` | `serverAuth`, `clientAuth` | Adds DNS SAN and limits the digest to `sha384` or weaker because FRITZ!OS rejects stronger hashes. |
+- **`tls_server`**
+  Default formats: `pem`, `der`, `txt`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `serverAuth`; Extra behavior: Adds
+  `DNS:<common_name>` when no DNS SAN is set.
+
+- **`tls_client`**
+  Default formats: `pem`, `der`, `txt`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `clientAuth`; Extra behavior: Standard
+  TLS client certificate.
+
+- **`eap_tls_client`**
+  Default formats: `pem`, `der`, `txt`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `clientAuth`; Extra behavior: Network
+  EAP-TLS client certificate.
+
+- **`identity`**
+  Default formats: `pem`, `der`, `txt`, `pfx`; Key Usage: `digitalSignature`,
+  `keyEncipherment`, `nonRepudiation`; Extended Key Usage: `clientAuth`,
+  `emailProtection`, `1.3.6.1.4.1.311.20.2.2`; Extra behavior: Smartcard logon
+  and S/MIME. Requires `pfx_passphrase` unless formats are overridden without
+  `pfx`/`p12`.
+
+- **`identity_full`**
+  Default formats: `pem`, `der`, `txt`, `pfx`; Key Usage: `digitalSignature`,
+  `keyEncipherment`, `nonRepudiation`; Extended Key Usage: `clientAuth`,
+  `emailProtection`, `codeSigning`, `1.3.6.1.4.1.311.20.2.2`; Extra behavior:
+  Smartcard logon, S/MIME, and code signing. Requires `pfx_passphrase` unless
+  formats are overridden without `pfx`/`p12`.
+
+- **`mskdc`**
+  Default formats: `pem`, `der`, `txt`; Key Usage: `digitalSignature`,
+  `keyEncipherment`; Extended Key Usage: `serverAuth`, `clientAuth`,
+  `1.3.6.1.5.2.3.5`; Extra behavior: Adds DNS SAN, KRB5PrincipalName PKINIT SAN,
+  NTDS objectGUID extension, and `DomainController` template extension. Requires
+  `ad_object_guid` and `krb5_realm` or module `kerberos_realm`.
+
+- **`fritzbox`**
+  Default formats: `pem`, `der`, `txt`, `fritzbox`; Key Usage:
+  `digitalSignature`, `keyEncipherment`; Extended Key Usage: `serverAuth`,
+  `clientAuth`; Extra behavior: Adds DNS SAN and limits the digest to `sha384`
+  or weaker because FRITZ!OS rejects stronger hashes.
 
 All profiles default to `digest: sha384`.
 
 ## Module Parameters
 
-| Parameter | Type | Required | Default | Allowed values | Secret | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| `base_dir` | path | yes | none | any absolute or relative path | no | Base CA directory used to locate issuer material and derive CSR paths. |
-| `base_url` | str | no | `""` | any URL prefix | no | Base publication URL. If set, AIA defaults to `<base_url>/aia/<issuer>-ca.der` and CDP to `<base_url>/crl/<issuer>-ca.crl`. |
-| `ca_name` | str | no | `""` | any string | no | Enables composed inventory output when non-empty. |
-| `certificate` | dict | yes | none | see certificate model below | yes | Declarative certificate item. |
-| `certificate_types` | dict | yes | none | map keyed by profile type | no | Role type map. The selected type must define `issuer` and may define `required_fields`. |
-| `authorities` | list[dict] | yes | none | authority dictionaries | yes | Authority list used to resolve issuer passphrase and `default_days`. |
-| `kerberos_realm` | str | no | `""` | Kerberos realm | no | Default realm for MSKDC certificates. |
-| `subject` | dict | no | `{}` | supported subject keys | no | Role-level subject defaults. |
-| `renewal` | dict | no | `{}` | see below | no | Module-level renewal policy defaults. Certificate-local `renewal` overrides these values. |
-| `owner` | str | no | none | user name or UID | no | Owner for generated files. |
-| `group` | str | no | none | group name or GID | no | Group for generated files. |
-| `force` | bool | no | `false` | `true`, `false` | no | Regenerates managed material even if current files match. |
+- **`base_dir`**: Base CA directory used to locate issuer material and derive
+  CSR paths.
+  Type: path; Required: yes; Default: none; Allowed values: any absolute or
+  relative path; Secret: no
+
+- **`base_url`**: Base publication URL. If set, AIA defaults to
+  `<base_url>/aia/<issuer>-ca.der` and CDP to `<base_url>/crl/<issuer>-ca.crl`.
+  Type: str; Required: no; Default: `""`; Allowed values: any URL prefix;
+  Secret: no
+
+- **`ca_name`**: Enables composed inventory output when non-empty.
+  Type: str; Required: no; Default: `""`; Allowed values: any string; Secret: no
+
+- **`certificate`**: Declarative certificate item.
+  Type: dict; Required: yes; Default: none; Allowed values: see certificate
+  model below; Secret: yes
+
+- **`certificate_types`**: Role type map. The selected type must define `issuer`
+  and may define `required_fields`.
+  Type: dict; Required: yes; Default: none; Allowed values: map keyed by profile
+  type; Secret: no
+
+- **`authorities`**: Authority list used to resolve issuer passphrase and
+  `default_days`.
+  Type: list[dict]; Required: yes; Default: none; Allowed values: authority
+  dictionaries; Secret: yes
+
+- **`kerberos_realm`**: Default realm for MSKDC certificates.
+  Type: str; Required: no; Default: `""`; Allowed values: Kerberos realm;
+  Secret: no
+
+- **`subject`**: Role-level subject defaults.
+  Type: dict; Required: no; Default: `{}`; Allowed values: supported subject
+  keys; Secret: no
+
+- **`renewal`**: Module-level renewal policy defaults. Certificate-local
+  `renewal` overrides these values.
+  Type: dict; Required: no; Default: `{}`; Allowed values: see below; Secret: no
+
+- **`owner`**: Owner for generated files.
+  Type: str; Required: no; Default: none; Allowed values: user name or UID;
+  Secret: no
+
+- **`group`**: Group for generated files.
+  Type: str; Required: no; Default: none; Allowed values: group name or GID;
+  Secret: no
+
+- **`force`**: Regenerates managed material even if current files match.
+  Type: bool; Required: no; Default: `false`; Allowed values: `true`, `false`;
+  Secret: no
 
 ## Certificate Model
 
 These keys are accepted inside `certificate`.
 
-| Key | Type | Required | Default | Allowed values | Secret | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| `name` | str | yes | none | letters, digits, dots, underscores, hyphens | no | Certificate short name and file stem. |
-| `type` | str | yes | none | built-in profile name | no | Certificate profile. |
-| `common_name` | str | conditional | none | any string | no | Common Name. Required for CA-generated certificates. Optional for CSR-signed certificates; when set, it must match the CSR common name. |
-| `csr_path` | path | no | none | readable PEM CSR path on the managed CA host | no | External CSR to sign. Mutually exclusive with `csr_content`. |
-| `csr_content` | str | no | none | PEM CSR content | no | Inline external CSR to sign. Mutually exclusive with `csr_path`. |
-| `days` | int | no | issuer `default_days` | positive integer | no | Certificate validity. |
-| `formats` | list[str] | no | profile default | `pem`, `der`, `txt`, `pfx`, `p12`, `fullchain`, `fritzbox` | no | Output and export formats. CSR-signed certificates reject `pfx`, `p12`, and `fritzbox`. |
-| `output_dir` | path | no | `<base_dir>/certs/<name>` | any path | no | Directory for key, certificate, chain copy, and bundles. |
-| `key_type` | str | no | `RSA` | see [index](index.md#common-value-sets) | no | Private key algorithm. |
-| `key_size` | int | no | `4096` | RSA bit size, or `256`/`384` for generic ECDSA | no | Key size or curve selector. |
-| `key_passphrase` | str | no | none | any string | yes | Optional certificate private key passphrase. Ignored for CSR-signed certificates. |
-| `pfx_passphrase` | str | conditional | none | any string | yes | Required when `formats` contains `pfx` or `p12`, unless `passphrase` is set. |
-| `friendly_name` | str | no | `common_name` or `name` | any string | no | Friendly name for PKCS#12 exports. |
-| `renewal` | dict | no | module `renewal` | see below | no | Certificate-local renewal and rekey policy. |
-| `subject_ordered` | list[dict] | no | `[]` | supported subject keys | no | Full ordered subject override. |
-| `email` | str | no | none | email address | no | Subject `emailAddress`. |
-| `subject` | dict | no | `{}` | supported subject keys | no | Certificate-local subject values merged over module `subject`. |
-| `key_usage` | list[str] | no | profile default | supported Key Usage names | no | Overrides profile Key Usage when non-empty. |
-| `key_usage_critical` | bool | no | `true` | `true`, `false` | no | Marks Key Usage critical. |
-| `extended_key_usage` | list[str] | no | profile default | EKU names or dotted OIDs | no | Overrides profile EKU when non-empty. |
-| `extended_key_usage_critical` | bool | no | `false` | `true`, `false` | no | Marks EKU critical. |
-| `san` | list[str] | no | `[]` plus profile defaults | supported SAN syntax | no | Subject Alternative Names. |
-| `san_critical` | bool | no | `false` | `true`, `false` | no | Marks SAN critical. |
-| `aia_base_url` | str | no | `""` | URL prefix | no | Explicit AIA URL prefix. |
-| `cdp_base_url` | str | no | `""` | URL prefix | no | Explicit CDP URL prefix. |
-| `raw_extensions` | list[dict] | no | `[]` plus profile defaults | supported raw extension syntax | no | Additional unrecognized extensions. |
-| `digest` | str | no | `sha384` | `sha1`, `sha224`, `sha256`, `sha384`, `sha512` | no | Signature digest for RSA and ECDSA. FritzBox profiles reject values stronger than `sha384`. |
-| `include_identifiers` | bool | no | `true` | `true`, `false` | no | Adds SKI and AKI. |
-| `key_mode` | str | no | `0600` | octal mode string | no | Private key file mode. |
-| `public_mode` | str | no | `0644` | octal mode string | no | CSR, certificate, DER, text, and chain mode. |
-| `directory_mode` | str | no | `0755` | octal mode string | no | Output directory mode. |
-| `ad_object_guid` | str | conditional | none | canonical GUID or raw 16-byte hex | no | Required for `mskdc`. Encoded as NTDS objectGUID extension OID `1.3.6.1.4.1.311.25.1`. |
-| `krb5_realm` | str | conditional | module `kerberos_realm` | uppercase realm | no | MSKDC PKINIT realm. |
+- **`name`**: Certificate short name and file stem.
+  Type: str; Required: yes; Default: none; Allowed values: letters, digits,
+  dots, underscores, hyphens; Secret: no
+
+- **`type`**: Certificate profile.
+  Type: str; Required: yes; Default: none; Allowed values: built-in profile
+  name; Secret: no
+
+- **`common_name`**: Common Name. Required for CA-generated certificates.
+  Optional for CSR-signed certificates; when set, it must match the CSR common
+  name.
+  Type: str; Required: conditional; Default: none; Allowed values: any string;
+  Secret: no
+
+- **`csr_path`**: External CSR to sign. Mutually exclusive with `csr_content`.
+  Type: path; Required: no; Default: none; Allowed values: readable PEM CSR path
+  on the managed CA host; Secret: no
+
+- **`csr_content`**: Inline external CSR to sign. Mutually exclusive with
+  `csr_path`.
+  Type: str; Required: no; Default: none; Allowed values: PEM CSR content;
+  Secret: no
+
+- **`days`**: Certificate validity.
+  Type: int; Required: no; Default: issuer `default_days`; Allowed values:
+  positive integer; Secret: no
+
+- **`formats`**: Output and export formats. CSR-signed certificates reject
+  `pfx`, `p12`, and `fritzbox`.
+  Type: list[str]; Required: no; Default: profile default; Allowed values:
+  `pem`, `der`, `txt`, `pfx`, `p12`, `fullchain`, `fritzbox`; Secret: no
+
+- **`output_dir`**: Directory for key, certificate, chain copy, and bundles.
+  Type: path; Required: no; Default: `<base_dir>/certs/<name>`; Allowed values:
+  any path; Secret: no
+
+- **`key_type`**: Private key algorithm.
+  Type: str; Required: no; Default: `RSA`; Allowed values: see
+  [index](index.md#common-value-sets); Secret: no
+
+- **`key_size`**: Key size or curve selector.
+  Type: int; Required: no; Default: `4096`; Allowed values: RSA bit size, or
+  `256`/`384` for generic ECDSA; Secret: no
+
+- **`key_passphrase`**: Optional certificate private key passphrase. Ignored for
+  CSR-signed certificates.
+  Type: str; Required: no; Default: none; Allowed values: any string; Secret:
+  yes
+
+- **`pfx_passphrase`**: Required when `formats` contains `pfx` or `p12`, unless
+  `passphrase` is set.
+  Type: str; Required: conditional; Default: none; Allowed values: any string;
+  Secret: yes
+
+- **`friendly_name`**: Friendly name for PKCS#12 exports.
+  Type: str; Required: no; Default: `common_name` or `name`; Allowed values: any
+  string; Secret: no
+
+- **`renewal`**: Certificate-local renewal and rekey policy.
+  Type: dict; Required: no; Default: module `renewal`; Allowed values: see
+  below; Secret: no
+
+- **`subject_ordered`**: Full ordered subject override.
+  Type: list[dict]; Required: no; Default: `[]`; Allowed values: supported
+  subject keys; Secret: no
+
+- **`email`**: Subject `emailAddress`.
+  Type: str; Required: no; Default: none; Allowed values: email address; Secret:
+  no
+
+- **`subject`**: Certificate-local subject values merged over module `subject`.
+  Type: dict; Required: no; Default: `{}`; Allowed values: supported subject
+  keys; Secret: no
+
+- **`key_usage`**: Overrides profile Key Usage when non-empty.
+  Type: list[str]; Required: no; Default: profile default; Allowed values:
+  supported Key Usage names; Secret: no
+
+- **`key_usage_critical`**: Marks Key Usage critical.
+  Type: bool; Required: no; Default: `true`; Allowed values: `true`, `false`;
+  Secret: no
+
+- **`extended_key_usage`**: Overrides profile EKU when non-empty.
+  Type: list[str]; Required: no; Default: profile default; Allowed values: EKU
+  names or dotted OIDs; Secret: no
+
+- **`extended_key_usage_critical`**: Marks EKU critical.
+  Type: bool; Required: no; Default: `false`; Allowed values: `true`, `false`;
+  Secret: no
+
+- **`san`**: Subject Alternative Names.
+  Type: list[str]; Required: no; Default: `[]` plus profile defaults; Allowed
+  values: supported SAN syntax; Secret: no
+
+- **`san_critical`**: Marks SAN critical.
+  Type: bool; Required: no; Default: `false`; Allowed values: `true`, `false`;
+  Secret: no
+
+- **`aia_base_url`**: Explicit AIA URL prefix.
+  Type: str; Required: no; Default: `""`; Allowed values: URL prefix; Secret: no
+
+- **`cdp_base_url`**: Explicit CDP URL prefix.
+  Type: str; Required: no; Default: `""`; Allowed values: URL prefix; Secret: no
+
+- **`raw_extensions`**: Additional unrecognized extensions.
+  Type: list[dict]; Required: no; Default: `[]` plus profile defaults; Allowed
+  values: supported raw extension syntax; Secret: no
+
+- **`digest`**: Signature digest for RSA and ECDSA. FritzBox profiles reject
+  values stronger than `sha384`.
+  Type: str; Required: no; Default: `sha384`; Allowed values: `sha1`, `sha224`,
+  `sha256`, `sha384`, `sha512`; Secret: no
+
+- **`include_identifiers`**: Adds SKI and AKI.
+  Type: bool; Required: no; Default: `true`; Allowed values: `true`, `false`;
+  Secret: no
+
+- **`key_mode`**: Private key file mode.
+  Type: str; Required: no; Default: `0600`; Allowed values: octal mode string;
+  Secret: no
+
+- **`public_mode`**: CSR, certificate, DER, text, and chain mode.
+  Type: str; Required: no; Default: `0644`; Allowed values: octal mode string;
+  Secret: no
+
+- **`directory_mode`**: Output directory mode.
+  Type: str; Required: no; Default: `0755`; Allowed values: octal mode string;
+  Secret: no
+
+- **`ad_object_guid`**: Required for `mskdc`. Encoded as NTDS objectGUID
+  extension OID `1.3.6.1.4.1.311.25.1`.
+  Type: str; Required: conditional; Default: none; Allowed values: canonical
+  GUID or raw 16-byte hex; Secret: no
+
+- **`krb5_realm`**: MSKDC PKINIT realm.
+  Type: str; Required: conditional; Default: module `kerberos_realm`; Allowed
+  values: uppercase realm; Secret: no
 
 Supported Key Usage values are `digitalSignature`, `nonRepudiation`,
 `contentCommitment`, `keyEncipherment`, `dataEncipherment`, `keyAgreement`,
@@ -116,12 +286,19 @@ Dotted OIDs are accepted for additional EKUs.
 
 ### Renewal Policy
 
-| Key | Type | Default | Description |
-| --- | --- | --- | --- |
-| `warn_before_days` | int | `0` | Adds warning state to inventory when remaining validity is inside this window. |
-| `renew_before_days` | int | `7` | Renews when remaining validity is inside this window. |
-| `renew_at` | str | `""` | Planned renewal timestamp as ISO-8601 or `YYYYMMDDHHMMSSZ`. It only affects certificates issued before that timestamp. |
-| `rekey` | bool | `false` | Generates a new private key when renewal is due. |
+- **`warn_before_days`**: Adds warning state to inventory when remaining
+  validity is inside this window.
+  Type: int; Default: `0`
+
+- **`renew_before_days`**: Renews when remaining validity is inside this window.
+  Type: int; Default: `7`
+
+- **`renew_at`**: Planned renewal timestamp as ISO-8601 or `YYYYMMDDHHMMSSZ`. It
+  only affects certificates issued before that timestamp.
+  Type: str; Default: `""`
+
+- **`rekey`**: Generates a new private key when renewal is due.
+  Type: bool; Default: `false`
 
 ## Generated Files
 
@@ -135,42 +312,87 @@ For `name: web01`, `issuer: component`, and `base_dir: /etc/pki/example`:
 - `/etc/pki/example/certs/web01/web01-chain.pem`
 - `/etc/pki/example/certs/web01/web01.pfx` when `pfx` is requested
 - `/etc/pki/example/certs/web01/web01.p12` when `p12` is requested
-- `/etc/pki/example/certs/web01/web01-fullchain.pem` when `fullchain` is requested
+- `/etc/pki/example/certs/web01/web01-fullchain.pem` when `fullchain` is
+  requested
 - `/etc/pki/example/certs/web01/web01-fritzbox.pem` when `fritzbox` is requested
 - Inventory fragments below `/etc/pki/example/inventory/state`
 - `/etc/pki/example/inventory/ca-inventory.json` when `ca_name` is set
-- `/etc/pki/example/archive/certificates/web01/<serial>/*` for replaced generations
+- `/etc/pki/example/archive/certificates/web01/<serial>/*` for replaced
+  generations
 
 CSR-signed certificates also store a normalized copy of the CSR at
 `<base_dir>/csr/<name>.csr`, but do not create `<output_dir>/<name>.key`.
 
 ## Return Values
 
-| Name | Type | Description |
-| --- | --- | --- |
-| `changed` | bool | Whether any generated artifact or inventory state changed. |
-| `name` | str | Certificate name. |
-| `profile` | str | Resolved certificate profile. |
-| `directory_changed` | bool | Whether the output directory changed. |
-| `archive_changed` | bool | Whether replaced generation material was archived. |
-| `key_changed` | bool | Whether the private key changed. |
-| `csr_changed` | bool | Whether the CSR changed. |
-| `cert_changed` | bool | Whether the PEM certificate changed. |
-| `der_changed` | bool | Whether the DER export changed. |
-| `txt_changed` | bool | Whether the text export changed. |
-| `chain_changed` | bool | Whether the issuer chain copy changed. |
-| `pkcs12_changed` | bool | Whether any PKCS#12 export changed. |
-| `fullchain_changed` | bool | Whether the fullchain bundle changed. |
-| `fritzbox_bundle_changed` | bool | Whether the FritzBox import bundle changed. |
-| `inventory_changed` | bool | Whether CA inventory state changed. |
-| `formats` | list[str] | Normalized formats. |
-| `renewal` | dict | Renewal decision for this run. |
-| `csr_path` | str | CSR path. |
-| `cert_path` | str | PEM certificate path. |
-| `txt_path` | str | Text export path, or empty string. |
-| `pkcs12_paths` | dict | Written PKCS#12 paths keyed by format. |
-| `fullchain_path` | str | Fullchain bundle path, or empty string. |
-| `fritzbox_bundle_path` | str | FritzBox import bundle path, or empty string. |
+- **`changed`**: Whether any generated artifact or inventory state changed.
+  Type: bool
+
+- **`name`**: Certificate name.
+  Type: str
+
+- **`profile`**: Resolved certificate profile.
+  Type: str
+
+- **`directory_changed`**: Whether the output directory changed.
+  Type: bool
+
+- **`archive_changed`**: Whether replaced generation material was archived.
+  Type: bool
+
+- **`key_changed`**: Whether the private key changed.
+  Type: bool
+
+- **`csr_changed`**: Whether the CSR changed.
+  Type: bool
+
+- **`cert_changed`**: Whether the PEM certificate changed.
+  Type: bool
+
+- **`der_changed`**: Whether the DER export changed.
+  Type: bool
+
+- **`txt_changed`**: Whether the text export changed.
+  Type: bool
+
+- **`chain_changed`**: Whether the issuer chain copy changed.
+  Type: bool
+
+- **`pkcs12_changed`**: Whether any PKCS#12 export changed.
+  Type: bool
+
+- **`fullchain_changed`**: Whether the fullchain bundle changed.
+  Type: bool
+
+- **`fritzbox_bundle_changed`**: Whether the FritzBox import bundle changed.
+  Type: bool
+
+- **`inventory_changed`**: Whether CA inventory state changed.
+  Type: bool
+
+- **`formats`**: Normalized formats.
+  Type: list[str]
+
+- **`renewal`**: Renewal decision for this run.
+  Type: dict
+
+- **`csr_path`**: CSR path.
+  Type: str
+
+- **`cert_path`**: PEM certificate path.
+  Type: str
+
+- **`txt_path`**: Text export path, or empty string.
+  Type: str
+
+- **`pkcs12_paths`**: Written PKCS#12 paths keyed by format.
+  Type: dict
+
+- **`fullchain_path`**: Fullchain bundle path, or empty string.
+  Type: str
+
+- **`fritzbox_bundle_path`**: FritzBox import bundle path, or empty string.
+  Type: str
 
 ## Examples
 
@@ -265,3 +487,23 @@ Issue a Samba AD domain controller certificate:
           - ad_object_guid
     authorities: "{{ ca_authorities }}"
 ```
+
+## Certificate policies
+
+- `certificate_policies`: list of `{oid, cps_uri?}` entries, default `[]`.
+
+Policy-bearing issuers require every end certificate to declare a nonempty
+subset
+of the OIDs in the actual issuer certificate. CPS URLs need not match. Policies
+are explicit: they are neither inherited nor inferred from profiles or external
+CSRs. An empty issuer list accepts only certificates without policies.
+
+Constraints require a nonempty sub-CA policy list. Roots and end certificates
+cannot carry constraints through this module. `anyPolicy` is supported only on
+self-signed roots; root policy lists do not restrict sub-CA issuance. The policy
+extension OIDs, including unsupported policyMappings, cannot be passed through
+`raw_extensions`. User Notices are not supported.
+
+Policy reordering is idempotent. Changed policy OIDs, CPS URLs, or constraints
+reissue the certificate using the existing key unless renewal requests rekeying.
+See the role README for the abstract PKI example and client validation limits.

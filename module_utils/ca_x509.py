@@ -50,6 +50,8 @@ from ansible.module_utils.ca_x509_params import (
     normalize_formats,
 )
 
+from ansible.module_utils.ca_x509_policies import validate_issuer_policies
+
 CRYPTOGRAPHY_IMPORT_ERROR = None
 
 __all__ = [
@@ -165,11 +167,13 @@ def ensure_x509_many(
         lock_paths = [signer_lock_path, *(params["lock_path"] for _, params in group)]
         with file_locks(lock_paths):
             first_params = group[0][1]
+            signer_cert = load_certificate(first_params["signer_cert_path"])
+            for _, params in group:
+                validate_issuer_policies(params, signer_cert)
             signer_key = load_private_key(
                 first_params["signer_key_path"],
                 first_params["signer_key_passphrase"],
             )
-            signer_cert = load_certificate(first_params["signer_cert_path"])
             needs_chain = any(
                 set(params["formats"]).intersection(
                     {"pfx", "p12", "fullchain", "fritzbox"}
@@ -315,6 +319,10 @@ def _ensure_x509_locked(
     extra_certs: list[Any] | None = None,
 ) -> dict:
     """Ensure one X.509 object while holding its object lock."""
+    if signed:
+        if signer_cert is None:
+            signer_cert = load_certificate(params["signer_cert_path"])
+        validate_issuer_policies(params, signer_cert)
     if _external_csr_configured(params):
         return _ensure_x509_from_csr_locked(
             params,
@@ -356,8 +364,6 @@ def _ensure_x509_locked(
             signer_key = load_private_key(
                 params["signer_key_path"], params["signer_key_passphrase"]
             )
-        if signer_cert is None:
-            signer_cert = load_certificate(params["signer_cert_path"])
 
     signer_public_key = (
         signer_cert.public_key() if signer_cert is not None else key.public_key()

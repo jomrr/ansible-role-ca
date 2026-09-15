@@ -12,6 +12,6 @@ profile defaults, and CA inventory state.
 Reference material used for this documentation style:
 
 - Ansible Developer Guide, Module format and documentation:
-  https://docs.ansible.com/projects/ansible/latest/dev_guide/developing_modules_documenting.html
+<https://docs.ansible.com/projects/ansible/latest/dev_guide/developing_modules_documenting.html>
 - Ansible Developer Guide, Conventions, tips, and pitfalls:
-  https://docs.ansible.com/projects/ansible/latest/dev_guide/developing_modules_best_practices.html
+<https://docs.ansible.com/projects/ansible/latest/dev_guide/developing_modules_best_practices.html>

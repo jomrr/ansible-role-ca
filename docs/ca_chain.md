@@ -35,15 +35,35 @@ root chain would be identical to the root CA certificate.
 
 ## Parameters
 
-| Parameter | Type | Required | Default | Allowed values | Secret | Description |
-| --- | --- | --- | --- | --- | --- | --- |
-| `base_dir` | path | yes | none | any absolute or relative path | no | Base directory containing CA certificates and the chain output directory. |
-| `name` | str | yes | none | authority name | no | Authority short name. The module expects `<base_dir>/ca/<name>-ca.pem`. |
-| `formats` | list[str] | no | `["pem", "der", "txt"]` | `pem`, `der`, `txt` | no | Chain output formats. |
-| `owner` | str | no | none | user name or UID | no | Owner for chain files. |
-| `group` | str | no | none | group name or GID | no | Group for chain files. |
-| `mode` | str | no | `0644` | octal mode string | no | Chain file mode. |
-| `force` | bool | no | `false` | `true`, `false` | no | Rewrites chain files even if current content matches. |
+- **`base_dir`**: Base directory containing CA certificates and the chain output
+  directory.
+  Type: path; Required: yes; Default: none; Allowed values: any absolute or
+  relative path; Secret: no
+
+- **`name`**: Authority short name. The module expects
+  `<base_dir>/ca/<name>-ca.pem`.
+  Type: str; Required: yes; Default: none; Allowed values: authority name;
+  Secret: no
+
+- **`formats`**: Chain output formats.
+  Type: list[str]; Required: no; Default: `["pem", "der", "txt"]`; Allowed
+  values: `pem`, `der`, `txt`; Secret: no
+
+- **`owner`**: Owner for chain files.
+  Type: str; Required: no; Default: none; Allowed values: user name or UID;
+  Secret: no
+
+- **`group`**: Group for chain files.
+  Type: str; Required: no; Default: none; Allowed values: group name or GID;
+  Secret: no
+
+- **`mode`**: Chain file mode.
+  Type: str; Required: no; Default: `0644`; Allowed values: octal mode string;
+  Secret: no
+
+- **`force`**: Rewrites chain files even if current content matches.
+  Type: bool; Required: no; Default: `false`; Allowed values: `true`, `false`;
+  Secret: no
 
 ## Generated Files
 
@@ -62,12 +82,17 @@ For `name: root`, no chain file is kept:
 
 ## Return Values
 
-| Name | Type | Description |
-| --- | --- | --- |
-| `changed` | bool | Whether the chain file was written or removed. |
-| `path` | str | Derived stable PEM chain path. |
-| `paths` | dict | Derived stable chain paths keyed by format. |
-| `state` | str | `present` for issuing CA chains, `absent` for root CA chains. |
+- **`changed`**: Whether the chain file was written or removed.
+  Type: bool
+
+- **`path`**: Derived stable PEM chain path.
+  Type: str
+
+- **`paths`**: Derived stable chain paths keyed by format.
+  Type: dict
+
+- **`state`**: `present` for issuing CA chains, `absent` for root CA chains.
+  Type: str
 
 ## Examples
 

@@ -10,10 +10,12 @@ extension output.
 
 ## Public Helper
 
-| Helper | Purpose |
-| --- | --- |
-| `certificate_text(cert)` | Returns deterministic certificate text bytes. |
-| `ensure_txt(params, cert)` | Writes `params["txt_path"]` when set and returns whether the file changed. |
+- **`certificate_text(cert)`**
+  Purpose: Returns deterministic certificate text bytes.
+
+- **`ensure_txt(params, cert)`**
+  Purpose: Writes `params["txt_path"]` when set and returns whether the file
+  changed.
 
 ## Behavior
 

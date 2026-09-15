@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from ansible.module_utils.ca_file import ca_lock_path
+from ansible.module_utils.ca_x509_policies import (
+    normalize_policy_params,
+    policy_argument_spec,
+)
 
 
 def _external_csr_configured(params: dict) -> bool:
@@ -39,6 +43,7 @@ def _with_derived_paths(
     result["formats"] = formats
     result["base_dir"] = base_dir
     result["authority"] = authority
+    normalize_policy_params(result, signed=signed)
 
     if authority:
         ca_file = f"{name}-ca"
@@ -153,6 +158,7 @@ def ca_authority_argument_spec(
             "no_log": True,
         },
     }
+    spec.update(policy_argument_spec())
     for key, value in (defaults or {}).items():
         if key in spec:
             spec[key]["default"] = value
@@ -191,6 +197,9 @@ def certificate_params(
         "aia_base_url": "",
         "cdp_base_url": "",
         "raw_extensions": [],
+        "certificate_policies": [],
+        "policy_constraints": {},
+        "inhibit_any_policy": None,
         "pkinit": {},
         "renewal": {},
         "include_identifiers": True,

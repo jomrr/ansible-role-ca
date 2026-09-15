@@ -12,6 +12,13 @@
       ansible.builtin.include_vars:
         file: "{{ playbook_dir }}/../../../vars/main.yml"
 
+    - name: "CA | Install policy verification dependency"
+      become: true
+      become_user: root
+      ansible.builtin.package:
+        name: openssl
+        state: present
+
     - name: "CA | Verify generated CA artifacts"
       ca_verify:
         ca_name: "{{ ca_name }}"

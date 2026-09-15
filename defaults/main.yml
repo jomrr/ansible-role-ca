@@ -81,6 +81,11 @@ ca_renewal:
 # days is the CA certificate validity.
 # default_days is the default validity for certificates issued by this CA.
 # crl_days is the CRL nextUpdate interval.
+# certificate_policies defaults to []; entries contain oid and optional cps_uri.
+# Sub-CAs may set policy_constraints.require_explicit_policy,
+# policy_constraints.inhibit_policy_mapping, and inhibit_any_policy to integers
+# >= 0. Omitted constraints emit no extension; 0 activates them immediately.
+# Constraints require a nonempty policy list and are not supported on roots.
 #
 ca_authorities:
   - name: root
@@ -128,6 +133,12 @@ ca_authorities:
 #     default_days: 397
 #     crl_days: 30
 #     key_passphrase: "{{ vault_ca_component_passphrase }}"
+#     certificate_policies:
+#       - oid: 1.3.6.1.4.1.32473.1.1.1
+#         cps_uri: https://pki.example.org/cps
+#     policy_constraints:
+#       require_explicit_policy: 0
+#     inhibit_any_policy: 0
 #     renewal:
 #       renew_at: "2027-01-01T00:00:00Z"
 #       rekey: true
@@ -190,6 +201,9 @@ ca_revocations:
 # type selects a built-in profile from role vars.
 # common_name becomes the certificate CN.
 # formats are optional; module defaults are used when omitted.
+# certificate_policies defaults to []; entries contain oid and optional cps_uri.
+# A policy-bearing issuer requires a nonempty subset of its OIDs on each EE.
+# Policy constraints and anyPolicy are not supported on end certificates.
 #
 ca_certificates: []
 

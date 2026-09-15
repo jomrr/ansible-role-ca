@@ -11,17 +11,34 @@ The module is mostly role-internal. Users normally configure
 
 ## Parameters
 
-| Name | Required | Default | Allowed values | Description |
-| ---- | -------- | ------- | -------------- | ----------- |
-| `base_dir` | yes | | existing CA base directory | CA base directory used for the module lock. |
-| `dest` | yes | | path | Archive path on the managed host. |
-| `authorities` | no | `[]` | list of authority dictionaries | Managed authorities used to derive default AIA/CDP artifacts. |
-| `artifacts` | no | `[]` | list of artifact dictionaries | Explicit public artifacts to include. Each item needs `src`, `file`, and `area`; when set, this overrides authority-derived artifacts. |
-| `artifact_mode` | no | `0644` | octal mode string | Mode stored for files inside the archive. |
-| `owner` | no | | user name | Owner for the generated archive file. |
-| `group` | no | | group name | Group for the generated archive file. |
-| `mode` | no | `0600` | octal mode string | Filesystem mode for the generated archive file. |
-| `force` | no | `false` | `true`, `false` | Rewrite the archive even when content is identical. |
+- **`base_dir`**: CA base directory used for the module lock.
+  Required: yes Default:; Allowed values: existing CA base directory
+
+- **`dest`**: Archive path on the managed host.
+  Required: yes Default:; Allowed values: path
+
+- **`authorities`**: Managed authorities used to derive default AIA/CDP
+  artifacts.
+  Required: no; Default: `[]`; Allowed values: list of authority dictionaries
+
+- **`artifacts`**: Explicit public artifacts to include. Each item needs `src`,
+  `file`, and `area`; when set, this overrides authority-derived artifacts.
+  Required: no; Default: `[]`; Allowed values: list of artifact dictionaries
+
+- **`artifact_mode`**: Mode stored for files inside the archive.
+  Required: no; Default: `0644`; Allowed values: octal mode string
+
+- **`owner`**: Owner for the generated archive file.
+  Required: no Default:; Allowed values: user name
+
+- **`group`**: Group for the generated archive file.
+  Required: no Default:; Allowed values: group name
+
+- **`mode`**: Filesystem mode for the generated archive file.
+  Required: no; Default: `0600`; Allowed values: octal mode string
+
+- **`force`**: Rewrite the archive even when content is identical.
+  Required: no; Default: `false`; Allowed values: `true`, `false`
 
 Artifact `area` values:
 
@@ -69,8 +86,11 @@ When `authorities` is used, the module derives the role defaults:
 
 ## Return Values
 
-| Name | Type | Description |
-| ---- | ---- | ----------- |
-| `changed` | `bool` | Whether the archive file was written or its metadata changed. |
-| `path` | `str` | Archive path on the managed host. |
-| `archive_paths` | `list` | Relative paths stored in the archive. |
+- **`changed`**: Whether the archive file was written or its metadata changed.
+  Type: `bool`
+
+- **`path`**: Archive path on the managed host.
+  Type: `str`
+
+- **`archive_paths`**: Relative paths stored in the archive.
+  Type: `list`

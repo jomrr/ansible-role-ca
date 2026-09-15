@@ -9,6 +9,8 @@ from ansible.module_utils.ca_time import (
     certificate_not_valid_before,
     datetime_text,
 )
+from ansible.module_utils.ca_x509_policies import policy_extension_text
+from ansible.module_utils.ca_x509_extensions import GENERAL_NAME_PREFIXES
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, rsa
 
@@ -65,14 +67,9 @@ def _key_usage_text(value) -> str:
 
 def _general_name_text(name) -> str:
     """Return readable GeneralName text."""
-    if isinstance(name, x509.DNSName):
-        return f"DNS:{name.value}"
-    if isinstance(name, x509.RFC822Name):
-        return f"email:{name.value}"
-    if isinstance(name, x509.UniformResourceIdentifier):
-        return f"URI:{name.value}"
-    if isinstance(name, x509.IPAddress):
-        return f"IP:{name.value}"
+    for name_type, prefix in GENERAL_NAME_PREFIXES.items():
+        if isinstance(name, name_type):
+            return f"{prefix}:{name.value}"
     if isinstance(name, x509.RegisteredID):
         return f"RID:{name.value.dotted_string}"
     if isinstance(name, x509.OtherName):
@@ -82,53 +79,63 @@ def _general_name_text(name) -> str:
     return repr(name)
 
 
+def _distribution_points_text(value: x509.CRLDistributionPoints) -> list[str]:
+    """Describe names in CRL distribution points."""
+    lines = []
+    for point in value:
+        if point.full_name:
+            names = ", ".join(_general_name_text(name) for name in point.full_name)
+            lines.append(f"Full Name: {names}")
+        if point.crl_issuer:
+            issuers = ", ".join(_general_name_text(name) for name in point.crl_issuer)
+            lines.append(f"CRL Issuer: {issuers}")
+    return lines
+
+
+def _authority_identifier_text(value: x509.AuthorityKeyIdentifier) -> list[str]:
+    """Describe an authority key identifier and its optional issuer reference."""
+    lines = []
+    if value.key_identifier:
+        lines.append(f"keyid:{colon_hex(value.key_identifier)}")
+    if value.authority_cert_issuer:
+        issuers = ", ".join(
+            _general_name_text(name) for name in value.authority_cert_issuer
+        )
+        lines.append(f"issuer:{issuers}")
+    if value.authority_cert_serial_number is not None:
+        lines.append(f"serial:{value.authority_cert_serial_number}")
+    return lines
+
+
 def _extension_value_text(value) -> list[str]:
     """Return readable text lines for a certificate extension value."""
     if isinstance(value, x509.BasicConstraints):
         parts = [f"CA:{str(value.ca).upper()}"]
         if value.path_length is not None:
             parts.append(f"pathlen:{value.path_length}")
-        return [", ".join(parts)]
-    if isinstance(value, x509.KeyUsage):
-        return [_key_usage_text(value)]
-    if isinstance(value, x509.ExtendedKeyUsage):
-        return [", ".join(_oid_name(oid) for oid in value)]
-    if isinstance(value, x509.SubjectAlternativeName):
-        return [", ".join(_general_name_text(name) for name in value)]
-    if isinstance(value, x509.AuthorityInformationAccess):
-        return [
+        lines = [", ".join(parts)]
+    elif isinstance(value, x509.KeyUsage):
+        lines = [_key_usage_text(value)]
+    elif isinstance(value, x509.ExtendedKeyUsage):
+        lines = [", ".join(_oid_name(oid) for oid in value)]
+    elif isinstance(value, x509.SubjectAlternativeName):
+        lines = [", ".join(_general_name_text(name) for name in value)]
+    elif isinstance(value, x509.AuthorityInformationAccess):
+        lines = [
             f"{_oid_name(item.access_method)} - {_general_name_text(item.access_location)}"
             for item in value
         ]
-    if isinstance(value, x509.CRLDistributionPoints):
-        lines = []
-        for point in value:
-            if point.full_name:
-                names = ", ".join(_general_name_text(name) for name in point.full_name)
-                lines.append(f"Full Name: {names}")
-            if point.crl_issuer:
-                issuers = ", ".join(
-                    _general_name_text(name) for name in point.crl_issuer
-                )
-                lines.append(f"CRL Issuer: {issuers}")
-        return lines
-    if isinstance(value, x509.SubjectKeyIdentifier):
-        return [colon_hex(value.digest)]
-    if isinstance(value, x509.AuthorityKeyIdentifier):
-        lines = []
-        if value.key_identifier:
-            lines.append(f"keyid:{colon_hex(value.key_identifier)}")
-        if value.authority_cert_issuer:
-            issuers = ", ".join(
-                _general_name_text(name) for name in value.authority_cert_issuer
-            )
-            lines.append(f"issuer:{issuers}")
-        if value.authority_cert_serial_number is not None:
-            lines.append(f"serial:{value.authority_cert_serial_number}")
-        return lines
-    if isinstance(value, x509.UnrecognizedExtension):
-        return [f"DER:{colon_hex(value.value)}"]
-    return [repr(value)]
+    elif isinstance(value, x509.CRLDistributionPoints):
+        lines = _distribution_points_text(value)
+    elif isinstance(value, x509.SubjectKeyIdentifier):
+        lines = [colon_hex(value.digest)]
+    elif isinstance(value, x509.AuthorityKeyIdentifier):
+        lines = _authority_identifier_text(value)
+    elif isinstance(value, x509.UnrecognizedExtension):
+        lines = [f"DER:{colon_hex(value.value)}"]
+    else:
+        lines = policy_extension_text(value) or [repr(value)]
+    return lines
 
 
 def certificate_text(cert) -> bytes:

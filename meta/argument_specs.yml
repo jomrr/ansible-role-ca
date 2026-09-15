@@ -201,6 +201,48 @@ argument_specs:
             type: str
             required: true
             description: Authority private key passphrase.
+          certificate_policies:
+            type: list
+            elements: dict
+            default: []
+            description:
+              - Explicit certificate policy OIDs with optional CPS URLs; emitted as a noncritical
+                extension.
+              - Policy-bearing issuers require each end certificate to contain a nonempty
+                subset of their OIDs.
+              - No policy inheritance or automatic assignment from certificate profiles.
+            options:
+              oid:
+                type: str
+                required: true
+                description: Policy OID. `2.5.29.32.0` (anyPolicy) is only supported on
+                  self-signed roots.
+              cps_uri:
+                type: str
+                description: Optional absolute HTTP or HTTPS URL of the CPS document.
+          policy_constraints:
+            type: dict
+            default: {}
+            description:
+              - Optional critical constraints for sub-CAs with a nonempty certificate_policies
+                list.
+              - Omitted counters emit no constraint; `0` activates the constraint immediately.
+              - Not supported on roots or end certificates.
+            options:
+              require_explicit_policy:
+                type: int
+                description: Nonnegative number of additional certificates before a nonempty
+                  valid policy set is required.
+              inhibit_policy_mapping:
+                type: int
+                description: Nonnegative number of additional certificates before policy
+                  mapping is inhibited.
+          inhibit_any_policy:
+            type: int
+            description:
+              - Optional critical anyPolicy inhibition counter for sub-CAs with certificate_policies.
+              - Must be nonnegative; `0` activates immediately. Not supported on roots or
+                end certificates.
           crl_digest:
             type: str
             required: false
@@ -283,6 +325,25 @@ argument_specs:
               - Required for CA-generated certificates.
               - Optional for CSR-signed certificates; when set, it must match the CSR common
                 name.
+          certificate_policies:
+            type: list
+            elements: dict
+            default: []
+            description:
+              - Explicit certificate policy OIDs with optional CPS URLs; emitted as a noncritical
+                extension.
+              - Policy-bearing issuers require each end certificate to contain a nonempty
+                subset of their OIDs.
+              - No policy inheritance or automatic assignment from certificate profiles.
+            options:
+              oid:
+                type: str
+                required: true
+                description: Policy OID. `2.5.29.32.0` (anyPolicy) is only supported on
+                  self-signed roots.
+              cps_uri:
+                type: str
+                description: Optional absolute HTTP or HTTPS URL of the CPS document.
           csr_path:
             type: str
             required: false

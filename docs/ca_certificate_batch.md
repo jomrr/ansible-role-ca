@@ -24,30 +24,65 @@ external CSR through the same issuer grouping and inventory flow.
 
 ## Module Parameters
 
-| Parameter | Type | Required | Default | Secret | Description |
-| --- | --- | --- | --- | --- | --- |
-| `base_dir` | path | yes | none | no | Base CA directory used to locate issuer material and derive CSR paths. |
-| `base_url` | str | no | `""` | no | Base publication URL for derived AIA/CDP URLs. |
-| `ca_name` | str | no | `""` | no | Enables composed inventory output when non-empty. |
-| `certificates` | list[dict] | yes | none | yes | Certificate models. See [ca_certificate](ca_certificate.md#certificate-model). |
-| `certificate_types` | dict | yes | none | no | Role type map. The selected type must define `issuer` and may define `required_fields`. |
-| `authorities` | list[dict] | yes | none | yes | Authority list used to resolve issuer passphrase and `default_days`. |
-| `kerberos_realm` | str | no | `""` | no | Default realm for MSKDC certificates. |
-| `subject` | dict | no | `{}` | no | Role-level subject defaults. |
-| `renewal` | dict | no | `{}` | no | Module-level renewal policy defaults. Certificate-local `renewal` overrides these values. |
-| `owner` | str | no | none | no | Owner for generated files. |
-| `group` | str | no | none | no | Group for generated files. |
-| `force` | bool | no | `false` | no | Regenerates managed material even if current files match. |
+- **`base_dir`**: Base CA directory used to locate issuer material and derive
+  CSR paths.
+  Type: path; Required: yes; Default: none; Secret: no
+
+- **`base_url`**: Base publication URL for derived AIA/CDP URLs.
+  Type: str; Required: no; Default: `""`; Secret: no
+
+- **`ca_name`**: Enables composed inventory output when non-empty.
+  Type: str; Required: no; Default: `""`; Secret: no
+
+- **`certificates`**: Certificate models. See
+  [ca_certificate](ca_certificate.md#certificate-model).
+  Type: list[dict]; Required: yes; Default: none; Secret: yes
+
+- **`certificate_types`**: Role type map. The selected type must define `issuer`
+  and may define `required_fields`.
+  Type: dict; Required: yes; Default: none; Secret: no
+
+- **`authorities`**: Authority list used to resolve issuer passphrase and
+  `default_days`.
+  Type: list[dict]; Required: yes; Default: none; Secret: yes
+
+- **`kerberos_realm`**: Default realm for MSKDC certificates.
+  Type: str; Required: no; Default: `""`; Secret: no
+
+- **`subject`**: Role-level subject defaults.
+  Type: dict; Required: no; Default: `{}`; Secret: no
+
+- **`renewal`**: Module-level renewal policy defaults. Certificate-local
+  `renewal` overrides these values.
+  Type: dict; Required: no; Default: `{}`; Secret: no
+
+- **`owner`**: Owner for generated files.
+  Type: str; Required: no; Default: none; Secret: no
+
+- **`group`**: Group for generated files.
+  Type: str; Required: no; Default: none; Secret: no
+
+- **`force`**: Regenerates managed material even if current files match.
+  Type: bool; Required: no; Default: `false`; Secret: no
 
 ## Return Values
 
-| Name | Type | Description |
-| --- | --- | --- |
-| `changed` | bool | Whether any generated artifact or inventory state changed. |
-| `inventory_changed` | bool | Whether the composed inventory or any certificate inventory fragment changed. |
-| `count` | int | Number of certificate models processed. |
-| `issuer_groups` | dict | Number of processed certificates by issuer. |
-| `results` | list[dict] | Per-certificate result dictionaries in the same order as `certificates`. |
+- **`changed`**: Whether any generated artifact or inventory state changed.
+  Type: bool
+
+- **`inventory_changed`**: Whether the composed inventory or any certificate
+  inventory fragment changed.
+  Type: bool
+
+- **`count`**: Number of certificate models processed.
+  Type: int
+
+- **`issuer_groups`**: Number of processed certificates by issuer.
+  Type: dict
+
+- **`results`**: Per-certificate result dictionaries in the same order as
+  `certificates`.
+  Type: list[dict]
 
 Each item in `results` has the same artifact fields as `ca_certificate`.
 

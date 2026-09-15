@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Verify the CA role Molecule scenario without shelling out to OpenSSL."""
+"""Verify CA artifacts, issuance rules, and OpenSSL policy path validation."""
 
 from __future__ import annotations
 
@@ -29,6 +29,10 @@ from ansible.module_utils.ca_verify_common import (
     _revocation_items,
 )
 
+from ansible.module_utils.ca_verify_policies import check_policies
+from cryptography import x509
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
+
 
 def _check_files(
     base_dir: Path,
@@ -40,7 +44,7 @@ def _check_files(
     """Check expected and absent files."""
     try:
         expected = _authority_paths(base_dir, authorities)
-    except Exception as exc:
+    except ValueError as exc:
         errors.append(str(exc))
         expected = []
     for certificate in certificates:
@@ -79,88 +83,111 @@ def _find_named(items: list[dict[str, Any]], name: str) -> dict[str, Any]:
     raise KeyError(name)
 
 
-def _check_inventory(
-    base_dir: Path,
-    ca_name: str,
-    authorities: list[dict[str, Any]],
-    certificates: list[dict[str, Any]],
-    certificate_types: dict[str, Any],
-    revocations: dict[str, Any],
-    renewal: dict[str, Any],
+def _check_inventory_counts(
+    inventory: dict,
+    params: dict,
+    revocation_count: int,
     errors: list[str],
 ) -> None:
-    """Validate the composed CA inventory."""
-    inventory_path = base_dir / "inventory/ca-inventory.json"
-    try:
-        inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        errors.append(f"could not read inventory {inventory_path}: {exc}")
-        return
-
-    revocation_by_name = {
-        str(item.get("name")): item for item in _revocation_items(revocations)
-    }
+    """Check inventory identity and the expected number of managed objects."""
     expected_counts = {
-        "authorities": len(authorities),
-        "authority_certificates": len(authorities),
-        "certificates": len(certificates),
-        "issued_certificates": len(certificates),
-        "crls": len(authorities) * len(CRL_FORMATS),
-        "revocations": len(revocation_by_name),
+        "authorities": len(params["authorities"]),
+        "authority_certificates": len(params["authorities"]),
+        "certificates": len(params["certificates"]),
+        "issued_certificates": len(params["certificates"]),
+        "crls": len(params["authorities"]) * len(CRL_FORMATS),
+        "revocations": revocation_count,
     }
     if inventory.get("schema_version") != 1:
         errors.append("inventory schema_version is not 1")
-    if inventory.get("ca_name") != ca_name:
-        errors.append(f"inventory ca_name is not {ca_name}")
+    if inventory.get("ca_name") != params["ca_name"]:
+        errors.append(f"inventory ca_name is not {params['ca_name']}")
     for key, expected in expected_counts.items():
         actual = len(inventory.get(key, []))
         if actual != expected:
             errors.append(f"inventory {key} count is {actual}, expected {expected}")
 
-    inventory_certificates = inventory.get("certificates", [])
-    authority_map = {_authority_name(authority): authority for authority in authorities}
 
-    for certificate in certificates:
+def _check_certificate_record(
+    record: dict,
+    certificate: dict,
+    issuer: str,
+    errors: list[str],
+) -> None:
+    """Check the identity and fingerprint of the current certificate record."""
+    name = _certificate_name(certificate)
+    if record.get("issuer") != issuer:
+        errors.append(f"{name} issuer is {record.get('issuer')}, expected {issuer}")
+    if record.get("type") != _certificate_type(certificate):
+        errors.append(
+            f"{name} type is {record.get('type')}, expected {_certificate_type(certificate)}"
+        )
+    if not record.get("current"):
+        errors.append(f"{name} is not marked current")
+    if not record.get("certificate", {}).get("fingerprints", {}).get("sha256"):
+        errors.append(f"{name} SHA-256 fingerprint is missing")
+
+
+def _check_inventory_status(
+    record: dict,
+    revocation: dict | None,
+    *,
+    expected_days: int,
+    warn_before: int,
+    errors: list[str],
+) -> None:
+    """Check recorded revocation and renewal warning state."""
+    name = record["name"]
+    if revocation:
+        if record.get("status", {}).get("state") != "revoked":
+            errors.append(f"{name} is not marked revoked")
+        reason = str(revocation.get("reason", ""))
+        if (
+            reason
+            and record.get("status", {}).get("revocation", {}).get("reason") != reason
+        ):
+            errors.append(f"{name} revocation reason is not {reason}")
+    elif record.get("status", {}).get("state") != "valid":
+        errors.append(f"{name} is not marked valid")
+    if expected_days and warn_before >= expected_days:
+        if record.get("renewal_status", {}).get("state") != "warning":
+            errors.append(f"{name} renewal status is not warning")
+
+
+def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
+    """Validate the composed CA inventory against scenario inputs."""
+    inventory_path = base_dir / "inventory/ca-inventory.json"
+    try:
+        inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        errors.append(f"could not read inventory {inventory_path}: {exc}")
+        return
+    revocation_by_name = {
+        str(item.get("name")): item for item in _revocation_items(params["revocations"])
+    }
+    _check_inventory_counts(inventory, params, len(revocation_by_name), errors)
+    authority_map = {_authority_name(item): item for item in params["authorities"]}
+
+    for certificate in params["certificates"]:
         name = _certificate_name(certificate)
         try:
-            record = _find_named(inventory_certificates, name)
+            record = _find_named(inventory.get("certificates", []), name)
         except KeyError:
             errors.append(f"missing inventory certificate: {name}")
             continue
-        issuer = _certificate_issuer(certificate, certificate_types)
-        if record.get("issuer") != issuer:
-            errors.append(f"{name} issuer is {record.get('issuer')}, expected {issuer}")
-        if record.get("type") != _certificate_type(certificate):
-            errors.append(
-                f"{name} type is {record.get('type')}, expected {_certificate_type(certificate)}"
-            )
-        if not record.get("current"):
-            errors.append(f"{name} is not marked current")
-        if not record.get("certificate", {}).get("fingerprints", {}).get("sha256"):
-            errors.append(f"{name} SHA-256 fingerprint is missing")
-
-        revocation = revocation_by_name.get(name)
-        if revocation:
-            if record.get("status", {}).get("state") != "revoked":
-                errors.append(f"{name} is not marked revoked")
-            reason = str(revocation.get("reason", ""))
-            if (
-                reason
-                and record.get("status", {}).get("revocation", {}).get("reason")
-                != reason
-            ):
-                errors.append(f"{name} revocation reason is not {reason}")
-        elif record.get("status", {}).get("state") != "valid":
-            errors.append(f"{name} is not marked valid")
-
+        issuer = _certificate_issuer(certificate, params["certificate_types"])
+        _check_certificate_record(record, certificate, issuer, errors)
         issuer_authority = authority_map.get(issuer, {})
         expected_days = int(
             certificate.get("days") or issuer_authority.get("default_days") or 0
         )
-        warn_before = int(renewal.get("warn_before_days") or 0)
-        if expected_days and warn_before >= expected_days:
-            if record.get("renewal_status", {}).get("state") != "warning":
-                errors.append(f"{name} renewal status is not warning")
+        _check_inventory_status(
+            record,
+            revocation_by_name.get(name),
+            expected_days=expected_days,
+            warn_before=int(params["renewal"].get("warn_before_days") or 0),
+            errors=errors,
+        )
 
 
 def run_module() -> None:
@@ -195,7 +222,6 @@ def run_module() -> None:
     certificates = module.params["certificates"]
     certificate_types = module.params["certificate_types"]
     revocations = module.params["revocations"]
-    renewal = module.params["renewal"]
     errors: list[str] = []
     checked_files = _check_files(
         base_dir, publish_root, authorities, certificates, errors
@@ -204,16 +230,7 @@ def run_module() -> None:
         lambda: _check_publication_modes(
             publish_root, authorities, module.params["publish_mode"], errors
         ),
-        lambda: _check_inventory(
-            base_dir,
-            module.params["ca_name"],
-            authorities,
-            certificates,
-            certificate_types,
-            revocations,
-            renewal,
-            errors,
-        ),
+        lambda: _check_inventory(base_dir, module.params, errors),
         lambda: _check_default_digests(base_dir, authorities, certificates, errors),
         lambda: _check_public_keys(base_dir, certificates, errors),
         lambda: _check_chains(base_dir, certificates, certificate_types, errors),
@@ -221,12 +238,22 @@ def run_module() -> None:
         lambda: _check_fritzbox(base_dir, certificates, errors),
         lambda: _check_pkcs12(base_dir, certificates, errors),
         lambda: _check_crl(base_dir, authorities, revocations, errors),
+        lambda: check_policies(module, base_dir, errors),
     )
     checked_chains = 0
     for check in checks:
         try:
             result = check()
-        except Exception as exc:
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            TypeError,
+            x509.ExtensionNotFound,
+            x509.DuplicateExtension,
+            InvalidSignature,
+            UnsupportedAlgorithm,
+        ) as exc:
             errors.append(str(exc))
             continue
         if isinstance(result, int):
