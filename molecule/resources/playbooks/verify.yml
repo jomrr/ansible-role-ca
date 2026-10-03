@@ -32,35 +32,32 @@
         revocations: "{{ ca_revocations }}"
         renewal: "{{ ca_renewal }}"
 
-    - name: "CA | Verify publishing to another inventory host"
-      when: ca_publish_targets | length > 1
-      block:
-        - name: "CA | Read locally published certificate and CRL checksums"
-          ansible.builtin.stat:
-            path: "/var/www/pki/{{ item }}"
-            checksum_algorithm: sha256
-          loop:
-            - aia/root-ca.der
-            - crl/component-ca.crl
-          register: __ca_molecule_public_sources
+    - name: "CA | Read locally published certificate and CRL checksums"
+      ansible.builtin.stat:
+        path: "/var/www/pki/{{ item }}"
+        checksum_algorithm: sha256
+      loop:
+        - aia/root-ca.der
+        - crl/component-ca.crl
+      register: __ca_molecule_public_sources
 
-        - name: "CA | Read artifacts on the remote inventory target"
-          ansible.builtin.stat:
-            path: "{{ ca_publish_targets[1].path }}/{{ item.item }}"
-            checksum_algorithm: sha256
-          delegate_to: "{{ ca_publish_targets[1].name }}"
-          loop: "{{ __ca_molecule_public_sources.results }}"
-          loop_control:
-            label: "{{ item.item }}"
-          register: __ca_molecule_public_copies
+    - name: "CA | Read artifacts on remote inventory targets"
+      ansible.builtin.stat:
+        path: "{{ item.0.path }}/{{ item.1.item }}"
+        checksum_algorithm: sha256
+      delegate_to: "{{ item.0.name }}"
+      loop: "{{ ca_publish_targets[1:] | product(__ca_molecule_public_sources.results) | list }}"
+      loop_control:
+        label: "{{ item.0.name }}/{{ item.1.item }}"
+      register: __ca_molecule_public_copies
 
-        - name: "CA | Verify remote artifacts belong to the source CA"
-          ansible.builtin.assert:
-            that:
-              - item.stat.isreg
-              - item.stat.checksum == item.item.stat.checksum
-              - item.stat.mode == ca_publish_targets[1].mode
-            quiet: true
-          loop: "{{ __ca_molecule_public_copies.results }}"
-          loop_control:
-            label: "{{ item.item.item }}"
+    - name: "CA | Verify remote artifacts belong to the source CA"
+      ansible.builtin.assert:
+        that:
+          - item.stat.isreg
+          - item.stat.checksum == item.item.1.stat.checksum
+          - item.stat.mode == item.item.0.mode
+        quiet: true
+      loop: "{{ __ca_molecule_public_copies.results }}"
+      loop_control:
+        label: "{{ item.item.0.name }}/{{ item.item.1.item }}"
