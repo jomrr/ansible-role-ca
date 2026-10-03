@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Verify CA artifacts, issuance rules, and OpenSSL policy path validation."""
+"""Verify CA artifacts and OpenSSL policy path validation."""
 
 from __future__ import annotations
 
@@ -28,7 +28,6 @@ from ansible.module_utils.ca_verify_common import (
     _publish_paths,
     _revocation_items,
 )
-
 from ansible.module_utils.ca_verify_policies import check_policies
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
@@ -149,9 +148,12 @@ def _check_inventory_status(
             errors.append(f"{name} revocation reason is not {reason}")
     elif record.get("status", {}).get("state") != "valid":
         errors.append(f"{name} is not marked valid")
-    if expected_days and warn_before >= expected_days:
-        if record.get("renewal_status", {}).get("state") != "warning":
-            errors.append(f"{name} renewal status is not warning")
+    if (
+        expected_days
+        and warn_before >= expected_days
+        and record.get("renewal_status", {}).get("state") != "warning"
+    ):
+        errors.append(f"{name} renewal status is not warning")
 
 
 def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
@@ -213,6 +215,7 @@ def run_module() -> None:
             "certificate_types": {"type": "dict", "required": True},
             "revocations": {"type": "dict", "default": {}},
             "renewal": {"type": "dict", "default": {}},
+            "subject": {"type": "dict", "required": True},
         },
         supports_check_mode=True,
     )
@@ -232,7 +235,9 @@ def run_module() -> None:
         ),
         lambda: _check_inventory(base_dir, module.params, errors),
         lambda: _check_digests(base_dir, module.params, errors),
-        lambda: _check_public_keys(base_dir, certificates, errors),
+        lambda: _check_public_keys(
+            base_dir, certificates, module.params["subject"], errors
+        ),
         lambda: _check_chains(base_dir, certificates, certificate_types, errors),
         lambda: _check_mskdc(base_dir, certificates, errors),
         lambda: _check_fritzbox(base_dir, certificates, errors),

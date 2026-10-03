@@ -6,6 +6,17 @@
   vars:
     __ca_publish_modes: "{{ ca_publish_targets | map(attribute='mode', default=ca_publish_mode) | unique | list }}"
   block:
+    - name: "CA | Assert publish targets exist in inventory"
+      ansible.builtin.assert:
+        that:
+          - __ca_publish_target.name in hostvars
+        fail_msg: "Publish target {{ __ca_publish_target.name }} must reference an existing inventory host."
+        quiet: true
+      loop: "{{ ca_publish_targets }}"
+      loop_control:
+        loop_var: __ca_publish_target
+        label: "{{ __ca_publish_target.name }}"
+
     - name: "CA | Create remote publish staging directory"
       ansible.builtin.tempfile:
         state: directory
@@ -14,7 +25,7 @@
       changed_when: false
 
     - name: "CA | Create remote publish archive"
-      ca_publish_archive:
+      jomrr.ca.publish_archive:
         base_dir: "{{ ca_base_dir }}"
         dest: "{{ __ca_publish_remote_stage.path }}/public-{{ __ca_publish_file_mode }}.tar"
         authorities: "{{ ca_authorities }}"
@@ -45,25 +56,9 @@
         loop_var: __ca_publish_file_mode
       changed_when: false
 
-    - name: "CA | Register publish target hosts"
-      ansible.builtin.add_host:
-        name: "{{ __ca_publish_target.name }}"
-        ansible_host: "{{ __ca_publish_target.ansible_host | default(omit) }}"
-        ansible_user: "{{ __ca_publish_target.ansible_user | default(omit) }}"
-        ansible_port: "{{ __ca_publish_target.ansible_port | default(omit) }}"
-        ansible_ssh_private_key_file: "{{ __ca_publish_target.ansible_ssh_private_key_file | default(omit) }}"
-      loop: "{{ ca_publish_targets }}"
-      loop_control:
-        loop_var: __ca_publish_target
-        label: "{{ __ca_publish_target.name }}"
-      changed_when: false
-      when: >-
-        __ca_publish_target.ansible_host is defined
-        or __ca_publish_target.ansible_user is defined
-        or __ca_publish_target.ansible_port is defined
-        or __ca_publish_target.ansible_ssh_private_key_file is defined
-
     - name: "CA | Create publish directories"
+      become: "{{ __ca_publish_pair.0.become | default(false) | bool }}"
+      become_user: "{{ __ca_publish_pair.0.become_user | default('root') }}"
       ansible.builtin.file:
         path: >-
           {{
@@ -78,10 +73,10 @@
         loop_var: __ca_publish_pair
         label: "{{ __ca_publish_pair.0.name }}/{{ __ca_publish_pair.1 | default('webroot', true) }}"
       delegate_to: "{{ __ca_publish_pair.0.name }}"
-      become: "{{ __ca_publish_pair.0.become | default(false) | bool }}"
-      become_user: "{{ __ca_publish_pair.0.become_user | default('root') }}"
 
     - name: "CA | Publish artifact archive"
+      become: "{{ __ca_publish_target.become | default(false) | bool }}"
+      become_user: "{{ __ca_publish_target.become_user | default('root') }}"
       ansible.builtin.unarchive:
         src: "{{ __ca_publish_stage.path }}/public-{{ __ca_publish_target.mode | default(ca_publish_mode) }}.tar"
         dest: "{{ __ca_publish_target.path | regex_replace('/+$', '') }}"
@@ -92,8 +87,6 @@
         loop_var: __ca_publish_target
         label: "{{ __ca_publish_target.name }}"
       delegate_to: "{{ __ca_publish_target.name }}"
-      become: "{{ __ca_publish_target.become | default(false) | bool }}"
-      become_user: "{{ __ca_publish_target.become_user | default('root') }}"
   always:
     - name: "CA | Remove local publish staging directory"
       ansible.builtin.file:

@@ -35,6 +35,9 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      - name: Disable AppArmor profile(s) for Molecule
+        run: sudo apparmor_parser -R /etc/apparmor.d/unix-chkpwd
+
       - name: Checkout repository
         uses: actions/checkout@v5
         with:

@@ -25,11 +25,13 @@ from ansible.module_utils.ca_verify_common import (
     _verify_chain,
 )
 from cryptography import x509
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, rsa
 from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import (
     CRLEntryExtensionOID,
     ExtendedKeyUsageOID,
+    NameOID,
     ObjectIdentifier,
 )
 
@@ -100,6 +102,7 @@ def _check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
 def _check_public_keys(
     base_dir: Path,
     certificates: list[dict[str, Any]],
+    subject: dict[str, str],
     errors: list[str],
 ) -> None:
     """Validate generated certificate public key algorithms."""
@@ -120,8 +123,7 @@ def _check_public_keys(
                 errors.append(
                     f"{name} CSR certificate should not have a managed private key"
                 )
-            if cert.subject != csr.subject:
-                errors.append(f"{name} subject does not match configured CSR")
+            _check_csr_identity(cert, certificate, subject, errors)
             if _public_key_bytes(cert.public_key()) != _public_key_bytes(
                 csr.public_key()
             ):
@@ -129,6 +131,35 @@ def _check_public_keys(
             continue
 
         _check_key_type(cert.public_key(), certificate, name, errors)
+
+
+def _check_csr_identity(
+    cert: x509.Certificate,
+    certificate: dict[str, Any],
+    subject: dict[str, str],
+    errors: list[str],
+) -> None:
+    """Check the fixture's approved subject and DNS SANs independently of its CSR."""
+    name = _certificate_name(certificate)
+    approved = subject | certificate.get("subject", {})
+    subject_oids = {
+        "country": NameOID.COUNTRY_NAME,
+        "state": NameOID.STATE_OR_PROVINCE_NAME,
+        "locality": NameOID.LOCALITY_NAME,
+        "organization": NameOID.ORGANIZATION_NAME,
+        "organizational_unit": NameOID.ORGANIZATIONAL_UNIT_NAME,
+    }
+    expected = {oid: approved[field] for field, oid in subject_oids.items()}
+    expected[NameOID.COMMON_NAME] = certificate["common_name"]
+    actual = {attribute.oid: attribute.value for attribute in cert.subject}
+    if actual != expected:
+        errors.append(f"{name} subject does not match approved configuration")
+    actual_san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+    expected_san = x509.SubjectAlternativeName(
+        [x509.DNSName(value.removeprefix("DNS:")) for value in certificate["san"]]
+    )
+    if actual_san.value != expected_san:
+        errors.append(f"{name} SANs do not match approved configuration")
 
 
 def _check_key_type(key, certificate: dict, name: str, errors: list[str]) -> None:
@@ -215,7 +246,7 @@ def _check_chains(
                         f"{name} {bundle_format} bundle has stale certificates"
                     )
             checked += 1
-        except Exception as exc:
+        except (OSError, ValueError, InvalidSignature, UnsupportedAlgorithm) as exc:
             errors.append(f"chain validation failed for {name}: {exc}")
     return checked
 
@@ -244,7 +275,8 @@ def _check_mskdc(
         missing_ekus = required_ekus.difference(set(eku))
         if missing_ekus:
             errors.append(
-                f"{name} MSKDC certificate is missing EKUs: {sorted(str(oid) for oid in missing_ekus)}"
+                f"{name} MSKDC certificate is missing EKUs: "
+                f"{sorted(str(oid) for oid in missing_ekus)}"
             )
 
         try:
@@ -301,7 +333,8 @@ def _check_fritzbox(
                     )
                 if markers[:-1].count("CERTIFICATE") < 2:
                     errors.append(
-                        f"{name} FritzBox bundle does not contain certificate plus chain before the private key"
+                        f"{name} FritzBox bundle does not contain certificate plus "
+                        "chain before the private key"
                     )
 
         cert = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
@@ -344,14 +377,15 @@ def _check_pkcs12(
                     ),
                     passphrase.encode("utf-8"),
                 )
-            except Exception as exc:
+            except (ValueError, UnsupportedAlgorithm) as exc:
                 errors.append(
                     f"could not parse PKCS#12 bundle for {name}.{bundle_format}: {exc}"
                 )
                 continue
             if key is None or cert is None:
                 errors.append(
-                    f"PKCS#12 bundle for {name}.{bundle_format} does not contain key and certificate"
+                    f"PKCS#12 bundle for {name}.{bundle_format} "
+                    "does not contain key and certificate"
                 )
             else:
                 _verify_chain(cert, list(additional or []))
@@ -390,10 +424,9 @@ def _check_crl(
         stem = _authority_file(authority)
         der_crl = x509.load_der_x509_crl(_read(base_dir / "crl" / f"{stem}.crl"))
         pem_crl = x509.load_pem_x509_crl(_read(base_dir / "crl" / f"{stem}.crl.pem"))
-        issuer = _load_pem_cert(base_dir / "ca" / f"{stem}.pem")
         _check_digest(
             der_crl,
-            issuer.public_key(),
+            _load_pem_cert(base_dir / "ca" / f"{stem}.pem").public_key(),
             authority.get("crl_digest", "sha384"),
             name + " CRL",
             errors,
@@ -420,25 +453,34 @@ def _check_crl(
         if der_number != pem_number:
             errors.append(f"{name} DER and PEM CRL numbers differ")
 
-        revoked = list(der_crl)
-        authority_revocations = [
-            entry for entry in revocations.get(name, []) if isinstance(entry, dict)
-        ]
-        if authority_revocations and not revoked:
-            errors.append(f"{name} DER CRL has no revoked certificates")
-            continue
-        for revocation in authority_revocations:
-            reason = str(revocation.get("reason", ""))
-            reason_flag = _reason_flag(reason)
-            if (
-                reason
-                and reason_flag
-                and not any(
-                    _revoked_has_reason(entry, reason_flag) for entry in revoked
-                )
-            ):
-                errors.append(f"{name} DER CRL has no {reason} revocation reason")
-            if revocation.get("invalidity_date") and not any(
-                _revoked_has_invalidity_date(entry) for entry in revoked
-            ):
-                errors.append(f"{name} DER CRL has no Invalidity Date entry")
+        _check_crl_revocations(list(der_crl), revocations.get(name, []), name, errors)
+
+
+def _check_crl_revocations(
+    revoked: list[x509.RevokedCertificate],
+    revocations: list[dict[str, Any]],
+    name: str,
+    errors: list[str],
+) -> None:
+    """Check the configured revocation entries in an exported CRL."""
+    authority_revocations = [
+        entry for entry in revocations if isinstance(entry, dict)
+    ]
+    if authority_revocations and not revoked:
+        errors.append(f"{name} DER CRL has no revoked certificates")
+        return
+    for revocation in authority_revocations:
+        reason = str(revocation.get("reason", ""))
+        reason_flag = _reason_flag(reason)
+        if (
+            reason
+            and reason_flag
+            and not any(
+                _revoked_has_reason(entry, reason_flag) for entry in revoked
+            )
+        ):
+            errors.append(f"{name} DER CRL has no {reason} revocation reason")
+        if revocation.get("invalidity_date") and not any(
+            _revoked_has_invalidity_date(entry) for entry in revoked
+        ):
+            errors.append(f"{name} DER CRL has no Invalidity Date entry")

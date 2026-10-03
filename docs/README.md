@@ -1,17 +1,9 @@
-# CA Role Module Documentation
+# CA Role Documentation
 
-Start with [index.md](index.md).
+See the [role overview](index.md), [role configuration](../README.md), and
+[AIA/CDP publishing](publishing.md).
 
-The documentation follows the same practical shape as Ansible module
-documentation: each public module has a purpose, behavior notes, accepted
-parameters, defaults, allowed values, return values, and examples. Internal
-`module_utils/` and `filter_plugins/` files are documented separately because
-they define shared behavior such as locking, path derivation, certificate
-profile defaults, and CA inventory state.
-
-Reference material used for this documentation style:
-
-- Ansible Developer Guide, Module format and documentation:
-<https://docs.ansible.com/projects/ansible/latest/dev_guide/developing_modules_documenting.html>
-- Ansible Developer Guide, Conventions, tips, and pitfalls:
-<https://docs.ansible.com/projects/ansible/latest/dev_guide/developing_modules_best_practices.html>
+The role uses the public modules and filter from the
+[jomrr.ca collection](https://github.com/jomrr/ansible-collection-ca).
+Module parameters, implementation details, and standalone module examples are
+maintained with that collection.

@@ -3,7 +3,7 @@
 # file: tasks/certificates.yml
 
 - name: "CA | Manage certificate material"
-  ca_certificate_batch:
+  jomrr.ca.certificate_batch:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
     ca_name: "{{ ca_name }}"
@@ -19,7 +19,7 @@
   no_log: true
 
 - name: "CA | Deploy FritzBox certificates"
-  ca_fritzbox_deploy:
+  jomrr.ca.fritzbox_deploy:
     base_dir: "{{ ca_base_dir }}"
     certificate: "{{ __ca_certificate }}"
     deploy: "{{ __ca_certificate.fritzbox_deploy | default({}) }}"

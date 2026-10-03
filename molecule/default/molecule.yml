@@ -4,6 +4,8 @@
 
 dependency:
   name: "galaxy"
+  options:
+    requirements-file: "${MOLECULE_PROJECT_DIRECTORY}/collections.yml"
 driver:
   name: "podman"
 provisioner:
@@ -12,23 +14,22 @@ provisioner:
     defaults:
       forks: 12
       interpreter_python: "auto_silent"
-      allow_world_readable_tmpfiles: true
       callbacks_enabled: "ansible.posix.profile_tasks,ansible.posix.timer"
       callback_result_format: "yaml"
-      remote_tmp: "/tmp/.ansible/tmp"
-    ssh_connection:
+    connection:
       pipelining: true
-  log: true
-  playbooks:
-    converge: "../resources/playbooks/converge.yml"
-    verify: "../resources/playbooks/verify.yml"
-  env:
-    ANSIBLE_MODULE_UTILS: "${MOLECULE_PROJECT_DIRECTORY}/module_utils:${MOLECULE_PROJECT_DIRECTORY}/molecule/resources/playbooks/module_utils"
   inventory:
     group_vars:
       all:
+        ansible_podman_mount_detection: false
         ca_name: "Example"
         ca_base_url: "http://pki.molecule.test"
+        ca_subject:
+          country: "DE"
+          state: "Example"
+          locality: "Example"
+          organization: "Molecule PKI"
+          organizational_unit: "Approved Issuance"
         ca_publish_targets:
           - name: "{{ inventory_hostname }}"
             path: "/var/www/pki"
@@ -87,7 +88,7 @@ provisioner:
         ca_revocations:
           component:
             - name: "web01"
-              reason: "key_compromise"
+              reason: "superseded"
               invalidity_date: "2026-06-14T00:00:00Z"
         ca_certificates:
           - name: "web01"
@@ -111,6 +112,11 @@ provisioner:
             type: "tls_client"
             common_name: "client01.molecule.test"
           - name: "external-csr"
+            common_name: "external-csr.molecule.test"
+            subject:
+              organization: "Approved CSR Organization"
+            san:
+              - "DNS:external-csr.molecule.test"
             certificate_policies:
               - oid: "1.3.6.1.4.1.32473.1.1.1"
                 cps_uri: "https://pki.molecule.test/cps/1"
@@ -218,6 +224,13 @@ provisioner:
             common_name: "wifi-user@molecule.test"
             san:
               - "email:wifi-user@molecule.test"
+  log: true
+  playbooks:
+    prepare: "../resources/playbooks/prepare.yml"
+    converge: "../resources/playbooks/converge.yml"
+    verify: "../resources/playbooks/verify.yml"
+  env:
+    ANSIBLE_MODULE_UTILS: "${MOLECULE_PROJECT_DIRECTORY}/molecule/resources/playbooks/module_utils"
 verifier:
   name: "ansible"
 scenario:

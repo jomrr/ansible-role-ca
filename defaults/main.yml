@@ -208,7 +208,8 @@ ca_revocations:
 # Managed certificate declarations. Empty means only CA authorities and CRLs.
 #
 # type selects a built-in profile from role vars.
-# common_name becomes the certificate CN.
+# common_name is required, including for external CSRs, and becomes the certificate CN.
+# External CSR identities are approved through subject and san, not inherited from the CSR.
 # formats are optional; module defaults are used when omitted.
 # key_type/key_size select the subject key, defaulting to RSA 4096.
 # digest defaults to sha384; allowed: sha224, sha256, sha384, sha512 (never sha1).
@@ -252,25 +253,29 @@ ca_certificates: []
 # AIA / CDP publishing
 ################################################################################
 
-# SSH/Ansible targets for public AIA and CDP artifacts.
+# Inventory hosts receiving public AIA and CDP artifacts.
 #
+# Targets reference existing inventory hosts; use inventory_hostname for the CA host.
+# Connection settings belong to the target host in inventory.
 # Each target receives CA certificates and chains below path/aia, and CRLs
 # below path/crl. Use multiple targets for Split-DNS or redundant webroots.
 #
 ca_publish_targets: []
 
-# Example: publish public CA material to two HTTP webroots.
+# Example: publish into the webroot on the CA host itself.
+# ca_publish_targets:
+#   - name: "{{ inventory_hostname }}"
+#     become: true
+#     path: /var/www/pki
+#
+# Example: publish to two other hosts already defined in inventory.
 # ca_publish_targets:
 #   - name: pki-web-01
-#     ansible_host: 192.0.2.10
-#     ansible_user: root
 #     path: /var/www/pki
 #     owner: root
 #     group: root
 #     become: true
 #   - name: pki-web-02
-#     ansible_host: 198.51.100.10
-#     ansible_user: root
 #     path: /var/www/pki
 #     owner: root
 #     group: root

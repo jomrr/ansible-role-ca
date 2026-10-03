@@ -11,7 +11,7 @@
 - name: "CA | Assert authority graph is valid"
   ansible.builtin.assert:
     that:
-      - (ca_authorities | ca_authority_map | length) == (ca_authorities | length)
+      - (ca_authorities | jomrr.ca.authority_map | length) == (ca_authorities | length)
     fail_msg: "ca_authorities need unique names and parents that reference managed authorities."
 
 - name: "CA | Assert authority passphrases are set"

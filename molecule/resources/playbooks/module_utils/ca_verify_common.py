@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -99,7 +99,7 @@ def _certificate_formats(certificate: dict[str, Any]) -> list[str]:
             _certificate_type(certificate), ["pem", "der", "txt"]
         )
     if isinstance(value, str):
-        raise ValueError(
+        raise TypeError(
             f"certificate {_certificate_name(certificate)} formats must be a list"
         )
     return [str(item).lower() for item in value]
@@ -235,26 +235,6 @@ def _reason_flag(reason: str) -> x509.ReasonFlags | None:
     return getattr(x509.ReasonFlags, normalized)
 
 
-def _cert_not_before(cert: x509.Certificate) -> datetime:
-    """Return a timezone-aware not-before timestamp."""
-    value = getattr(cert, "not_valid_before_utc", None)
-    return (
-        value
-        if value is not None
-        else cert.not_valid_before.replace(tzinfo=timezone.utc)
-    )
-
-
-def _cert_not_after(cert: x509.Certificate) -> datetime:
-    """Return a timezone-aware not-after timestamp."""
-    value = getattr(cert, "not_valid_after_utc", None)
-    return (
-        value
-        if value is not None
-        else cert.not_valid_after.replace(tzinfo=timezone.utc)
-    )
-
-
 def _assert_signature(cert: x509.Certificate, issuer: x509.Certificate) -> None:
     """Verify a certificate signature with the issuer public key."""
     key = issuer.public_key()
@@ -287,26 +267,24 @@ def _assert_signature(cert: x509.Certificate, issuer: x509.Certificate) -> None:
 def _is_ca(cert: x509.Certificate) -> bool:
     """Return whether a certificate has CA basic constraints."""
     try:
-        basic_constraints = cert.extensions.get_extension_for_class(
-            x509.BasicConstraints
-        ).value
+        return cert.extensions.get_extension_for_class(x509.BasicConstraints).value.ca
     except x509.ExtensionNotFound:
         return False
-    return bool(basic_constraints.ca)
 
 
 def _verify_chain(leaf: x509.Certificate, chain: list[x509.Certificate]) -> None:
     """Verify a leaf certificate against an ordered issuer chain."""
     if not chain:
         raise ValueError("chain must contain at least one issuer CA")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     current = leaf
     for issuer in chain:
         if current.issuer != issuer.subject:
             raise ValueError(
-                f"issuer mismatch: {current.subject.rfc4514_string()} is not issued by {issuer.subject.rfc4514_string()}"
+                f"issuer mismatch: {current.subject.rfc4514_string()} is not issued "
+                f"by {issuer.subject.rfc4514_string()}"
             )
-        if not (_cert_not_before(current) <= now <= _cert_not_after(current)):
+        if not current.not_valid_before_utc <= now <= current.not_valid_after_utc:
             raise ValueError(
                 f"certificate is outside its validity window: {current.subject.rfc4514_string()}"
             )

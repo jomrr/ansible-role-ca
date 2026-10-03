@@ -1,12 +1,13 @@
 # AIA/CDP Publishing
 
 The role can publish public CA artifacts to SSH/Ansible targets with
-`ca_publish_targets`. Each target is one destination host with one webroot.
+`ca_publish_targets`. Each target references an existing inventory host with
+one webroot. The CA host itself is a valid destination.
 The role creates fixed `aia` and `crl` subdirectories below that webroot.
 
 ## Published Artifacts
 
-AIA directories receive:
+For the initial issuer generation, AIA directories receive:
 
 - every CA certificate as `<name>-ca.pem`, `<name>-ca.der`, and `<name>-ca.txt`
 - every issuing CA chain as `<name>-ca-chain.pem`, `<name>-ca-chain.der`, and
@@ -20,13 +21,33 @@ CDP directories receive:
 Self-signed root CAs do not have chain files because the root chain would be
 identical to the root CA certificate.
 
+The collection retains these URLs for their original issuer generation. A CA
+key or subject change gives subsequent generations distinct filenames. Current
+signing certificates stay below `ca/`; they must not overwrite older issuer URLs.
+`jomrr.ca.publish_archive` selects the retained public certificates and their
+matching active or final CRLs after the role has run `jomrr.ca.crl`.
+
 ## Target Model
+
+### Publish on the CA Host
+
+Use the CA host's inventory name, expressed by `inventory_hostname`:
+
+```yaml
+ca_publish_targets:
+  - name: "{{ inventory_hostname }}"
+    become: true
+    path: /var/www/pki
+```
+
+The Ansible controller performs the publishing tasks using the CA host's
+inventory connection, just like the other role tasks.
+
+### Publish on Other Inventory Hosts
 
 ```yaml
 ca_publish_targets:
   - name: pki-web-01
-    ansible_host: 192.0.2.10
-    ansible_user: root
     path: /var/www/pki
     owner: root
     group: root
@@ -34,8 +55,6 @@ ca_publish_targets:
     directory_mode: "0755"
     mode: "0644"
   - name: pki-web-02
-    ansible_host: 198.51.100.10
-    ansible_user: root
     path: /var/www/pki
     owner: root
     group: root
@@ -45,23 +64,27 @@ ca_publish_targets:
 Use multiple target entries when several hosts serve the same AIA/CDP URLs, for
 example in Split-DNS setups.
 
+Configure remote host addresses, users, and interpreters in inventory:
+
+```yaml
+all:
+  hosts:
+    pki-web-01:
+      ansible_host: 192.0.2.10
+      ansible_user: pkiadmin
+    pki-web-02:
+      ansible_host: 198.51.100.10
+      ansible_user: pkiadmin
+```
+
+The role delegates to these inventory names without adding hosts or overriding
+their connection variables. An unknown inventory name is rejected before
+publication starts.
+
 ## Parameters
 
-- **`name`**: Ansible host receiving the files.
+- **`name`**: Existing inventory hostname receiving the files.
   Required: yes Default:
-
-- **`ansible_host`**: SSH address registered with `add_host`.
-  Required: no Default:
-
-- **`ansible_user`**: SSH user registered with `add_host`.
-  Required: no Default:
-
-- **`ansible_port`**: SSH port registered with `add_host`.
-  Required: no Default:
-
-- **`ansible_ssh_private_key_file`**: SSH private key path registered with
-  `add_host`.
-  Required: no Default:
 
 - **`path`**: Remote webroot. CA certificates and chains are unpacked below
   `path/aia`; CRLs are unpacked below `path/crl`.

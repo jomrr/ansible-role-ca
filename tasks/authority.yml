@@ -2,43 +2,36 @@
 # role: ca
 # file: tasks/authority.yml
 
-- name: "CA | Manage authority {{ __ca_authority.name }}"
-  block:
-    - name: "CA | Manage authority material for {{ __ca_authority.name }}"
-      ca_authority:
-        base_dir: "{{ ca_base_dir }}"
-        base_url: "{{ ca_base_url }}"
-        ca_name: "{{ ca_name }}"
-        name: "{{ __ca_authority.name }}"
-        parent: "{{ __ca_authority.parent }}"
-        key_type: "{{ __ca_authority.key_type | default(omit) }}"
-        key_size: "{{ __ca_authority.key_size | default(omit) }}"
-        digest: "{{ __ca_authority.digest | default(omit) }}"
-        key_passphrase: "{{ __ca_authority.key_passphrase }}"
-        parent_key_passphrase: >-
-          {{
-            (
-              (ca_authorities | ca_authority_map)[__ca_authority.parent].key_passphrase
-              if __ca_authority.parent != __ca_authority.name
-              else omit
-            )
-          }}
-        common_name: "{{ __ca_authority.common_name }}"
-        subject: "{{ ca_subject | combine(__ca_authority.subject | default({})) }}"
-        days: "{{ __ca_authority.days }}"
-        certificate_policies: "{{ __ca_authority.certificate_policies | default(omit) }}"
-        policy_constraints: "{{ __ca_authority.policy_constraints | default(omit) }}"
-        inhibit_any_policy: "{{ __ca_authority.inhibit_any_policy | default(omit) }}"
-        renewal: "{{ ca_renewal | combine(__ca_authority.renewal | default({})) }}"
-        force: "{{ ca_force_reissue }}"
-        owner: "{{ ca_owner }}"
-        group: "{{ ca_group }}"
-      no_log: true
+- name: "CA | Manage authority material for {{ __ca_authority.name }}"
+  jomrr.ca.authority:
+    base_dir: "{{ ca_base_dir }}"
+    base_url: "{{ ca_base_url }}"
+    ca_name: "{{ ca_name }}"
+    name: "{{ __ca_authority.name }}"
+    parent: "{{ __ca_authority.parent }}"
+    key_type: "{{ __ca_authority.key_type | default(omit) }}"
+    key_size: "{{ __ca_authority.key_size | default(omit) }}"
+    digest: "{{ __ca_authority.digest | default(omit) }}"
+    key_passphrase: "{{ __ca_authority.key_passphrase }}"
+    parent_key_passphrase: >-
+      {{ (ca_authorities | jomrr.ca.authority_map)[__ca_authority.parent].key_passphrase
+         if __ca_authority.parent != __ca_authority.name else omit }}
+    common_name: "{{ __ca_authority.common_name }}"
+    subject: "{{ ca_subject | combine(__ca_authority.subject | default({})) }}"
+    days: "{{ __ca_authority.days }}"
+    certificate_policies: "{{ __ca_authority.certificate_policies | default(omit) }}"
+    policy_constraints: "{{ __ca_authority.policy_constraints | default(omit) }}"
+    inhibit_any_policy: "{{ __ca_authority.inhibit_any_policy | default(omit) }}"
+    renewal: "{{ ca_renewal | combine(__ca_authority.renewal | default({})) }}"
+    force: "{{ ca_force_reissue }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+  no_log: true
 
-    - name: "CA | Manage authority chain for {{ __ca_authority.name }}"
-      ca_chain:
-        base_dir: "{{ ca_base_dir }}"
-        name: "{{ __ca_authority.name }}"
-        owner: "{{ ca_owner }}"
-        group: "{{ ca_group }}"
-        force: "{{ ca_force_reissue | bool }}"
+- name: "CA | Manage authority chain for {{ __ca_authority.name }}"
+  jomrr.ca.chain:
+    base_dir: "{{ ca_base_dir }}"
+    name: "{{ __ca_authority.name }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    force: "{{ ca_force_reissue | bool }}"

@@ -15,6 +15,8 @@ This role manages a private two-tier PKI with a Root CA and Component, Network,
 and Identity issuing CAs.
 It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 CRLs, and managed certificates from inventory variables.
+Cryptographic operations use the modules and filter supplied by the `jomrr.ca`
+collection.
 
 ## Scope
 
@@ -56,7 +58,10 @@ CRLs, and managed certificates from inventory variables.
 
 ## Requirements
 
-- Target hosts need Python cryptography bindings.
+- Install the collection dependencies with `ansible-galaxy collection install -r
+  collections.yml`; `jomrr.ca >=1.1.1,<2.0.0` is required.
+- The controller needs ansible-core >=2.20; the CA host needs Python >=3.12 with
+  `cryptography>=43` in its Ansible interpreter.
 - CA private key passphrases are required as `key_passphrase` values in
   `ca_authorities`; store real values in Ansible Vault.
 - Existing private keys that cannot be read or decrypted cause failure; a load
@@ -66,15 +71,19 @@ CRLs, and managed certificates from inventory variables.
   `ad_object_guid`.
 - FritzBox deployment requires network access to FRITZ!OS and a user with
   certificate import permissions.
-- AIA/CDP publishing targets require Ansible SSH access to the configured target
-  hosts.
+- AIA/CDP publishing targets must reference existing inventory hosts, using
+  their inventory connection settings.
 
 ## Dependencies
 
 ```yaml
 collections:
+  - name: jomrr.ca
+    version: '>=1.1.1,<2.0.0'
   - name: community.general
     version: '>=12.0.0'
+  - name: ansible.posix
+    version: '>=2.0.0'
 ```
 
 ## Role Variables
@@ -279,7 +288,8 @@ ca_certificates: []
 
 Type: `list`. Required: `false`.
 
-Optional SSH/Ansible targets for public AIA/CDP artifact publishing.
+Optional inventory hosts for public AIA/CDP artifact publishing, including the
+CA host itself.
 Each target receives CA certificates and issuing chains below `path/aia`, and
 CRLs below `path/crl`.
 Declare multiple targets when the same AIA/CDP URLs are served from multiple
@@ -416,8 +426,8 @@ ca_publish_mode: '0644'
 - ### Certificate Issuance, Formats, and External CSRs
 
   The role processes `ca_certificates` through the batched
-  `ca_certificate_batch` module; direct single-certificate use is still
-  available through `ca_certificate`.
+  `jomrr.ca.certificate_batch` module; direct single-certificate use is
+  available through `jomrr.ca.certificate`.
 
   Certificate SANs use OpenSSL-style syntax such as `DNS:host.example.org`,
   `IP:192.0.2.10`, `email:user@example.org`, and
@@ -434,9 +444,16 @@ ca_publish_mode: '0644'
   `<name>-fullchain.pem`.
 
   Set `csr_path` or `csr_content` on a certificate entry to sign an external
-  CSR with the profile's issuing CA. The CSR subject and public key are used
-  for the issued certificate; `common_name` is optional and, when set, must
-  match the CSR common name.
+  CSR with the profile's issuing CA. Set `common_name` explicitly; it must
+  match the CSR common name. The signed CSR supplies the public key, while
+  the approved subject comes from `ca_subject`, the certificate's `subject`
+  overrides, and `common_name`.
+
+  Configure the approved `san` entries explicitly. Subject attributes, SANs,
+  and policies are not inherited from the CSR. An omitted `san` uses the
+  certificate profile defaults; an explicit empty list disables optional
+  SAN defaults. Existing CSR declarations that relied on inherited identities
+  must supply their approved subject and SANs before using this collection.
 
   CSR-signed certificates can write `pem`, `der`, `txt`, and `fullchain`.
   Formats that require the private key on the CA host, such as `pfx`, `p12`,
@@ -505,6 +522,10 @@ ca_publish_mode: '0644'
   `<ca_base_dir>/archive`; when private keys are replaced, the old encrypted
   private key is archived with private file permissions.
 
+  The collection retains issuer generations across CA key or subject changes.
+  CRL generation and publishing include retained generations so previously
+  issued certificates keep their matching issuer certificate and CRL.
+
 - ### Revocation and CRL Renewal
 
   Revocations are declared in `ca_revocations`, keyed by issuing authority
@@ -519,6 +540,13 @@ ca_publish_mode: '0644'
   Recorded revocations remain in subsequent CRLs even when declarations are
   removed. Their original revocation time is retained unless explicitly
   changed.
+
+  Keys recorded as `key_compromise` or `ca_compromise` cannot be reused,
+  including on subsequent role runs. Remove affected certificates from
+  `ca_certificates` when they should no longer be managed, or request renewal
+  with a new key. `renewal.rekey` applies when renewal is due; external CSRs
+  must contain a new public key. Removing a revocation does not clear this
+  protection.
 
   Revocation entries support `reason`, `revocation_date`, and
   `invalidity_date`; `reason` is encoded as CRL Reason and `invalidity_date`
@@ -541,13 +569,28 @@ ca_publish_mode: '0644'
 
 - ### AIA/CDP Publishing
 
-  AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
+  Initial AIA URLs point to `<ca>-ca.der`; CDP URLs point to `<ca>-ca.crl`.
+  These URLs remain bound to their original issuer generation. After a CA
+  key or subject change, new generations use distinct filenames. The current
+  signing certificates remain below `<ca_base_dir>/ca`; publishing uses the
+  collection's generation-aware archive rather than copying these files
+  over older issuer URLs.
 
   Issuing CA certificates reference their parent CA certificate and CRL; leaf
   certificates reference their issuing CA.
 
   `ca_publish_targets` publishes all CA certificates and issuing CA chains to
   each target `path/aia`, and all CRLs to each target `path/crl`.
+
+  Each target `name` references an existing inventory host. Use
+  `inventory_hostname` to publish on the CA host itself. Remote targets use
+  their own inventory connection and interpreter settings; the role does not
+  add hosts or set SSH connection variables. Configure `ansible_host`,
+  `ansible_user`, and other connection settings in the target's inventory.
+
+  Ansible executes publishing through the controller's connection to the
+  target. With `name` set to the current `inventory_hostname`, it uses the
+  CA host's inventory connection, just like the other CA tasks.
 
   Multiple targets can use the same AIA/CDP paths on different hosts. This
   supports Split-DNS or active/standby HTTP endpoints that serve the same
@@ -639,10 +682,7 @@ Creates the Root CA and the three issuing CAs without certificates.
         ca_name: Example
         ca_base_url: http://pki.example.org
         ca_publish_targets:
-          - name: pki-web-01
-            path: /var/www/pki
-            become: true
-          - name: pki-web-02
+          - name: "{{ inventory_hostname }}"
             path: /var/www/pki
             become: true
         ca_authorities:
