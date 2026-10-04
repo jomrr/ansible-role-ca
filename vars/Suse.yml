@@ -5,5 +5,6 @@
 ca_packages:
   - ca-certificates
   - python3-cryptography
+  - tar
 
 ca_fhs_dir: /etc/ssl
