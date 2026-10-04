@@ -3,6 +3,8 @@
 # file: tasks/authority.yml
 
 - name: "CA | Manage authority material for {{ __ca_authority.name }}"
+  become: true
+  become_user: "{{ ca_owner }}"
   jomrr.ca.authority:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
@@ -29,6 +31,8 @@
   no_log: true
 
 - name: "CA | Manage authority chain for {{ __ca_authority.name }}"
+  become: true
+  become_user: "{{ ca_owner }}"
   jomrr.ca.chain:
     base_dir: "{{ ca_base_dir }}"
     name: "{{ __ca_authority.name }}"

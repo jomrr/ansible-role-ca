@@ -18,6 +18,8 @@
         label: "{{ __ca_publish_target.name }}"
 
     - name: "CA | Create remote publish staging directory"
+      become: true
+      become_user: "{{ ca_owner }}"
       ansible.builtin.tempfile:
         state: directory
         prefix: "ca-publish-{{ ca_name | lower }}-"
@@ -25,6 +27,8 @@
       changed_when: false
 
     - name: "CA | Create remote publish archive"
+      become: true
+      become_user: "{{ ca_owner }}"
       jomrr.ca.publish_archive:
         base_dir: "{{ ca_base_dir }}"
         dest: "{{ __ca_publish_remote_stage.path }}/public-{{ __ca_publish_file_mode }}.tar"
@@ -47,6 +51,8 @@
       changed_when: false
 
     - name: "CA | Stage publish archive on controller"
+      become: true
+      become_user: "{{ ca_owner }}"
       ansible.builtin.fetch:
         src: "{{ __ca_publish_remote_stage.path }}/public-{{ __ca_publish_file_mode }}.tar"
         dest: "{{ __ca_publish_stage.path }}/public-{{ __ca_publish_file_mode }}.tar"
@@ -99,6 +105,8 @@
       changed_when: false
 
     - name: "CA | Remove remote publish staging directory"
+      become: true
+      become_user: "{{ ca_owner }}"
       ansible.builtin.file:
         path: "{{ __ca_publish_remote_stage.path }}"
         state: absent

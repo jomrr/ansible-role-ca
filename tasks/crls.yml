@@ -3,6 +3,8 @@
 # file: tasks/crls.yml
 
 - name: "CA | Manage authority CRLs"
+  become: true
+  become_user: "{{ ca_owner }}"
   jomrr.ca.crl:
     base_dir: "{{ ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
