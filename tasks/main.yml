@@ -11,6 +11,8 @@
   tags: always
 
 - name: "CA | Install required packages"
+  become: true
+  become_user: root
   ansible.builtin.package:
     name: "{{ ca_packages }}"
     state: present
