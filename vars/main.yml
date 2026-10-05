@@ -9,8 +9,6 @@ ca_certificate_types:
     issuer: component
   mskdc:
     issuer: component
-    required_fields:
-      - ad_object_guid
   fritzbox:
     issuer: component
   identity_full:

@@ -295,12 +295,14 @@ def _check_mskdc(
                     f"{name} MSKDC certificate has no PKINIT KRB5PrincipalName SAN"
                 )
 
-        for oid_text in ("1.3.6.1.4.1.311.20.2", "1.3.6.1.4.1.311.25.1"):
-            try:
-                cert.extensions.get_extension_for_oid(ObjectIdentifier(oid_text))
-            except x509.ExtensionNotFound:
+        for oid_text, expected in (
+            ("1.3.6.1.4.1.311.20.2", True),
+            ("1.3.6.1.4.1.311.25.1", bool((certificate.get("ad_object_guid") or "").strip())),
+        ):
+            present = any(ext.oid.dotted_string == oid_text for ext in cert.extensions)
+            if present != expected:
                 errors.append(
-                    f"{name} MSKDC certificate is missing extension OID {oid_text}"
+                    f"{name} MSKDC extension OID {oid_text} presence differs from configuration"
                 )
 
 

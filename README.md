@@ -59,7 +59,7 @@ collection.
 ## Requirements
 
 - Install the collection dependencies with `ansible-galaxy collection install -r
-  collections.yml`; `jomrr.ca >=1.1.1,<2.0.0` is required.
+  collections.yml`; `jomrr.ca >=1.1.2,<2.0.0` is required.
 - The controller needs ansible-core >=2.20; the CA host needs Python >=3.12 with
   `cryptography>=43` in its Ansible interpreter.
 - CA private key passphrases are required as `key_passphrase` values in
@@ -67,8 +67,8 @@ collection.
 - Existing private keys that cannot be read or decrypted cause failure; a load
   error never triggers key generation.
 - PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
-- MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`, plus
-  `ad_object_guid`.
+- MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`;
+  `ad_object_guid` is optional.
 - FritzBox deployment requires network access to FRITZ!OS and a user with
   certificate import permissions.
 - AIA/CDP publishing targets must reference existing inventory hosts, using
@@ -79,7 +79,7 @@ collection.
 ```yaml
 collections:
   - name: jomrr.ca
-    version: '>=1.1.1,<2.0.0'
+    version: '>=1.1.2,<2.0.0'
   - name: community.general
     version: '>=12.0.0'
   - name: ansible.posix
@@ -362,9 +362,10 @@ ca_publish_mode: '0644'
   `1.3.6.1.4.1.311.20.2 = ASN1:BMPSTRING:DomainController`.
 - MSKDC certificates include a PKINIT SAN `otherName:1.3.6.1.5.2.2` containing
   the DER-encoded `KRB5PrincipalName` for `krbtgt/<REALM>@<REALM>`.
-- MSKDC certificates require the domain controller AD objectGUID through
-  `ad_object_guid`; the role emits it as `1.3.6.1.4.1.311.25.1 =
-  ASN1:FORMAT:HEX,OCTETSTRING:<guid-bytes>`.
+- MSKDC certificates optionally include the domain controller AD objectGUID
+  through `ad_object_guid`. When supplied, it is emitted as
+  `1.3.6.1.4.1.311.25.1 = ASN1:FORMAT:HEX,OCTETSTRING:<guid-bytes>`; otherwise,
+  the NTDS replication extension is omitted.
 
 ## Operational Notes
 
@@ -616,7 +617,8 @@ ca_publish_mode: '0644'
   MSKDC `krb5_realm` is uppercased before encoding and becomes
   `krbtgt/<REALM>@<REALM>` with Kerberos name type `KRB_NT_SRV_INST` (`2`).
 
-  MSKDC `ad_object_guid` accepts the canonical AD GUID form, for example
+  The optional MSKDC `ad_object_guid` accepts the canonical AD GUID form, for
+  example
   `d900ea2b-1253-4754-a22b-cf28508dfed3`, or raw 16-byte hex; canonical GUIDs
   are converted to AD byte order for the NTDS replication extension.
 

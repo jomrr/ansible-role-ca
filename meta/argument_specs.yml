@@ -424,7 +424,7 @@ argument_specs:
           ad_object_guid:
             type: str
             required: false
-            description: Required for `mskdc`; AD objectGUID of the domain controller, as
+            description: Optional for `mskdc`; AD objectGUID of the domain controller, as
               canonical GUID or raw 16-byte hex.
           days:
             type: int

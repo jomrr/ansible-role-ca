@@ -184,7 +184,6 @@ provisioner:
             type: "mskdc"
             common_name: "dc01.molecule.test"
             krb5_realm: "MOLECULE.TEST"
-            ad_object_guid: "d900ea2b-1253-4754-a22b-cf28508dfed3"
             san:
               - "DNS:dc01.molecule.test"
               - "DNS:dc01"
