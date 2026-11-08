@@ -2,7 +2,7 @@
 name = "ca"
 version = "0.0.0"
 description = "Ansible role for managing a two-tier private CA with certificate issuance, CRLs, AIA, and CDP URLs."
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 authors = [
   { name = "Jonas Mauer" },
 ]
@@ -17,7 +17,7 @@ package = false
 
 [dependency-groups]
 ansible = [
-  "ansible-core==2.20.*",
+  "ansible-core==2.22.*",
   "ansible-lint==26.*",
 ]
 

@@ -60,8 +60,8 @@ collection.
 
 - Install the collection dependencies with `ansible-galaxy collection install -r
   collections.yml`; `jomrr.ca >=1.1.2,<2.0.0` is required.
-- The controller needs ansible-core >=2.20; the CA host needs Python >=3.12 with
-  `cryptography>=43` in its Ansible interpreter.
+- The controller needs ansible-core >=2.22 with Python >=3.13; the CA host needs
+  Python >=3.12 with `cryptography>=43` in its Ansible interpreter.
 - CA private key passphrases are required as `key_passphrase` values in
   `ca_authorities`; store real values in Ansible Vault.
 - Existing private keys that cannot be read or decrypted cause failure; a load
