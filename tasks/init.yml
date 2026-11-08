@@ -3,6 +3,8 @@
 # file: tasks/init.yml
 
 - name: "CA | Create CA private directory"
+  become: true
+  become_user: root
   ansible.builtin.file:
     path: "{{ __ca_directory.path }}"
     state: directory
