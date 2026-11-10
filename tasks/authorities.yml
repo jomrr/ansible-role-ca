@@ -2,12 +2,17 @@
 # role: ca
 # file: tasks/authorities.yml
 
-- name: "CA | Manage authority"
-  ansible.builtin.include_tasks:
-    file: authority.yml
-    apply:
-      tags: ca_authorities
-  loop: "{{ ca_authorities }}"
-  loop_control:
-    loop_var: __ca_authority
-    label: "{{ __ca_authority.name }}"
+- name: "CA | Manage authorities"
+  become: true
+  become_user: "{{ ca_owner }}"
+  jomrr.ca.authority_batch:
+    base_dir: "{{ ca_base_dir }}"
+    base_url: "{{ ca_base_url }}"
+    ca_name: "{{ ca_name }}"
+    authorities: "{{ ca_authorities }}"
+    subject: "{{ ca_subject }}"
+    renewal: "{{ ca_renewal }}"
+    force: "{{ ca_force_reissue | bool }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+  no_log: true

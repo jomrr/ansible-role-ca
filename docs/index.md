@@ -13,7 +13,7 @@ Install the role's collection dependencies before running it:
 ansible-galaxy collection install -r collections.yml
 ```
 
-The role requires `jomrr.ca >=1.1.2,<2.0.0` and ansible-core >=2.20.
+The role requires `jomrr.ca >=1.2.0,<2.0.0` and ansible-core >=2.20.
 The CA host needs Python >=3.12 with `cryptography>=43` in its Ansible
 interpreter. Distribution packages are installed by the role.
 
@@ -21,8 +21,9 @@ interpreter. Distribution packages are installed by the role.
 
 1. Validate the configured authorities, certificate names, and revocation targets.
 2. Prepare the host packages and CA working directory.
-3. Create or renew authorities with `jomrr.ca.authority`, then derive their chains
-   with `jomrr.ca.chain`.
+3. Create or renew authorities, inventory and chains with one
+   `jomrr.ca.authority_batch` invocation under the `ca_authorities` tag. The batch
+   orders parents before children and resolves parent credentials from the list.
 4. Process `ca_certificates` with `jomrr.ca.certificate_batch`. Optional FritzBox
    deployment uses `jomrr.ca.fritzbox_deploy`.
 5. Generate or renew CRLs with `jomrr.ca.crl`.

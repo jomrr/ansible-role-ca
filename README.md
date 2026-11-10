@@ -372,7 +372,10 @@ ca_publish_mode: '0644'
 - ### CA Layout and Execution
 
   The managed CA topology is declared in `ca_authorities`; `parent == name`
-  creates a self-signed authority.
+  creates a self-signed authority. The `ca_authorities` phase uses one
+  `jomrr.ca.authority_batch` invocation for authority material, inventory and
+  chains. Parents are processed before children regardless of list order;
+  parent passphrases come from the same list.
 
   The default CA working directory is derived from `ca_name | lower` below the
   platform PKI base path.
