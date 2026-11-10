@@ -532,6 +532,11 @@ ca_publish_mode: '0644'
 
 - ### Revocation and CRL Renewal
 
+  The `ca_crl` phase manages all authority CRLs in one `jomrr.ca.crl_batch`
+  invocation. Run with `--tags ca_crl` to process revocations and renew CRLs
+  independently of authority and certificate issuance. Each authority keeps
+  its own CRL policy and authority/CRL locks.
+
   Revocations are declared in `ca_revocations`, keyed by issuing authority
   name; each entry can identify a managed certificate by `name`,
   `certificate_name`, `fingerprint`, `sha1`, `sha256`, `serial_number`, or

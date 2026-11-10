@@ -26,7 +26,10 @@ interpreter. Distribution packages are installed by the role.
    orders parents before children and resolves parent credentials from the list.
 4. Process `ca_certificates` with `jomrr.ca.certificate_batch`. Optional FritzBox
    deployment uses `jomrr.ca.fritzbox_deploy`.
-5. Generate or renew CRLs with `jomrr.ca.crl`.
+5. Generate or renew all authority CRLs with one `jomrr.ca.crl_batch`
+   invocation. The `ca_crl` tag processes revocations and CRL renewal independently
+   of authority and certificate issuance, preserving each authority's CRL policy
+   and locks.
 6. Publish directly on the CA host with `jomrr.ca.publish`, or build public
    archives with `jomrr.ca.publish_archive` and transfer them to other hosts
    in `ca_publish_targets`.
