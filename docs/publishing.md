@@ -26,7 +26,7 @@ key or subject change gives subsequent generations distinct filenames. Current
 signing certificates stay below `ca/`; they must not overwrite older issuer URLs.
 `jomrr.ca.publish` and `jomrr.ca.publish_archive` select the retained public
 certificates and their matching active or final CRLs after the role has run
-`jomrr.ca.crl`.
+`jomrr.ca.crl_batch`.
 
 ## Target Model
 
@@ -127,6 +127,24 @@ publication starts.
 - Both paths compare the actual files and repair missing or altered content and
   attributes. Unrelated files are preserved. Local writes are atomic per file;
   remote publication uses `ansible.builtin.unarchive`.
+
+## Check Mode
+
+With `jomrr.ca` 1.2.0 or later, the authority, certificate, and CRL batch modules
+predict changes without writing CA state.
+
+For remote publishing, check mode creates temporary staging directories and
+archives from the existing public CA artifacts, then transfers the archives to
+the controller. Both staging directories are removed in the `always` cleanup,
+including when publication fails. Target directory management remains in check
+mode and reports predicted changes without applying them. Archive extraction
+also remains in check mode, but Ansible 2.22 skips tar archives because its GNU
+tar handler does not support check mode. It therefore does not predict changes
+to individual published files. The source artifacts and destination webroot
+must already exist; a check run does not generate missing certificates or CRLs.
+
+Direct local publication through `jomrr.ca.publish` does not support check mode
+and is skipped. Its target directories are still checked.
 
 ## Not Managed
 

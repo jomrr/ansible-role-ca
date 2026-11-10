@@ -59,6 +59,7 @@
         state: directory
         prefix: "ca-publish-{{ ca_name | lower }}-"
       register: __ca_publish_remote_stage
+      check_mode: false
       changed_when: false
 
     - name: "CA | Create remote publish archive"
@@ -75,6 +76,7 @@
       loop: "{{ __ca_publish_modes }}"
       loop_control:
         loop_var: __ca_publish_file_mode
+      check_mode: false
       changed_when: false
 
     - name: "CA | Create local publish staging directory"
@@ -83,6 +85,7 @@
         prefix: "ca-publish-{{ ca_name | lower }}-"
       register: __ca_publish_stage
       delegate_to: localhost
+      check_mode: false
       changed_when: false
 
     - name: "CA | Stage publish archive on controller"
@@ -95,6 +98,7 @@
       loop: "{{ __ca_publish_modes }}"
       loop_control:
         loop_var: __ca_publish_file_mode
+      check_mode: false
       changed_when: false
 
     - name: "CA | Publish artifact archive"
@@ -119,6 +123,7 @@
         - __ca_publish_stage is defined
         - __ca_publish_stage.path is defined
       delegate_to: localhost
+      check_mode: false
       changed_when: false
 
     - name: "CA | Remove remote publish staging directory"
@@ -130,4 +135,5 @@
       when:
         - __ca_publish_remote_stage is defined
         - __ca_publish_remote_stage.path is defined
+      check_mode: false
       changed_when: false
