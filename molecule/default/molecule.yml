@@ -35,6 +35,7 @@ provisioner:
             path: "/var/www/pki"
             become: true
             mode: "0640"
+            directory_mode: "0750"
         ca_renewal:
           warn_before_days: 400
           renew_before_days: 7

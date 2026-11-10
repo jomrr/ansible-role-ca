@@ -41,6 +41,25 @@
         - crl/component-ca.crl
       register: __ca_molecule_public_sources
 
+    - name: "CA | Read local and remote publish directory modes"
+      ansible.builtin.stat:
+        path: "{{ item.0.path }}/{{ item.1 }}"
+      delegate_to: "{{ item.0.name }}"
+      loop: "{{ ca_publish_targets | product(['', 'aia', 'crl']) | list }}"
+      loop_control:
+        label: "{{ item.0.name }}/{{ item.1 }}"
+      register: __ca_molecule_publish_directories
+
+    - name: "CA | Verify target directory modes"
+      ansible.builtin.assert:
+        that:
+          - item.stat.isdir
+          - item.stat.mode == item.item.0.directory_mode
+        quiet: true
+      loop: "{{ __ca_molecule_publish_directories.results }}"
+      loop_control:
+        label: "{{ item.item.0.name }}/{{ item.item.1 }}"
+
     - name: "CA | Read artifacts on remote inventory targets"
       ansible.builtin.stat:
         path: "{{ item.0.path }}/{{ item.1.item }}"

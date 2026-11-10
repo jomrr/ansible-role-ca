@@ -69,9 +69,6 @@ def _check_publication_modes(
     for path in _publish_paths(publish_root, authorities):
         if path.stat().st_mode & 0o7777 != int(publish_mode, 8):
             errors.append(f"published file mode differs from {publish_mode}: {path}")
-    for path in (publish_root, publish_root / "aia", publish_root / "crl"):
-        if path.stat().st_mode & 0o7777 != 0o755:
-            errors.append(f"publish directory mode differs from 0755: {path}")
 
 
 def _find_named(items: list[dict[str, Any]], name: str) -> dict[str, Any]:
@@ -127,33 +124,26 @@ def _check_certificate_record(
         errors.append(f"{name} SHA-256 fingerprint is missing")
 
 
-def _check_inventory_status(
+def _check_inventory_revocation(
     record: dict,
     revocation: dict | None,
-    *,
-    expected_days: int,
-    warn_before: int,
+    recorded_revocations: list[dict],
     errors: list[str],
 ) -> None:
-    """Check recorded revocation and renewal warning state."""
+    """Verify revocations by stable issuer and serial identity in the stored ledger."""
+    matched = [
+        event
+        for event in recorded_revocations
+        if event["issuer"] == record["issuer"]
+        and event["serial_number_hex"] == record["certificate"]["serial_number_hex"]
+    ]
     name = record["name"]
     if revocation:
-        if record.get("status", {}).get("state") != "revoked":
-            errors.append(f"{name} is not marked revoked")
         reason = str(revocation.get("reason", ""))
-        if (
-            reason
-            and record.get("status", {}).get("revocation", {}).get("reason") != reason
-        ):
-            errors.append(f"{name} revocation reason is not {reason}")
-    elif record.get("status", {}).get("state") != "valid":
-        errors.append(f"{name} is not marked valid")
-    if (
-        expected_days
-        and warn_before >= expected_days
-        and record.get("renewal_status", {}).get("state") != "warning"
-    ):
-        errors.append(f"{name} renewal status is not warning")
+        if len(matched) != 1 or (reason and matched[0].get("reason") != reason):
+            errors.append(f"{name} revocation is missing or has an unexpected reason")
+    elif matched:
+        errors.append(f"{name} has an unexpected revocation")
 
 
 def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
@@ -168,7 +158,6 @@ def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
         str(item.get("name")): item for item in _revocation_items(params["revocations"])
     }
     _check_inventory_counts(inventory, params, len(revocation_by_name), errors)
-    authority_map = {_authority_name(item): item for item in params["authorities"]}
 
     for certificate in params["certificates"]:
         name = _certificate_name(certificate)
@@ -179,16 +168,13 @@ def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
             continue
         issuer = _certificate_issuer(certificate, params["certificate_types"])
         _check_certificate_record(record, certificate, issuer, errors)
-        issuer_authority = authority_map.get(issuer, {})
-        expected_days = int(
-            certificate.get("days") or issuer_authority.get("default_days") or 0
-        )
-        _check_inventory_status(
-            record,
-            revocation_by_name.get(name),
-            expected_days=expected_days,
-            warn_before=int(params["renewal"].get("warn_before_days") or 0),
-            errors=errors,
+        policy = {**params["renewal"], **certificate.get("renewal", {})}
+        if any(
+            record.get("renewal", {}).get(key) != value for key, value in policy.items()
+        ):
+            errors.append(f"{name} renewal policy does not match the requested policy")
+        _check_inventory_revocation(
+            record, revocation_by_name.get(name), inventory["revocations"], errors
         )
 
 

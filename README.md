@@ -79,7 +79,7 @@ collection.
 ```yaml
 collections:
   - name: jomrr.ca
-    version: '>=1.2.0,<2.0.0'
+    version: '>=1.2.1,<2.0.0'
   - name: community.general
     version: '>=12.0.0'
   - name: ansible.posix
@@ -393,7 +393,8 @@ ca_publish_mode: '0644'
   certificate, and CRL modules; it contains non-secret metadata such as serial
   numbers, fingerprints, subjects, issuers, validity windows, current
   certificate pointers, issued certificate history, revocation events, CRL
-  metadata, status, and managed artifact paths.
+  metadata, renewal policy, and managed artifact paths. Time-dependent validity
+  and renewal status are calculated when reading, without rewriting inventory.
 
   X.509 material, authority chains, certificate bundles, CRLs, and inventory
   composition use internal advisory locks below `<ca_base_dir>/.locks` so
@@ -501,8 +502,8 @@ ca_publish_mode: '0644'
   Existing certificates are reissued when their key, CSR, certificate profile,
   or declared extensions change, or when `ca_force_reissue=true`.
 
-  `ca_renewal.warn_before_days` only marks inventory `renewal_status`; it does
-  not renew certificates.
+  `ca_renewal.warn_before_days` only affects the calculated renewal warning;
+  it does not renew certificates or trigger inventory writes.
 
   `ca_renewal.renew_before_days` defaults to 7 and triggers renewal of
   authorities and certificates within seven days of expiry. `0` disables this
@@ -609,6 +610,8 @@ ca_publish_mode: '0644'
   Targets whose name equals `inventory_hostname` use `jomrr.ca.publish` to
   write public files directly on the CA host, using the target's `become`
   and `become_user` settings. No archive or controller transfer is needed.
+  The module also manages webroot, `aia` and `crl` directory ownership and
+  `directory_mode`, including change predictions in check mode.
 
   For other hosts, publishing builds one deterministic archive per distinct
   remote target file mode, fetches each archive once to the controller, and

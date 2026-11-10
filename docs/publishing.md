@@ -42,7 +42,8 @@ ca_publish_targets:
 ```
 
 The role calls `jomrr.ca.publish` once per local target to write files directly
-on the CA host. It uses the target's `become` and `become_user` settings; with
+on the CA host, including webroot, `aia` and `crl` directory ownership and
+`directory_mode`. It uses the target's `become` and `become_user` settings; with
 `become: true`, the default escalation user is `root`. That user needs access to
 the CA data and locks and permission to write the webroot. No archive is created
 or transferred through the controller for local targets.
@@ -143,8 +144,9 @@ tar handler does not support check mode. It therefore does not predict changes
 to individual published files. The source artifacts and destination webroot
 must already exist; a check run does not generate missing certificates or CRLs.
 
-Direct local publication through `jomrr.ca.publish` does not support check mode
-and is skipped. Its target directories are still checked.
+Direct local publication through `jomrr.ca.publish` predicts file and directory
+changes without writing destination data. This requires collection version
+1.2.1 or later.
 
 ## Not Managed
 

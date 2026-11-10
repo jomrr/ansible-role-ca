@@ -13,24 +13,6 @@
     loop_var: __ca_publish_target
     label: "{{ __ca_publish_target.name }}"
 
-- name: "CA | Create publish directories"
-  become: "{{ __ca_publish_pair.0.become | default(false) | bool }}"
-  become_user: "{{ __ca_publish_pair.0.become_user | default('root') }}"
-  ansible.builtin.file:
-    path: >-
-      {{
-        __ca_publish_pair.0.path | regex_replace('/+$', '')
-      }}{{ ('/' ~ __ca_publish_pair.1) if __ca_publish_pair.1 else '' }}
-    state: directory
-    owner: "{{ __ca_publish_pair.0.owner | default(ca_owner) }}"
-    group: "{{ __ca_publish_pair.0.group | default(ca_group) }}"
-    mode: "{{ __ca_publish_pair.0.directory_mode | default(ca_publish_directory_mode) }}"
-  loop: "{{ ca_publish_targets | product(['', 'aia', 'crl']) | list }}"
-  loop_control:
-    loop_var: __ca_publish_pair
-    label: "{{ __ca_publish_pair.0.name }}/{{ __ca_publish_pair.1 | default('webroot', true) }}"
-  delegate_to: "{{ __ca_publish_pair.0.name }}"
-
 - name: "CA | Publish artifacts directly on the CA host"
   become: "{{ __ca_publish_target.become | default(false) | bool }}"
   become_user: "{{ __ca_publish_target.become_user | default('root') }}"
@@ -41,6 +23,7 @@
     owner: "{{ __ca_publish_target.owner | default(ca_owner) }}"
     group: "{{ __ca_publish_target.group | default(ca_group) }}"
     mode: "{{ __ca_publish_target.mode | default(ca_publish_mode) }}"
+    directory_mode: "{{ __ca_publish_target.directory_mode | default(ca_publish_directory_mode) }}"
   loop: "{{ ca_publish_targets | selectattr('name', 'equalto', inventory_hostname) | list }}"
   loop_control:
     loop_var: __ca_publish_target
@@ -52,6 +35,24 @@
     __ca_publish_remote_targets: "{{ ca_publish_targets | rejectattr('name', 'equalto', inventory_hostname) | list }}"
     __ca_publish_modes: "{{ __ca_publish_remote_targets | map(attribute='mode', default=ca_publish_mode) | unique | list }}"
   block:
+    - name: "CA | Create publish directories"
+      become: "{{ __ca_publish_pair.0.become | default(false) | bool }}"
+      become_user: "{{ __ca_publish_pair.0.become_user | default('root') }}"
+      ansible.builtin.file:
+        path: >-
+          {{
+            __ca_publish_pair.0.path | regex_replace('/+$', '')
+          }}{{ ('/' ~ __ca_publish_pair.1) if __ca_publish_pair.1 else '' }}
+        state: directory
+        owner: "{{ __ca_publish_pair.0.owner | default(ca_owner) }}"
+        group: "{{ __ca_publish_pair.0.group | default(ca_group) }}"
+        mode: "{{ __ca_publish_pair.0.directory_mode | default(ca_publish_directory_mode) }}"
+      loop: "{{ __ca_publish_remote_targets | product(['', 'aia', 'crl']) | list }}"
+      loop_control:
+        loop_var: __ca_publish_pair
+        label: "{{ __ca_publish_pair.0.name }}/{{ __ca_publish_pair.1 | default('webroot', true) }}"
+      delegate_to: "{{ __ca_publish_pair.0.name }}"
+
     - name: "CA | Create remote publish staging directory"
       become: true
       become_user: "{{ ca_owner }}"
