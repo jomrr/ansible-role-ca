@@ -59,7 +59,7 @@ collection.
 ## Requirements
 
 - Install the collection dependencies with `ansible-galaxy collection install -r
-  collections.yml`; `jomrr.ca >=1.1.2,<2.0.0` is required.
+  collections.yml`; `jomrr.ca >=1.2.0,<2.0.0` is required.
 - The controller needs ansible-core >=2.22 with Python >=3.13; the CA host needs
   Python >=3.12 with `cryptography>=43` in its Ansible interpreter.
 - CA private key passphrases are required as `key_passphrase` values in
@@ -79,7 +79,7 @@ collection.
 ```yaml
 collections:
   - name: jomrr.ca
-    version: '>=1.1.2,<2.0.0'
+    version: '>=1.2.0,<2.0.0'
   - name: community.general
     version: '>=12.0.0'
   - name: ansible.posix
@@ -574,7 +574,8 @@ ca_publish_mode: '0644'
   These URLs remain bound to their original issuer generation. After a CA
   key or subject change, new generations use distinct filenames. The current
   signing certificates remain below `<ca_base_dir>/ca`; publishing uses the
-  collection's generation-aware archive rather than copying these files
+  collection's generation-aware artifact selection rather than copying these
+  files
   over older issuer URLs.
 
   Issuing CA certificates reference their parent CA certificate and CRL; leaf
@@ -597,12 +598,15 @@ ca_publish_mode: '0644'
   supports Split-DNS or active/standby HTTP endpoints that serve the same
   AIA/CDP URL from different machines.
 
-  Publishing builds one deterministic archive per distinct target file mode,
-  fetches each archive once to the controller, and unpacks the matching
-  archive on each target. Directory permissions are configured separately.
+  Targets whose name equals `inventory_hostname` use `jomrr.ca.publish` to
+  write public files directly on the CA host, using the target's `become`
+  and `become_user` settings. No archive or controller transfer is needed.
 
-  Publishing compares the actual target files with the archive and repairs
-  missing or changed artifacts.
+  For other hosts, publishing builds one deterministic archive per distinct
+  remote target file mode, fetches each archive once to the controller, and
+  unpacks it on the matching targets. Directory permissions are configured
+  separately. Both paths repair missing or changed public artifacts and
+  enforce the configured ownership and permissions.
 
   Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing
   `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.

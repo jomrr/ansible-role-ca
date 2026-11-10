@@ -26,8 +26,9 @@ interpreter. Distribution packages are installed by the role.
 4. Process `ca_certificates` with `jomrr.ca.certificate_batch`. Optional FritzBox
    deployment uses `jomrr.ca.fritzbox_deploy`.
 5. Generate or renew CRLs with `jomrr.ca.crl`.
-6. Build public archives with `jomrr.ca.publish_archive` and transfer them to
-   `ca_publish_targets`.
+6. Publish directly on the CA host with `jomrr.ca.publish`, or build public
+   archives with `jomrr.ca.publish_archive` and transfer them to other hosts
+   in `ca_publish_targets`.
 
 For standalone certificate issuance, use `jomrr.ca.certificate`. The role
 contains no production modules or private copies of collection utilities.

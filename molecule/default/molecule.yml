@@ -33,6 +33,7 @@ provisioner:
         ca_publish_targets:
           - name: "{{ inventory_hostname }}"
             path: "/var/www/pki"
+            become: true
             mode: "0640"
         ca_renewal:
           warn_before_days: 400

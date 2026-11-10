@@ -36,10 +36,11 @@ provisioner:
         ca_publish_targets:
           - name: "{{ inventory_hostname }}"
             path: "/var/www/pki"
+            become: true
             mode: "0640"
           - name: "{{ groups['all'] | difference([inventory_hostname]) | sort | first }}"
             path: "/var/www/pki-from-{{ inventory_hostname }}"
-            mode: "0640"
+            mode: "0644"
         ca_renewal:
           warn_before_days: 400
           renew_before_days: 7

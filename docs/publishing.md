@@ -24,8 +24,9 @@ identical to the root CA certificate.
 The collection retains these URLs for their original issuer generation. A CA
 key or subject change gives subsequent generations distinct filenames. Current
 signing certificates stay below `ca/`; they must not overwrite older issuer URLs.
-`jomrr.ca.publish_archive` selects the retained public certificates and their
-matching active or final CRLs after the role has run `jomrr.ca.crl`.
+`jomrr.ca.publish` and `jomrr.ca.publish_archive` select the retained public
+certificates and their matching active or final CRLs after the role has run
+`jomrr.ca.crl`.
 
 ## Target Model
 
@@ -40,8 +41,11 @@ ca_publish_targets:
     path: /var/www/pki
 ```
 
-The Ansible controller performs the publishing tasks using the CA host's
-inventory connection, just like the other role tasks.
+The role calls `jomrr.ca.publish` once per local target to write files directly
+on the CA host. It uses the target's `become` and `become_user` settings; with
+`become: true`, the default escalation user is `root`. That user needs access to
+the CA data and locks and permission to write the webroot. No archive is created
+or transferred through the controller for local targets.
 
 ### Publish on Other Inventory Hosts
 
@@ -86,8 +90,8 @@ publication starts.
 - **`name`**: Existing inventory hostname receiving the files.
   Required: yes Default:
 
-- **`path`**: Remote webroot. CA certificates and chains are unpacked below
-  `path/aia`; CRLs are unpacked below `path/crl`.
+- **`path`**: Destination webroot. CA certificates and chains are published below
+  `path/aia`; CRLs are published below `path/crl`.
   Required: yes Default:
 
 - **`owner`**: Owner for published files and directories.
@@ -110,15 +114,19 @@ publication starts.
 
 ## Behavior
 
-- The normal role run builds one deterministic publish archive per distinct
-  target file mode on the CA host, fetches each once to the controller, and
-  unpacks the matching archive on each target. Targets with the same file mode
-  share an archive. Directory modes are managed separately.
+- A target whose inventory name equals `inventory_hostname` receives public files
+  directly through `jomrr.ca.publish`. Other aliases are treated as remote targets.
+- For remote targets, the role builds one deterministic publish archive per
+  distinct remote file mode on the CA host, fetches each once to the controller,
+  and unpacks the matching archive on each target. Remote targets with the same
+  file mode share an archive. Directory modes are managed separately.
+- A run with only local targets creates no archive or staging directories.
 - The archive contains public CA and CRL files below fixed `aia/` and `crl/`
   paths.
-- Target webroot, `aia`, and `crl` directories are created before unpacking.
-- `ansible.builtin.unarchive` compares the actual target files with the archive.
-  Missing or altered files are restored from the archive.
+- Target webroot, `aia`, and `crl` directories are created before publication.
+- Both paths compare the actual files and repair missing or altered content and
+  attributes. Unrelated files are preserved. Local writes are atomic per file;
+  remote publication uses `ansible.builtin.unarchive`.
 
 ## Not Managed
 
