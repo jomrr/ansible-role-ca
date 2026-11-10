@@ -29,6 +29,7 @@ from ansible.module_utils.ca_verify_common import (
     _revocation_items,
 )
 from ansible.module_utils.ca_verify_policies import check_policies
+from ansible_collections.jomrr.ca.plugins.module_utils._renewal import renewal_status
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 
@@ -158,6 +159,7 @@ def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
         str(item.get("name")): item for item in _revocation_items(params["revocations"])
     }
     _check_inventory_counts(inventory, params, len(revocation_by_name), errors)
+    authority_map = {_authority_name(item): item for item in params["authorities"]}
 
     for certificate in params["certificates"]:
         name = _certificate_name(certificate)
@@ -173,6 +175,17 @@ def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
             record.get("renewal", {}).get(key) != value for key, value in policy.items()
         ):
             errors.append(f"{name} renewal policy does not match the requested policy")
+        expected_days = int(
+            certificate.get("days") or authority_map[issuer].get("default_days") or 0
+        )
+        if expected_days and int(policy.get("warn_before_days") or 0) >= expected_days:
+            status = renewal_status(record["certificate"], record["renewal"])
+            if (
+                status["state"] != "warning"
+                or not status["warning"]
+                or status["renewal_due"]
+            ):
+                errors.append(f"{name} calculated renewal status is not warning-only")
         _check_inventory_revocation(
             record, revocation_by_name.get(name), inventory["revocations"], errors
         )

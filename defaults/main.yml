@@ -45,7 +45,7 @@ ca_force_reissue: false
 
 # Default renewal policy for CA authorities and managed certificates.
 #
-# warn_before_days marks inventory renewal_status before expiry.
+# warn_before_days controls the renewal warning calculated when reading inventory.
 # renew_before_days renews objects inside this window; default 7 days, 0 disables it.
 # renew_at triggers one planned renewal for certificates issued before the date.
 # rekey controls whether renewal replaces the private key.

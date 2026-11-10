@@ -194,8 +194,8 @@ ca_force_reissue: false
 Type: `dict`. Required: `false`.
 
 Default renewal policy for managed authorities and certificates.
-`warn_before_days` marks renewal warning state in CA inventory but does not
-renew by itself.
+`warn_before_days` controls the renewal warning calculated when reading
+inventory; it does not renew certificates or trigger inventory writes.
 `renew_before_days` renews when the existing certificate reaches that
 remaining-validity window; defaults to 7 days.
 `renew_at` renews once at or after a scheduled ISO-8601 or `YYYYMMDDHHMMSSZ`
