@@ -51,6 +51,11 @@ provisioner:
         ca_authorities:
           - name: "root"
             common_name: "Example Root CA"
+            formats:
+              - "pem"
+              - "der"
+              - "cer"
+              - "txt"
             parent: "root"
             days: 3652
             default_days: 397
@@ -77,7 +82,10 @@ provisioner:
               inhibit_policy_mapping: 0
             inhibit_any_policy: 0
           - name: "network"
-            common_name: "Example Network CA"
+            subject_ordered:
+              - C: "DE"
+              - O: "Molecule PKI"
+              - CN: "Example Network CA"
             parent: "root"
             days: 1826
             default_days: 397
@@ -106,11 +114,15 @@ provisioner:
                 cps_uri: "https://pki.molecule.test/cps/1"
             type: "tls_server"
             common_name: "web01.molecule.test"
+            bundle_key_format: "traditional"
+            publish_private: true
             formats:
               - "pem"
               - "der"
+              - "cer"
               - "txt"
               - "fullchain"
+              - "bundle"
             san:
               - "DNS:web01.molecule.test"
               - "DNS:web01"
@@ -216,6 +228,9 @@ provisioner:
               - "email:user-full@molecule.test"
               - "otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user-full@molecule.test"
             pfx_passphrase: "molecule-pfx-passphrase"
+            pfx_friendly_name: "Molecule User Full"
+            pfx_encryption: "best"
+            pfx_iterations: 50000
           - name: "user-smime"
             certificate_policies:
               - oid: "1.3.6.1.4.1.32473.1.1.3"
@@ -227,6 +242,7 @@ provisioner:
               - "email:user-smime@molecule.test"
               - "otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user-smime@molecule.test"
             pfx_passphrase: "molecule-smime-pfx-passphrase"
+            friendly_name: "Molecule User S/MIME"
           - name: "wifi-user"
             type: "eap_tls_client"
             common_name: "wifi-user@molecule.test"

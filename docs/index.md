@@ -13,9 +13,10 @@ Install the role's collection dependencies before running it:
 ansible-galaxy collection install -r collections.yml
 ```
 
-The role requires `jomrr.ca >=1.2.0,<2.0.0` and ansible-core >=2.20.
+The role requires `jomrr.ca >=1.3.0,<2.0.0` and ansible-core >=2.22.
 The CA host needs Python >=3.12 with `cryptography>=43` in its Ansible
-interpreter. Distribution packages are installed by the role.
+interpreter, plus `asn1crypto>=1.5.1` for PKCS#12 exports. Distribution
+packages are installed by the role.
 
 ## Role Flow
 

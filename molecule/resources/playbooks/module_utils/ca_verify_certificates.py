@@ -212,7 +212,7 @@ def _issuer_chain(base_dir: Path, issuer: str) -> list[x509.Certificate]:
     chain_path = base_dir / "chains" / f"{issuer}-ca-chain.pem"
     if chain_path.exists():
         return _load_pem_certs(chain_path)
-    return [_load_pem_cert(base_dir / "ca" / f"{issuer}-ca.pem")]
+    return []
 
 
 def _check_chains(
@@ -222,6 +222,7 @@ def _check_chains(
     errors: list[str],
 ) -> int:
     """Validate issued certificate chains."""
+    root = _load_pem_cert(base_dir / "ca/root-ca.pem")
     checked = 0
     for certificate in certificates:
         name = _certificate_name(certificate)
@@ -232,15 +233,15 @@ def _check_chains(
         try:
             leaf = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
             chain = _issuer_chain(base_dir, issuer)
-            _verify_chain(leaf, chain)
+            _verify_chain(leaf, chain, root)
             for bundle_format in set(_certificate_formats(certificate)).intersection(
-                {"fullchain", "fritzbox"}
+                {"fullchain", "fritzbox", "bundle"}
             ):
                 bundle = _load_pem_certs(
                     _certificate_output_dir(base_dir, certificate)
                     / f"{name}-{bundle_format}.pem"
                 )
-                _verify_chain(bundle[0], bundle[1:])
+                _verify_chain(bundle[0], bundle[1:], root)
                 if bundle != [leaf, *chain]:
                     errors.append(
                         f"{name} {bundle_format} bundle has stale certificates"
@@ -361,11 +362,12 @@ def _check_pkcs12(
     errors: list[str],
 ) -> None:
     """Validate Identity PKCS#12 exports."""
+    root = _load_pem_cert(base_dir / "ca/root-ca.pem")
     for certificate in certificates:
         name = _certificate_name(certificate)
         formats = set(_certificate_formats(certificate))
         passphrase = str(
-            certificate.get("pfx_passphrase") or certificate.get("passphrase") or ""
+            certificate.get("passphrase") or certificate.get("pfx_passphrase") or ""
         )
         for bundle_format in sorted(formats.intersection({"pfx", "p12"})):
             if not passphrase:
@@ -390,7 +392,7 @@ def _check_pkcs12(
                     "does not contain key and certificate"
                 )
             else:
-                _verify_chain(cert, list(additional or []))
+                _verify_chain(cert, list(additional or []), root)
 
 
 def _revoked_has_reason(

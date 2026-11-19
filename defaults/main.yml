@@ -78,6 +78,8 @@ ca_renewal:
 #
 # name is the authority identifier and file stem.
 # parent references the signing authority; parent == name creates a root CA.
+# common_name or subject_ordered defines the authority subject.
+# formats defaults to pem,der,txt; cer adds a DER-encoded .cer export.
 # days is the CA certificate validity.
 # default_days is the default validity for certificates issued by this CA.
 # crl_days is the CRL nextUpdate interval.
@@ -208,9 +210,16 @@ ca_revocations:
 # Managed certificate declarations. Empty means only CA authorities and CRLs.
 #
 # type selects a built-in profile from role vars.
-# common_name is required, including for external CSRs, and becomes the certificate CN.
+# common_name is required for locally generated keys and becomes the certificate CN.
+# External CSRs accept common_name or a complete approved subject_ordered list.
 # External CSR identities are approved through subject and san, not inherited from the CSR.
 # formats are optional; module defaults are used when omitted.
+# cer writes DER; bundle writes the certificate, intermediates and private key.
+# bundle_key_format is pkcs8 (default) or traditional (RSA/ECDSA only).
+# PKCS#12 exports accept pfx_friendly_name (alias friendly_name),
+# pfx_encryption (best or compatibility2022), and pfx_iterations.
+# publish_private permits private artifact discovery by jomrr.ca.artifacts;
+# it does not publish private files through the public AIA/CDP targets.
 # key_type/key_size select the subject key, defaulting to RSA 4096.
 # digest defaults to sha384; allowed: sha224, sha256, sha384, sha512 (never sha1).
 # The issuer key determines the certificate signature algorithm; EdDSA fixes

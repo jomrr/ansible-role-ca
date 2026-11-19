@@ -4,6 +4,7 @@
 
 ca_packages:
   - ca-certificates
+  - python3-asn1crypto
   - python3-cryptography
   - tar
 

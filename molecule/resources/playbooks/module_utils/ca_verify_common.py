@@ -134,13 +134,17 @@ def _certificate_csr(certificate: dict[str, Any]):
 def _certificate_expected_paths(
     base_dir: Path, certificate: dict[str, Any]
 ) -> list[Path]:
-    """Return public managed certificate artifacts expected on disk."""
+    """Return managed certificate artifacts expected on disk."""
     name = _certificate_name(certificate)
     directory = _certificate_output_dir(base_dir, certificate)
     formats = set(_certificate_formats(certificate))
     paths = [directory / f"{name}.pem"]
     if "der" in formats:
         paths.append(directory / f"{name}.der")
+    if "cer" in formats:
+        paths.append(directory / f"{name}.cer")
+    if "bundle" in formats:
+        paths.append(directory / f"{name}-bundle.pem")
     if "txt" in formats:
         paths.append(directory / f"{name}.txt")
     if "fullchain" in formats:
@@ -171,7 +175,8 @@ def _authority_paths(base_dir: Path, authorities: list[dict[str, Any]]) -> list[
         name = _authority_name(authority)
         stem = _authority_file(authority)
         paths.extend(
-            base_dir / "ca" / f"{stem}.{suffix}" for suffix in AUTHORITY_FORMATS
+            base_dir / "ca" / f"{stem}.{suffix}"
+            for suffix in {"pem", *authority.get("formats", AUTHORITY_FORMATS)}
         )
         paths.extend(
             (
@@ -272,13 +277,15 @@ def _is_ca(cert: x509.Certificate) -> bool:
         return False
 
 
-def _verify_chain(leaf: x509.Certificate, chain: list[x509.Certificate]) -> None:
-    """Verify a leaf certificate against an ordered issuer chain."""
-    if not chain:
-        raise ValueError("chain must contain at least one issuer CA")
+def _verify_chain(
+    leaf: x509.Certificate, chain: list[x509.Certificate], root: x509.Certificate
+) -> None:
+    """Verify an exported intermediate chain against a separate trust anchor."""
+    if root in chain:
+        raise ValueError("exported chain must not contain the root certificate")
     now = datetime.now(UTC)
     current = leaf
-    for issuer in chain:
+    for issuer in [*chain, root]:
         if current.issuer != issuer.subject:
             raise ValueError(
                 f"issuer mismatch: {current.subject.rfc4514_string()} is not issued "
@@ -290,12 +297,11 @@ def _verify_chain(leaf: x509.Certificate, chain: list[x509.Certificate]) -> None
             )
         _assert_signature(current, issuer)
         current = issuer
-    root = chain[-1]
     if root.issuer != root.subject:
         raise ValueError("root certificate is not self-issued")
     if not _is_ca(root):
         raise ValueError("root certificate is not marked as CA")
-    for issuer in chain[:-1]:
+    for issuer in chain:
         if not _is_ca(issuer):
             raise ValueError(
                 f"issuer certificate is not marked as CA: {issuer.subject.rfc4514_string()}"

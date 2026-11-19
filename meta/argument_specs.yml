@@ -140,14 +140,86 @@ argument_specs:
             type: str
             required: true
             description: Authority identifier and CA file stem.
+          formats:
+            type: list
+            elements: str
+            description:
+              - Authority certificate exports; defaults to `pem,der,txt` in the collection.
+              - Add `cer` for DER bytes with a `.cer` extension. Authority chains use `pem,der,txt`
+                independently.
           common_name:
             type: str
-            required: true
-            description: Authority certificate common name.
+            description: Authority certificate common name; required unless `subject_ordered`
+              supplies the complete subject.
+          subject_ordered:
+            type: list
+            elements: dict
+            description: Full ordered subject as single-attribute dictionaries, overriding
+              `subject`, `common_name`, and `email`.
+          email:
+            type: str
+            description: Optional subject email address.
           subject:
             type: dict
             required: false
             description: Optional authority subject attribute overrides merged with `ca_subject`.
+          basic_constraints:
+            type: list
+            elements: str
+            description: Optional Basic Constraints tokens, such as `CA:TRUE` and `pathlen:0`;
+              omitted values use collection defaults.
+          key_usage:
+            type: list
+            elements: str
+            description: Optional Key Usage tokens overriding collection defaults.
+          key_usage_critical:
+            type: bool
+            description: Mark Key Usage critical; defaults to true in the collection.
+          extended_key_usage:
+            type: list
+            elements: str
+            description: Optional Extended Key Usage overrides; an empty list omits the
+              extension.
+          extended_key_usage_critical:
+            type: bool
+            description: Mark Extended Key Usage critical; defaults to false in the collection.
+          san:
+            type: list
+            elements: str
+            description: Optional authority Subject Alternative Name entries in OpenSSL-style
+              syntax.
+          san_critical:
+            type: bool
+            description: Mark Subject Alternative Name critical; defaults to false in the
+              collection.
+          aia_base_url:
+            type: str
+            description: Override the AIA URL prefix; the collection appends the issuer
+              certificate filename, including its generation when applicable.
+          cdp_base_url:
+            type: str
+            description: Override the CDP URL prefix; the collection appends the issuer
+              CRL filename, including its generation when applicable.
+          raw_extensions:
+            type: list
+            elements: dict
+            description: Additional unrecognized extensions as dictionaries containing `oid`,
+              `value`, and optional `critical`.
+          pkinit:
+            type: dict
+            description: PKINIT context used by the collection to encode SAN otherName entries.
+          include_identifiers:
+            type: bool
+            description: Include Subject Key Identifier and Authority Key Identifier; defaults
+              to true in the collection.
+          key_mode:
+            type: str
+            description: Private key and private export permissions; defaults to `0600`
+              in the collection.
+          public_mode:
+            type: str
+            description: CSR, certificate, and public export permissions; defaults to `0644`
+              in the collection.
           key_type:
             type: str
             required: false
@@ -205,8 +277,8 @@ argument_specs:
             description: Authority certificate validity in days.
           default_days:
             type: int
-            required: true
-            description: Default validity in days for certificates issued by this authority.
+            description: Default validity in days for issued certificates; required when
+              an issued certificate omits `days`.
           crl_days:
             type: int
             required: true
@@ -236,7 +308,21 @@ argument_specs:
           key_passphrase:
             type: str
             required: true
+            no_log: true
             description: Authority private key passphrase.
+          parent_key_passphrase:
+            type: str
+            no_log: true
+            description: Accepted parent credential metadata; authority batches resolve
+              the actual credential from the matching parent entry.
+          legacy_generation:
+            type: str
+            description: Optional legacy publication generation identity used by the collection.
+          archived_key_passphrases:
+            type: dict
+            no_log: true
+            description: Archived issuer generation IDs mapped to their private key passphrases
+              for CRL renewal.
           certificate_policies:
             type: list
             elements: dict
@@ -274,7 +360,7 @@ argument_specs:
                 description: Nonnegative number of additional certificates before policy
                   mapping is inhibited.
           inhibit_any_policy:
-            type: int
+            type: raw
             description:
               - Optional critical anyPolicy inhibition counter for sub-CAs with certificate_policies.
               - Must be nonnegative; `0` activates immediately. Not supported on roots or
@@ -359,14 +445,106 @@ argument_specs:
               - Defaults are module-owned. Standard certificates and MSKDC default to `pem,der,txt`;
                 Identity defaults to `pem,der,txt,pfx`; FritzBox defaults to `pem,der,txt,fritzbox`.
               - Add `fullchain` to create a certificate plus issuing-chain PEM bundle.
-              - CSR-signed certificates support `pem`, `der`, `txt`, and `fullchain`.
+              - Add `cer` for DER bytes with a `.cer` extension, independently of `der`.
+              - Add `bundle` for certificate, issuer intermediates, and private key in `<name>-bundle.pem`,
+                excluding the self-signed root.
+              - CSR-signed certificates support `pem`, `der`, `cer`, `txt`, and `fullchain`.
+          bundle_key_format:
+            type: str
+            choices:
+              - pkcs8
+              - traditional
+            description:
+              - Private key encoding for `bundle` only; defaults to `pkcs8` in the collection.
+              - '`traditional` supports RSA and ECDSA; Ed25519 and Ed448 require `pkcs8`.'
+              - Encryption follows `key_passphrase`; the managed key and FritzBox export
+                are unchanged.
           common_name:
             type: str
-            required: true
             description:
-              - Certificate common name.
-              - Required for both CA-generated and CSR-signed certificates; must match the
-                CSR common name when signing a CSR.
+              - Certificate common name; required for locally generated certificate keys.
+              - For external CSRs, provide `common_name` or an approved `subject_ordered`;
+                an explicit common name must match the CSR common name.
+          subject_ordered:
+            type: list
+            elements: dict
+            description: Full ordered subject as single-attribute dictionaries, overriding
+              `subject`, `common_name`, and `email`.
+          basic_constraints:
+            type: list
+            elements: str
+            description: Optional Basic Constraints tokens, such as `CA:TRUE` and `pathlen:0`;
+              omitted values use collection defaults.
+          key_usage:
+            type: list
+            elements: str
+            description: Optional Key Usage tokens overriding collection defaults.
+          key_usage_critical:
+            type: bool
+            description: Mark Key Usage critical; defaults to true in the collection.
+          extended_key_usage:
+            type: list
+            elements: str
+            description: Optional Extended Key Usage overrides; an empty list omits the
+              extension.
+          extended_key_usage_critical:
+            type: bool
+            description: Mark Extended Key Usage critical; defaults to false in the collection.
+          san_critical:
+            type: bool
+            description: Mark Subject Alternative Name critical; defaults to false in the
+              collection.
+          aia_base_url:
+            type: str
+            description: Override the AIA URL prefix; the collection appends the issuer
+              certificate filename, including its generation when applicable.
+          cdp_base_url:
+            type: str
+            description: Override the CDP URL prefix; the collection appends the issuer
+              CRL filename, including its generation when applicable.
+          raw_extensions:
+            type: list
+            elements: dict
+            description: Additional unrecognized extensions as dictionaries containing `oid`,
+              `value`, and optional `critical`.
+          pkinit:
+            type: dict
+            description: PKINIT context used by the collection to encode SAN otherName entries.
+          include_identifiers:
+            type: bool
+            description: Include Subject Key Identifier and Authority Key Identifier; defaults
+              to true in the collection.
+          key_mode:
+            type: str
+            description: Private key and private export permissions; defaults to `0600`
+              in the collection.
+          public_mode:
+            type: str
+            description: CSR, certificate, and public export permissions; defaults to `0644`
+              in the collection.
+          policy_constraints:
+            type: dict
+            default: {}
+            description:
+              - Optional critical constraints for sub-CAs with a nonempty certificate_policies
+                list.
+              - Omitted counters emit no constraint; `0` activates the constraint immediately.
+              - Not supported on roots or end certificates.
+            options:
+              require_explicit_policy:
+                type: int
+                description: Nonnegative number of additional certificates before a nonempty
+                  valid policy set is required.
+              inhibit_policy_mapping:
+                type: int
+                description: Nonnegative number of additional certificates before policy
+                  mapping is inhibited.
+          inhibit_any_policy:
+            type: raw
+            description:
+              - Optional critical anyPolicy inhibition counter for sub-CAs with certificate_policies.
+              - Must be nonnegative; `0` activates immediately. Not supported on roots or
+                end certificates.
           certificate_policies:
             type: list
             elements: dict
@@ -387,7 +565,7 @@ argument_specs:
                 type: str
                 description: Optional absolute HTTP or HTTPS URL of the CPS document.
           csr_path:
-            type: str
+            type: path
             required: false
             description:
               - Path to a PEM CSR on the managed CA host.
@@ -414,8 +592,11 @@ argument_specs:
             type: list
             elements: str
             required: false
-            default: []
-            description: Subject Alternative Name entries in OpenSSL-style syntax.
+            description:
+              - Approved Subject Alternative Name entries in OpenSSL-style syntax; CSR SANs
+                are not inherited.
+              - Omitted values use profile defaults; an empty list disables optional SAN
+                defaults. MSKDC still adds its required PKINIT SAN.
           krb5_realm:
             type: str
             required: false
@@ -431,9 +612,21 @@ argument_specs:
             required: false
             description: Per-certificate validity override.
           output_dir:
-            type: str
+            type: path
             required: false
             description: Optional certificate-specific output directory.
+          directory_mode:
+            type: str
+            description: Certificate export directory permissions; defaults to `0755` in
+              the collection.
+          publish_private:
+            type: bool
+            default: false
+            description:
+              - Allow `jomrr.ca.artifacts` to list the local private key and requested private
+                exports with `secret=true`.
+              - Consumer metadata only; does not create additional exports or publish private
+                files through this role's AIA/CDP targets.
           key_type:
             type: str
             required: false
@@ -484,16 +677,44 @@ argument_specs:
           key_passphrase:
             type: str
             required: false
+            no_log: true
             description: Optional private key passphrase for CA-generated certificate keys.
               Ignored for CSR-signed certificates.
           pfx_passphrase:
             type: str
             required: false
+            no_log: true
             description: PFX/PKCS#12 export passphrase.
-          friendly_name:
+          passphrase:
+            type: str
+            no_log: true
+            description: Alternate PKCS#12 export passphrase, taking precedence over `pfx_passphrase`.
+          pfx_friendly_name:
             type: str
             required: false
-            description: Friendly name for PFX/PKCS#12 export.
+            description: PKCS#12 friendly name; defaults to the common name or object name.
+              `friendly_name` remains an alias.
+          friendly_name:
+            type: str
+            description: Alias for `pfx_friendly_name`, resolved by the collection.
+          pfx_encryption:
+            type: str
+            choices:
+              - best
+              - compatibility2022
+            description:
+              - Encryption for `pfx` and `p12`; defaults to the library's BestAvailableEncryption
+                (`best`).
+              - '`compatibility2022` uses legacy PBES1 SHA-1 with 3-key TripleDES-CBC and
+                a SHA-1 MAC; select only for devices requiring it.'
+              - This export setting does not permit SHA-1 certificate or CRL signatures.
+          pfx_iterations:
+            type: int
+            description:
+              - Optional encryption KDF iteration count from 1 to 2147483647; does not set
+                the separate MAC iteration count.
+              - When omitted, new exports use the library default and existing iteration
+                counts are accepted.
           renewal:
             type: dict
             required: false

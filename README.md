@@ -59,14 +59,15 @@ collection.
 ## Requirements
 
 - Install the collection dependencies with `ansible-galaxy collection install -r
-  collections.yml`; `jomrr.ca >=1.2.0,<2.0.0` is required.
+  collections.yml`; `jomrr.ca >=1.3.0,<2.0.0` is required.
 - The controller needs ansible-core >=2.22 with Python >=3.13; the CA host needs
   Python >=3.12 with `cryptography>=43` in its Ansible interpreter.
 - CA private key passphrases are required as `key_passphrase` values in
   `ca_authorities`; store real values in Ansible Vault.
 - Existing private keys that cannot be read or decrypted cause failure; a load
   error never triggers key generation.
-- PFX/PKCS#12 output requires a per-certificate `pfx_passphrase`.
+- PFX/PKCS#12 output requires `asn1crypto>=1.5.1` on the CA host and a
+  per-certificate `pfx_passphrase` or `passphrase`.
 - MSKDC certificates require `krb5_realm` or global `ca_kerberos_realm`;
   `ad_object_guid` is optional.
 - FritzBox deployment requires network access to FRITZ!OS and a user with
@@ -79,7 +80,7 @@ collection.
 ```yaml
 collections:
   - name: jomrr.ca
-    version: '>=1.2.1,<2.0.0'
+    version: '>=1.3.0,<2.0.0'
   - name: community.general
     version: '>=12.0.0'
   - name: ansible.posix
@@ -383,8 +384,8 @@ ca_publish_mode: '0644'
   `ca_subject` supplies the default X.509 subject attributes; per-authority or
   per-certificate `subject` values override individual fields.
 
-  Self-signed root CAs do not get a separate chain file because it would be
-  identical to the root certificate.
+  Self-signed root CAs do not get a separate chain file because chain
+  exports contain only intermediates.
 
   Role phases use the tags `ca_assert`, `ca_install`, `ca_init`,
   `ca_init_dirs`, `ca_authorities`, `ca_create`, `ca_crl`, and `ca_publish`.
@@ -441,18 +442,51 @@ ca_publish_mode: '0644'
   Default certificate validity comes from the issuing authority
   `default_days`; per-certificate `days` overrides it.
 
+  Authority `formats` defaults to `pem,der,txt`; `cer` adds DER bytes with a
+  `.cer` extension. The primary authority PEM and issuing chains are
+  maintained independently of the selected exports.
+
   Certificate output formats default in the modules: standard certificates and
   MSKDC use `pem,der,txt`; Identity uses `pem,der,txt,pfx`; FritzBox uses
   `pem,der,txt,fritzbox`.
 
   Add `fullchain` to a certificate `formats` list to write
-  `<name>-fullchain.pem`.
+  `<name>-fullchain.pem`. Add `cer` for a DER-encoded `.cer` file or `bundle`
+  for `<name>-bundle.pem` containing the certificate, issuer intermediates,
+  and private key, excluding the self-signed root.
+
+  Chain exports contain only the issuing CA and parent intermediates.
+  `fullchain` contains the end certificate followed by those intermediates,
+  matching the chain layout used by Let's Encrypt. PKCS#12 and FritzBox
+  exports also omit the self-signed root. Clients need the root separately
+  in their trust store.
+
+  `bundle_key_format` defaults to `pkcs8`; `traditional` supports RSA and
+  ECDSA. Ed25519 and Ed448 require `pkcs8`. This setting changes only the
+  bundle export; encryption follows `key_passphrase`.
+
+  PKCS#12 exports accept `pfx_friendly_name` (alias `friendly_name`),
+  `pfx_encryption`, and `pfx_iterations`. Encryption defaults to `best`;
+  `compatibility2022` selects legacy PBES1 SHA-1 with TripleDES and a SHA-1
+  MAC for devices requiring it. This does not enable SHA-1 certificate or
+  CRL signatures. `pfx_iterations` sets the encryption KDF rounds, not the
+  MAC rounds. `passphrase` takes precedence over `pfx_passphrase`.
+
+  `publish_private: true` allows `jomrr.ca.artifacts` consumers to list the
+  local private key and requested private exports, marked `secret=true`.
+  It neither creates additional exports nor includes private files in this
+  role's public AIA/CDP publishing.
+
+  `common_name` is required for certificates with locally generated keys.
+  Authorities and external CSR entries can instead provide
+  `subject_ordered`, for example `[{C: DE}, {O: Example}, {CN: Example CA}]`,
+  to define the complete subject in the given order.
 
   Set `csr_path` or `csr_content` on a certificate entry to sign an external
-  CSR with the profile's issuing CA. Set `common_name` explicitly; it must
+  CSR with the profile's issuing CA. An explicit `common_name` must
   match the CSR common name. The signed CSR supplies the public key, while
   the approved subject comes from `ca_subject`, the certificate's `subject`
-  overrides, and `common_name`.
+  overrides, and `common_name`, or from `subject_ordered`.
 
   Configure the approved `san` entries explicitly. Subject attributes, SANs,
   and policies are not inherited from the CSR. An omitted `san` uses the
@@ -460,9 +494,9 @@ ca_publish_mode: '0644'
   SAN defaults. Existing CSR declarations that relied on inherited identities
   must supply their approved subject and SANs before using this collection.
 
-  CSR-signed certificates can write `pem`, `der`, `txt`, and `fullchain`.
+  CSR-signed certificates can write `pem`, `der`, `cer`, `txt`, and `fullchain`.
   Formats that require the private key on the CA host, such as `pfx`, `p12`,
-  and `fritzbox`, are rejected for CSR-signed certificates.
+  `bundle`, and `fritzbox`, are rejected for CSR-signed certificates.
 
 - ### Certificate Policies and Constraints
 
