@@ -2,15 +2,15 @@
 # role: ca
 # file: tasks/certificates.yml
 
-- name: "CA | Manage certificate material"
+- name: "certificates | Manage certificate material"
   become: true
   become_user: "{{ ca_owner }}"
   jomrr.ca.certificate_batch:
-    base_dir: "{{ ca_base_dir }}"
+    base_dir: "{{ __ca_base_dir }}"
     base_url: "{{ ca_base_url }}"
     ca_name: "{{ ca_name }}"
     certificates: "{{ ca_certificates }}"
-    certificate_types: "{{ ca_certificate_types }}"
+    certificate_types: "{{ __ca_certificate_types }}"
     authorities: "{{ ca_authorities }}"
     kerberos_realm: "{{ ca_kerberos_realm }}"
     subject: "{{ ca_subject }}"
@@ -20,11 +20,11 @@
     force: "{{ ca_force_reissue | bool }}"
   no_log: true
 
-- name: "CA | Deploy FritzBox certificates"
+- name: "certificates | Deploy FritzBox certificates"
   become: true
   become_user: "{{ ca_owner }}"
   jomrr.ca.fritzbox_deploy:
-    base_dir: "{{ ca_base_dir }}"
+    base_dir: "{{ __ca_base_dir }}"
     certificate: "{{ __ca_certificate }}"
     deploy: "{{ __ca_certificate.fritzbox_deploy | default({}) }}"
     name: "{{ __ca_certificate.name }}"

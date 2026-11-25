@@ -13,14 +13,15 @@ Install the role's collection dependencies before running it:
 ansible-galaxy collection install -r collections.yml
 ```
 
-The role requires `jomrr.ca >=1.3.0,<2.0.0` and ansible-core >=2.22.
+The role requires `jomrr.ca >=1.5.0,<2.0.0` and ansible-core >=2.22.
 The CA host needs Python >=3.12 with `cryptography>=43` in its Ansible
 interpreter, plus `asn1crypto>=1.5.1` for PKCS#12 exports. Distribution
 packages are installed by the role.
 
 ## Role Flow
 
-1. Validate the configured authorities, certificate names, and revocation targets.
+1. Gather required platform facts and load platform settings, then validate
+   role-owned naming, certificate uniqueness, revocation targets and inventory hosts.
 2. Prepare the host packages and CA working directory.
 3. Create or renew authorities, inventory and chains with one
    `jomrr.ca.authority_batch` invocation under the `ca_authorities` tag. The batch
@@ -49,3 +50,8 @@ The collection owns the persistent inventory and issuer generation state.
 The role passes its configured authorities to CRL generation and publishing,
 which preserve the public issuer certificates and CRLs for retained generations.
 See [AIA/CDP publishing](publishing.md) for the target model and transfer behavior.
+
+`ca_certificate_types` supplies partial issuer overrides from inventory; omitted
+types retain their built-in assignments. `ca_certificates[].issuer` takes
+precedence for an individual certificate. Both refer to names in `ca_authorities`;
+the collection enforces issuer and certificate-policy compatibility.

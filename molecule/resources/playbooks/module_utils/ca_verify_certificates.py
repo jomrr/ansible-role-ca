@@ -6,24 +6,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from ansible.module_utils.ca_verify_common import (
-    _authority_file,
-    _authority_name,
-    _certificate_csr,
-    _certificate_formats,
-    _certificate_issuer,
-    _certificate_name,
-    _certificate_output_dir,
-    _certificate_pem_path,
-    _certificate_type,
-    _certificate_uses_csr,
-    _load_pem_cert,
-    _load_pem_certs,
-    _public_key_bytes,
-    _read,
-    _reason_flag,
-    _verify_chain,
-)
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, rsa
@@ -33,6 +15,25 @@ from cryptography.x509.oid import (
     ExtendedKeyUsageOID,
     NameOID,
     ObjectIdentifier,
+)
+
+from .ca_verify_common import (
+    authority_file,
+    authority_name,
+    certificate_csr,
+    certificate_formats,
+    certificate_issuer,
+    certificate_name,
+    certificate_output_dir,
+    certificate_pem_path,
+    certificate_type,
+    certificate_uses_csr,
+    load_pem_cert,
+    load_pem_certs,
+    public_key_bytes,
+    read,
+    reason_flag,
+    verify_chain,
 )
 
 
@@ -50,12 +51,12 @@ def _check_digest(
         errors.append(f"{label} signature digest differs from {expected_hash}")
 
 
-def _check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
+def check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
     """Validate CA, certificate, and managed CSR signature hash selection."""
     for authority in params["authorities"]:
         path = base_dir / "ca" / f"{authority['name']}-ca.pem"
-        cert = _load_pem_cert(path)
-        issuer = _load_pem_cert(base_dir / "ca" / f"{authority['parent']}-ca.pem")
+        cert = load_pem_cert(path)
+        issuer = load_pem_cert(base_dir / "ca" / f"{authority['parent']}-ca.pem")
         _check_digest(
             cert,
             issuer.public_key(),
@@ -65,7 +66,7 @@ def _check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
         )
         _check_key_type(cert.public_key(), authority, str(path), errors)
         csr = x509.load_pem_x509_csr(
-            _read(base_dir / "csr" / f"{authority['name']}-ca.csr")
+            read(base_dir / "csr" / f"{authority['name']}-ca.csr")
         )
         _check_digest(
             csr,
@@ -75,10 +76,10 @@ def _check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
             errors,
         )
     for certificate in params["certificates"]:
-        path = _certificate_pem_path(base_dir, certificate)
-        cert = _load_pem_cert(path)
-        issuer_name = _certificate_issuer(certificate, params["certificate_types"])
-        issuer = _load_pem_cert(base_dir / "ca" / f"{issuer_name}-ca.pem")
+        path = certificate_pem_path(base_dir, certificate)
+        cert = load_pem_cert(path)
+        issuer_name = certificate_issuer(certificate, params["certificate_types"])
+        issuer = load_pem_cert(base_dir / "ca" / f"{issuer_name}-ca.pem")
         _check_digest(
             cert,
             issuer.public_key(),
@@ -86,9 +87,9 @@ def _check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
             str(path),
             errors,
         )
-        if not _certificate_uses_csr(certificate):
+        if not certificate_uses_csr(certificate):
             csr = x509.load_pem_x509_csr(
-                _read(base_dir / "csr" / f"{certificate['name']}.csr")
+                read(base_dir / "csr" / f"{certificate['name']}.csr")
             )
             _check_digest(
                 csr,
@@ -99,7 +100,7 @@ def _check_digests(base_dir: Path, params: dict, errors: list[str]) -> None:
             )
 
 
-def _check_public_keys(
+def check_public_keys(
     base_dir: Path,
     certificates: list[dict[str, Any]],
     subject: dict[str, str],
@@ -107,24 +108,24 @@ def _check_public_keys(
 ) -> None:
     """Validate generated certificate public key algorithms."""
     for certificate in certificates:
-        name = _certificate_name(certificate)
-        cert = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
+        name = certificate_name(certificate)
+        cert = load_pem_cert(certificate_pem_path(base_dir, certificate))
         usage = cert.extensions.get_extension_for_class(x509.KeyUsage).value
         if usage.key_encipherment != isinstance(cert.public_key(), rsa.RSAPublicKey):
             errors.append(
                 f"{name} keyEncipherment default does not match its public key"
             )
-        if _certificate_uses_csr(certificate):
-            csr = _certificate_csr(certificate)
+        if certificate_uses_csr(certificate):
+            csr = certificate_csr(certificate)
             private_key_path = (
-                _certificate_output_dir(base_dir, certificate) / f"{name}.key"
+                certificate_output_dir(base_dir, certificate) / f"{name}.key"
             )
             if private_key_path.exists():
                 errors.append(
                     f"{name} CSR certificate should not have a managed private key"
                 )
             _check_csr_identity(cert, certificate, subject, errors)
-            if _public_key_bytes(cert.public_key()) != _public_key_bytes(
+            if public_key_bytes(cert.public_key()) != public_key_bytes(
                 csr.public_key()
             ):
                 errors.append(f"{name} public key does not match configured CSR")
@@ -140,7 +141,7 @@ def _check_csr_identity(
     errors: list[str],
 ) -> None:
     """Check the fixture's approved subject and DNS SANs independently of its CSR."""
-    name = _certificate_name(certificate)
+    name = certificate_name(certificate)
     approved = subject | certificate.get("subject", {})
     subject_oids = {
         "country": NameOID.COUNTRY_NAME,
@@ -211,37 +212,37 @@ def _issuer_chain(base_dir: Path, issuer: str) -> list[x509.Certificate]:
     """Return the issuer chain for a certificate."""
     chain_path = base_dir / "chains" / f"{issuer}-ca-chain.pem"
     if chain_path.exists():
-        return _load_pem_certs(chain_path)
+        return load_pem_certs(chain_path)
     return []
 
 
-def _check_chains(
+def check_chains(
     base_dir: Path,
     certificates: list[dict[str, Any]],
     certificate_types: dict[str, Any],
     errors: list[str],
 ) -> int:
     """Validate issued certificate chains."""
-    root = _load_pem_cert(base_dir / "ca/root-ca.pem")
+    root = load_pem_cert(base_dir / "ca/root-ca.pem")
     checked = 0
     for certificate in certificates:
-        name = _certificate_name(certificate)
-        issuer = _certificate_issuer(certificate, certificate_types)
+        name = certificate_name(certificate)
+        issuer = certificate_issuer(certificate, certificate_types)
         if not issuer:
             errors.append(f"{name} has no issuer in certificate_types")
             continue
         try:
-            leaf = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
+            leaf = load_pem_cert(certificate_pem_path(base_dir, certificate))
             chain = _issuer_chain(base_dir, issuer)
-            _verify_chain(leaf, chain, root)
-            for bundle_format in set(_certificate_formats(certificate)).intersection(
+            verify_chain(leaf, chain, root)
+            for bundle_format in set(certificate_formats(certificate)).intersection(
                 {"fullchain", "fritzbox", "bundle"}
             ):
-                bundle = _load_pem_certs(
-                    _certificate_output_dir(base_dir, certificate)
+                bundle = load_pem_certs(
+                    certificate_output_dir(base_dir, certificate)
                     / f"{name}-{bundle_format}.pem"
                 )
-                _verify_chain(bundle[0], bundle[1:], root)
+                verify_chain(bundle[0], bundle[1:], root)
                 if bundle != [leaf, *chain]:
                     errors.append(
                         f"{name} {bundle_format} bundle has stale certificates"
@@ -252,17 +253,17 @@ def _check_chains(
     return checked
 
 
-def _check_mskdc(
+def check_mskdc(
     base_dir: Path,
     certificates: list[dict[str, Any]],
     errors: list[str],
 ) -> None:
     """Validate MSKDC certificate extensions."""
     for certificate in certificates:
-        if _certificate_type(certificate) != "mskdc":
+        if certificate_type(certificate) != "mskdc":
             continue
-        name = _certificate_name(certificate)
-        cert = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
+        name = certificate_name(certificate)
+        cert = load_pem_cert(certificate_pem_path(base_dir, certificate))
         try:
             eku = cert.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
         except x509.ExtensionNotFound:
@@ -307,18 +308,18 @@ def _check_mskdc(
                 )
 
 
-def _check_fritzbox(
+def check_fritzbox(
     base_dir: Path,
     certificates: list[dict[str, Any]],
     errors: list[str],
 ) -> None:
     """Validate FritzBox certificate and bundle behavior."""
     for certificate in certificates:
-        if _certificate_type(certificate) != "fritzbox":
+        if certificate_type(certificate) != "fritzbox":
             continue
-        name = _certificate_name(certificate)
-        directory = _certificate_output_dir(base_dir, certificate)
-        if "fritzbox" in set(_certificate_formats(certificate)):
+        name = certificate_name(certificate)
+        directory = certificate_output_dir(base_dir, certificate)
+        if "fritzbox" in set(certificate_formats(certificate)):
             bundle = (directory / f"{name}-fritzbox.pem").read_text(encoding="utf-8")
             markers = re.findall(
                 r"^-----BEGIN (CERTIFICATE|.*PRIVATE KEY)-----$", bundle, re.MULTILINE
@@ -340,7 +341,7 @@ def _check_fritzbox(
                         "chain before the private key"
                     )
 
-        cert = _load_pem_cert(_certificate_pem_path(base_dir, certificate))
+        cert = load_pem_cert(certificate_pem_path(base_dir, certificate))
         try:
             basic_constraints = cert.extensions.get_extension_for_class(
                 x509.BasicConstraints
@@ -356,16 +357,16 @@ def _check_fritzbox(
                 )
 
 
-def _check_pkcs12(
+def check_pkcs12(
     base_dir: Path,
     certificates: list[dict[str, Any]],
     errors: list[str],
 ) -> None:
     """Validate Identity PKCS#12 exports."""
-    root = _load_pem_cert(base_dir / "ca/root-ca.pem")
+    root = load_pem_cert(base_dir / "ca/root-ca.pem")
     for certificate in certificates:
-        name = _certificate_name(certificate)
-        formats = set(_certificate_formats(certificate))
+        name = certificate_name(certificate)
+        formats = set(certificate_formats(certificate))
         passphrase = str(
             certificate.get("passphrase") or certificate.get("pfx_passphrase") or ""
         )
@@ -375,8 +376,8 @@ def _check_pkcs12(
                 continue
             try:
                 key, cert, additional = pkcs12.load_key_and_certificates(
-                    _read(
-                        _certificate_output_dir(base_dir, certificate)
+                    read(
+                        certificate_output_dir(base_dir, certificate)
                         / f"{name}.{bundle_format}"
                     ),
                     passphrase.encode("utf-8"),
@@ -392,7 +393,7 @@ def _check_pkcs12(
                     "does not contain key and certificate"
                 )
             else:
-                _verify_chain(cert, list(additional or []), root)
+                verify_chain(cert, list(additional or []), root)
 
 
 def _revoked_has_reason(
@@ -416,7 +417,7 @@ def _revoked_has_invalidity_date(entry: x509.RevokedCertificate) -> bool:
     return True
 
 
-def _check_crl(
+def check_crl(
     base_dir: Path,
     authorities: list[dict[str, Any]],
     revocations: dict[str, Any],
@@ -424,13 +425,13 @@ def _check_crl(
 ) -> None:
     """Validate DER and PEM CRL content."""
     for authority in authorities:
-        name = _authority_name(authority)
-        stem = _authority_file(authority)
-        der_crl = x509.load_der_x509_crl(_read(base_dir / "crl" / f"{stem}.crl"))
-        pem_crl = x509.load_pem_x509_crl(_read(base_dir / "crl" / f"{stem}.crl.pem"))
+        name = authority_name(authority)
+        stem = authority_file(authority)
+        der_crl = x509.load_der_x509_crl(read(base_dir / "crl" / f"{stem}.crl"))
+        pem_crl = x509.load_pem_x509_crl(read(base_dir / "crl" / f"{stem}.crl.pem"))
         _check_digest(
             der_crl,
-            _load_pem_cert(base_dir / "ca" / f"{stem}.pem").public_key(),
+            load_pem_cert(base_dir / "ca" / f"{stem}.pem").public_key(),
             authority.get("crl_digest", "sha384"),
             name + " CRL",
             errors,
@@ -475,12 +476,12 @@ def _check_crl_revocations(
         return
     for revocation in authority_revocations:
         reason = str(revocation.get("reason", ""))
-        reason_flag = _reason_flag(reason)
+        expected_reason = reason_flag(reason)
         if (
             reason
-            and reason_flag
+            and expected_reason
             and not any(
-                _revoked_has_reason(entry, reason_flag) for entry in revoked
+                _revoked_has_reason(entry, expected_reason) for entry in revoked
             )
         ):
             errors.append(f"{name} DER CRL has no {reason} revocation reason")

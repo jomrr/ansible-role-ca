@@ -1,0 +1,93 @@
+---
+# role: ca
+# file: molecule/resources/playbooks/library/ca_verify.yml
+
+DOCUMENTATION:
+  module: ca_verify
+  short_description: Verify CA role artifacts in Molecule
+  description:
+    - Read certificates, chains, CRLs, inventory and public exports without modifying them.
+    - Compare signatures and inventory issuers against independently configured type expectations and certificate overrides.
+    - Validate matching and nonmatching certificate policies through OpenSSL.
+    - Authority and certificate metadata have dynamic schemas and may contain credentials.
+    - Both parameters are redacted in full; diagnostics containing their values may also be redacted.
+  author: Jonas Mauer
+  requirements:
+    - cryptography >= 43
+    - openssl
+  options:
+    ca_name:
+      description: Expected PKI name in the inventory.
+      type: str
+      required: true
+    base_dir:
+      description: CA working directory.
+      type: path
+      required: true
+    publish_root:
+      description: Local AIA/CDP webroot.
+      type: path
+      required: true
+    publish_mode:
+      description: Expected permissions on public files.
+      type: str
+      default: '0644'
+    authorities:
+      description: Authority fixture definitions; treated as secret-bearing metadata.
+      type: list
+      elements: dict
+      required: true
+    certificates:
+      description: Certificate fixture definitions, including PKCS#12 credentials.
+      type: list
+      elements: dict
+      required: true
+    certificate_types:
+      description: Expected effective type issuer assignments, independent of role implementation.
+      type: dict
+      required: true
+    revocations:
+      description: Expected revocations keyed by issuing authority.
+      type: dict
+      default: {}
+    renewal:
+      description: Expected default renewal policy recorded in the inventory.
+      type: dict
+      default: {}
+    subject:
+      description: Approved default subject attributes for the external CSR fixture.
+      type: dict
+      required: true
+  attributes:
+    check_mode:
+      support: full
+    diff_mode:
+      support: none
+
+EXAMPLES: |
+  - name: Verify role artifacts
+    ca_verify:
+      ca_name: Example
+      base_dir: /etc/pki/example
+      publish_root: /var/www/pki
+      authorities: "{{ ca_authorities }}"
+      certificates: "{{ ca_certificates }}"
+      certificate_types: "{{ expected_certificate_types }}"
+      subject: "{{ ca_subject }}"
+      renewal: "{{ ca_renewal }}"
+      revocations: "{{ ca_revocations }}"
+
+RETURN:
+  checked_files:
+    description: Number of artifact paths checked.
+    returned: success
+    type: int
+  checked_chains:
+    description: Number of certificate chains checked.
+    returned: success
+    type: int
+  errors:
+    description: Collected verification failures.
+    returned: failure
+    type: list
+    elements: str

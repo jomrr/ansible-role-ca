@@ -2,10 +2,10 @@
 # role: ca
 # file: vars/Suse.yml
 
-ca_packages:
+__ca_packages:
   - ca-certificates
   - python3-asn1crypto
   - python3-cryptography
   - tar
 
-ca_fhs_dir: /etc/ssl
+__ca_fhs_dir: /etc/ssl

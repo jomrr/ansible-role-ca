@@ -2,7 +2,7 @@
 # role: ca
 # file: vars/main.yml
 
-ca_certificate_types:
+__ca_certificate_type_defaults:
   tls_server:
     issuer: component
   tls_client:
@@ -17,3 +17,19 @@ ca_certificate_types:
     issuer: identity
   eap_tls_client:
     issuer: network
+
+__ca_certificate_types: "{{ __ca_certificate_type_defaults | combine(ca_certificate_types, recursive=true) }}"
+
+__ca_required_facts:
+  - os_family
+
+__ca_required_facts_subsets:
+  - '!all'
+  - '!min'
+  - distribution
+
+__ca_base_dir: "{{ ca_base_dir | default(__ca_fhs_dir ~ '/' ~ (ca_name | lower)) }}"
+
+__ca_publish_authorities: "{{ ca_authorities | items2dict('name', 'parent') | dict2items('name', 'parent') }}"
+__ca_publish_remote_targets: "{{ ca_publish_targets | rejectattr('name', 'equalto', inventory_hostname) | list }}"
+__ca_publish_modes: "{{ __ca_publish_remote_targets | map(attribute='mode', default=ca_publish_mode) | unique | list }}"

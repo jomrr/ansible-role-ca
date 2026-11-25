@@ -15,8 +15,7 @@ This role manages a private two-tier PKI with a Root CA and Component, Network,
 and Identity issuing CAs.
 It creates CA keys, CSRs, certificates, issuing CA chains, DER and text exports,
 CRLs, and managed certificates from inventory variables.
-Cryptographic operations use the modules and filter supplied by the `jomrr.ca`
-collection.
+Cryptographic operations use the modules supplied by the `jomrr.ca` collection.
 
 ## Scope
 
@@ -30,12 +29,13 @@ collection.
 - Persistent non-secret CA inventory and state fragments below
   `<ca_base_dir>/inventory`
 - Optional certificate fullchain PEM bundles
-- TLS server and TLS client certificates from the Component CA
-- Samba AD Domain Controller/MSKDC certificates from the Component CA
-- FritzBox import bundles from the Component CA
+- TLS server and TLS client certificates, defaulting to the Component CA
+- Samba AD Domain Controller/MSKDC certificates, defaulting to the Component CA
+- FritzBox import bundles, defaulting to the Component CA
 - Optional FritzBox certificate deployment to FRITZ!OS
 - Identity certificates for smartcard logon, S/MIME, and optional code signing
-- EAP-TLS client certificates from the Network CA
+- EAP-TLS client certificates, defaulting to the Network CA
+- Inventory overrides for type issuers and individual certificate issuers
 - PEM and DER CRLs
 - Declarative certificate revocation by certificate name, fingerprint, or serial
   number
@@ -59,7 +59,7 @@ collection.
 ## Requirements
 
 - Install the collection dependencies with `ansible-galaxy collection install -r
-  collections.yml`; `jomrr.ca >=1.3.0,<2.0.0` is required.
+  collections.yml`; `jomrr.ca >=1.5.0,<2.0.0` is required.
 - The controller needs ansible-core >=2.22 with Python >=3.13; the CA host needs
   Python >=3.12 with `cryptography>=43` in its Ansible interpreter.
 - CA private key passphrases are required as `key_passphrase` values in
@@ -80,7 +80,7 @@ collection.
 ```yaml
 collections:
   - name: jomrr.ca
-    version: '>=1.3.0,<2.0.0'
+    version: '>=1.5.0,<2.0.0'
   - name: community.general
     version: '>=12.0.0'
   - name: ansible.posix
@@ -95,6 +95,7 @@ Type: `str`. Required: `false`.
 
 CA name used in CA certificate common names and, lowercased, in the default CA
 working directory.
+Must not be empty, `.` or `..`, or contain whitespace or path separators.
 
 Default:
 
@@ -273,6 +274,24 @@ ca_revocations:
   identity: []
 ```
 
+### `ca_certificate_types`
+
+Type: `dict`. Required: `false`.
+
+Partial overrides of the built-in certificate type issuer assignments.
+Overrides are merged recursively with the role defaults, independently of
+Ansible hash_behaviour.
+Unspecified types and fields retain their defaults. An explicit certificate
+issuer takes precedence.
+TLS server, TLS client, MSKDC and FritzBox default to component; Identity
+profiles to identity; EAP-TLS to network.
+
+Default:
+
+```yaml
+ca_certificate_types: {}
+```
+
 ### `ca_certificates`
 
 Type: `list`. Required: `false`.
@@ -379,7 +398,11 @@ ca_publish_mode: '0644'
   parent passphrases come from the same list.
 
   The default CA working directory is derived from `ca_name | lower` below the
-  platform PKI base path.
+  platform PKI base path. Set `ca_base_dir` to override that path. `ca_name`
+  must not contain whitespace or path separators and cannot be empty, `.` or
+  `..`.
+  The role gathers its required platform facts itself; play-level fact
+  gathering is optional.
 
   `ca_subject` supplies the default X.509 subject attributes; per-authority or
   per-certificate `subject` values override individual fields.
@@ -435,6 +458,20 @@ ca_publish_mode: '0644'
   `jomrr.ca.certificate_batch` module; direct single-certificate use is
   available through `jomrr.ca.certificate`.
 
+  `ca_certificate_types` defaults to `{}` and overrides individual type
+  issuer assignments. It is merged recursively with the built-in defaults,
+  independently of Ansible `hash_behaviour`. Unspecified types and fields
+  retain their defaults: `tls_server`, `tls_client`, `mskdc`, and `fritzbox`
+  use `component`; `identity` and `identity_full` use `identity`;
+  `eap_tls_client` uses `network`.
+
+  Set `ca_certificates[].issuer` to choose a managed authority for one
+  certificate. It takes precedence over the effective type issuer.
+  Omitting it or setting it to `null` uses the type default; an empty name
+  is invalid. The collection validates authority references and policy
+  compatibility. Issuer overrides do not change the certificate's technical
+  profile or automatically assign policies.
+
   Certificate SANs use OpenSSL-style syntax such as `DNS:host.example.org`,
   `IP:192.0.2.10`, `email:user@example.org`, and
   `otherName:1.3.6.1.4.1.311.20.2.3;UTF8:user@example.org`.
@@ -452,8 +489,9 @@ ca_publish_mode: '0644'
 
   Add `fullchain` to a certificate `formats` list to write
   `<name>-fullchain.pem`. Add `cer` for a DER-encoded `.cer` file or `bundle`
-  for `<name>-bundle.pem` containing the certificate, issuer intermediates,
-  and private key, excluding the self-signed root.
+  for `<name>-bundle.pem`, excluding the self-signed root. With `pkcs8`,
+  the order is certificate, private key, then issuer intermediates;
+  `traditional` places the private key after the intermediates.
 
   Chain exports contain only the issuing CA and parent intermediates.
   `fullchain` contains the end certificate followed by those intermediates,
@@ -653,6 +691,11 @@ ca_publish_mode: '0644'
   separately. Both paths repair missing or changed public artifacts and
   enforce the configured ownership and permissions.
 
+  In check mode, local publication and remote directory management use their
+  modules' native change predictions. Remote archive transfer is skipped:
+  no staging directories or archives are created. Tar extraction does not
+  support content predictions with the supported Ansible version.
+
   Published AIA files are `*-ca.pem`, `*-ca.der`, `*-ca.txt`, and issuing
   `*-ca-chain.pem`, `*-ca-chain.der`, `*-ca-chain.txt`.
 
@@ -697,6 +740,25 @@ ca_publish_mode: '0644'
 | Debian | Ubuntu | latest | [jomrr/molecule-ubuntu:latest](https://hub.docker.com/r/jomrr/molecule-ubuntu) |
 
 ## Example Playbook
+
+### Type and individual issuer overrides
+
+Override one type from inventory while keeping other type defaults.
+An individual certificate can select a different managed authority.
+Both issuers must be declared in ca_authorities; certificate policies
+must match the selected issuer.
+
+```yaml
+ca_certificate_types:
+  eap_tls_client:
+    issuer: component
+
+ca_certificates:
+  - name: client01
+    type: tls_client
+    issuer: network
+    common_name: client01.example.org
+```
 
 ### Key and signature hash selection
 

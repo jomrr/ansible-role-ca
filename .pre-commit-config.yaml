@@ -27,3 +27,41 @@ repos:
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: ruff check --extend-select I
+        language: python
+        additional_dependencies:
+          - ansible-core==2.22.*
+          - cryptography>=43
+          - mypy
+          - pylint
+          - ruff
+        types:
+          - python
+      - id: mypy
+        name: mypy
+        entry: mypy --explicit-package-bases --follow-untyped-imports
+        language: python
+        additional_dependencies:
+          - ansible-core==2.22.*
+          - cryptography>=43
+          - mypy
+          - pylint
+          - ruff
+        types:
+          - python
+      - id: pylint
+        name: pylint
+        entry: env PYTHONPATH=molecule/resources pylint
+        language: python
+        additional_dependencies:
+          - ansible-core==2.22.*
+          - cryptography>=43
+          - mypy
+          - pylint
+          - ruff
+        types:
+          - python

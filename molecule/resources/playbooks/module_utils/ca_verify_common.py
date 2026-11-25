@@ -37,27 +37,27 @@ REASON_FLAG_NAMES = {
 }
 
 
-def _read(path: Path) -> bytes:
+def read(path: Path) -> bytes:
     """Read one file as bytes."""
     return path.read_bytes()
 
 
-def _load_pem_cert(path: Path) -> x509.Certificate:
+def load_pem_cert(path: Path) -> x509.Certificate:
     """Load one PEM certificate."""
-    return x509.load_pem_x509_certificate(_read(path))
+    return x509.load_pem_x509_certificate(read(path))
 
 
-def _load_pem_certs(path: Path) -> list[x509.Certificate]:
+def load_pem_certs(path: Path) -> list[x509.Certificate]:
     """Load concatenated PEM certificates."""
     blocks = re.findall(
         rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
-        _read(path),
+        read(path),
         re.DOTALL,
     )
     return [x509.load_pem_x509_certificate(block) for block in blocks]
 
 
-def _public_key_bytes(key) -> bytes:
+def public_key_bytes(key) -> bytes:
     """Return DER SubjectPublicKeyInfo bytes for a public key."""
     return key.public_bytes(
         serialization.Encoding.DER,
@@ -65,79 +65,79 @@ def _public_key_bytes(key) -> bytes:
     )
 
 
-def _authority_name(authority: dict[str, Any]) -> str:
+def authority_name(authority: dict[str, Any]) -> str:
     """Return a CA authority name."""
     return str(authority.get("name", "")).strip()
 
 
-def _authority_file(authority: dict[str, Any]) -> str:
+def authority_file(authority: dict[str, Any]) -> str:
     """Return a CA authority file stem."""
-    return f"{_authority_name(authority)}-ca"
+    return f"{authority_name(authority)}-ca"
 
 
 def _authority_is_root(authority: dict[str, Any]) -> bool:
     """Return whether an authority is self-signed."""
-    name = _authority_name(authority)
+    name = authority_name(authority)
     return str(authority.get("parent", "")).strip() == name
 
 
-def _certificate_name(certificate: dict[str, Any]) -> str:
+def certificate_name(certificate: dict[str, Any]) -> str:
     """Return a managed certificate name."""
     return str(certificate.get("name", "")).strip()
 
 
-def _certificate_type(certificate: dict[str, Any]) -> str:
+def certificate_type(certificate: dict[str, Any]) -> str:
     """Return a managed certificate type."""
     return str(certificate.get("type", "")).strip()
 
 
-def _certificate_formats(certificate: dict[str, Any]) -> list[str]:
+def certificate_formats(certificate: dict[str, Any]) -> list[str]:
     """Return the effective output formats for a managed certificate."""
     value = certificate.get("formats")
     if value is None:
         value = CERTIFICATE_DEFAULT_FORMATS.get(
-            _certificate_type(certificate), ["pem", "der", "txt"]
+            certificate_type(certificate), ["pem", "der", "txt"]
         )
     if isinstance(value, str):
         raise TypeError(
-            f"certificate {_certificate_name(certificate)} formats must be a list"
+            f"certificate {certificate_name(certificate)} formats must be a list"
         )
     return [str(item).lower() for item in value]
 
 
-def _certificate_output_dir(base_dir: Path, certificate: dict[str, Any]) -> Path:
+def certificate_output_dir(base_dir: Path, certificate: dict[str, Any]) -> Path:
     """Return the managed certificate output directory."""
-    name = _certificate_name(certificate)
+    name = certificate_name(certificate)
     return Path(str(certificate.get("output_dir") or base_dir / "certs" / name))
 
 
-def _certificate_pem_path(base_dir: Path, certificate: dict[str, Any]) -> Path:
+def certificate_pem_path(base_dir: Path, certificate: dict[str, Any]) -> Path:
     """Return the primary PEM certificate path."""
-    name = _certificate_name(certificate)
-    return _certificate_output_dir(base_dir, certificate) / f"{name}.pem"
+    name = certificate_name(certificate)
+    return certificate_output_dir(base_dir, certificate) / f"{name}.pem"
 
 
-def _certificate_uses_csr(certificate: dict[str, Any]) -> bool:
+def certificate_uses_csr(certificate: dict[str, Any]) -> bool:
     """Return whether a certificate is issued from an external CSR."""
     return bool(certificate.get("csr_content") or certificate.get("csr_path"))
 
 
-def _certificate_csr(certificate: dict[str, Any]):
+def certificate_csr(certificate: dict[str, Any]):
     """Load a certificate's configured CSR."""
     if certificate.get("csr_content"):
         return x509.load_pem_x509_csr(str(certificate["csr_content"]).encode())
     if certificate.get("csr_path"):
         return x509.load_pem_x509_csr(Path(str(certificate["csr_path"])).read_bytes())
-    raise ValueError(f"{_certificate_name(certificate)} has no configured CSR")
+    raise ValueError(f"{certificate_name(certificate)} has no configured CSR")
 
 
-def _certificate_expected_paths(
+def certificate_expected_paths(
     base_dir: Path, certificate: dict[str, Any]
 ) -> list[Path]:
     """Return managed certificate artifacts expected on disk."""
-    name = _certificate_name(certificate)
-    directory = _certificate_output_dir(base_dir, certificate)
-    formats = set(_certificate_formats(certificate))
+    name = certificate_name(certificate)
+    directory = certificate_output_dir(base_dir, certificate)
+    formats = set(certificate_formats(certificate))
     paths = [directory / f"{name}.pem"]
     if "der" in formats:
         paths.append(directory / f"{name}.der")
@@ -158,22 +158,23 @@ def _certificate_expected_paths(
     return paths
 
 
-def _certificate_issuer(
+def certificate_issuer(
     certificate: dict[str, Any], certificate_types: dict[str, Any]
 ) -> str:
     """Return the issuing authority for a managed certificate."""
-    profile = certificate_types.get(_certificate_type(certificate), {})
+    profile = certificate_types.get(certificate_type(certificate), {})
     if not isinstance(profile, dict):
         return ""
-    return str(profile.get("issuer", "")).strip()
+    issuer = certificate.get("issuer")
+    return str(profile.get("issuer", "") if issuer is None else issuer).strip()
 
 
-def _authority_paths(base_dir: Path, authorities: list[dict[str, Any]]) -> list[Path]:
+def authority_paths(base_dir: Path, authorities: list[dict[str, Any]]) -> list[Path]:
     """Return expected local CA authority artifacts."""
     paths = [base_dir / "inventory/ca-inventory.json"]
     for authority in authorities:
-        name = _authority_name(authority)
-        stem = _authority_file(authority)
+        name = authority_name(authority)
+        stem = authority_file(authority)
         paths.extend(
             base_dir / "ca" / f"{stem}.{suffix}"
             for suffix in {"pem", *authority.get("formats", AUTHORITY_FORMATS)}
@@ -196,11 +197,11 @@ def _authority_paths(base_dir: Path, authorities: list[dict[str, Any]]) -> list[
     return paths
 
 
-def _publish_paths(publish_root: Path, authorities: list[dict[str, Any]]) -> list[Path]:
+def publish_paths(publish_root: Path, authorities: list[dict[str, Any]]) -> list[Path]:
     """Return expected published CA and CRL artifacts."""
     paths: list[Path] = []
     for authority in authorities:
-        stem = _authority_file(authority)
+        stem = authority_file(authority)
         paths.extend(
             publish_root / "aia" / f"{stem}.{suffix}" for suffix in AUTHORITY_FORMATS
         )
@@ -218,7 +219,7 @@ def _publish_paths(publish_root: Path, authorities: list[dict[str, Any]]) -> lis
     return paths
 
 
-def _revocation_items(revocations: dict[str, Any]) -> list[dict[str, Any]]:
+def revocation_items(revocations: dict[str, Any]) -> list[dict[str, Any]]:
     """Return flattened revocation declarations."""
     items: list[dict[str, Any]] = []
     for authority, entries in revocations.items():
@@ -232,7 +233,7 @@ def _revocation_items(revocations: dict[str, Any]) -> list[dict[str, Any]]:
     return items
 
 
-def _reason_flag(reason: str) -> x509.ReasonFlags | None:
+def reason_flag(reason: str) -> x509.ReasonFlags | None:
     """Return the cryptography reason flag for a configured reason."""
     normalized = str(reason).strip()
     if normalized not in REASON_FLAG_NAMES:
@@ -277,7 +278,7 @@ def _is_ca(cert: x509.Certificate) -> bool:
         return False
 
 
-def _verify_chain(
+def verify_chain(
     leaf: x509.Certificate, chain: list[x509.Certificate], root: x509.Certificate
 ) -> None:
     """Verify an exported intermediate chain against a separate trust anchor."""

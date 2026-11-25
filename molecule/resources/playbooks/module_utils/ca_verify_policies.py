@@ -6,13 +6,14 @@ from pathlib import Path
 from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.ca_verify_common import _load_pem_cert
 from cryptography import x509
+
+from .ca_verify_common import load_pem_cert
 
 
 def _check_extensions(path: Path, config: dict[str, Any], errors: list[str]) -> None:
     """Compare the encoded policy configuration, including absent extensions."""
-    cert = _load_pem_cert(path)
+    cert = load_pem_cert(path)
     expected = {
         policy["oid"]: [policy["cps_uri"]] if "cps_uri" in policy else []
         for policy in config.get("certificate_policies", [])

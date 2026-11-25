@@ -2,43 +2,74 @@
 # role: ca
 # file: tasks/main.yml
 
-- name: "CA | Assert role configuration"
+- name: Load role settings
+  ansible.builtin.import_tasks: set_vars.yml
+  tags: always
+
+- name: Assert role configuration
   ansible.builtin.import_tasks: assert.yml
   tags: ca_assert
 
-- name: "CA | Load platform variables"
-  ansible.builtin.include_vars: "{{ ansible_facts.os_family }}.yml"
-  tags: always
-
-- name: "CA | Install required packages"
-  become: true
-  become_user: root
-  ansible.builtin.package:
-    name: "{{ ca_packages }}"
-    state: present
+- name: Install required packages
+  ansible.builtin.import_tasks: install.yml
   tags: ca_install
 
-- name: "CA | Initialize filesystem layout"
-  ansible.builtin.import_tasks: init.yml
-  tags: ca_init
+- name: "Create CA private directory"
+  become: true
+  become_user: root
+  ansible.builtin.file:
+    path: "{{ __ca_directory.path }}"
+    state: directory
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    mode: "{{ __ca_directory.mode }}"
+  loop:
+    - { path: "{{ __ca_base_dir }}", mode: "0755" }
+    - { path: "{{ __ca_base_dir }}/private", mode: "0700" }
+  loop_control:
+    loop_var: __ca_directory
+    label: "{{ __ca_directory.path }}"
+  tags:
+    - ca_init
+    - ca_init_dirs
 
-- name: "CA | Manage CA authorities"
-  ansible.builtin.import_tasks: authorities.yml
-  tags: ca_authorities
+- name: "Manage authorities"
+  become: true
+  become_user: "{{ ca_owner }}"
+  jomrr.ca.authority_batch:
+    base_dir: "{{ __ca_base_dir }}"
+    base_url: "{{ ca_base_url }}"
+    ca_name: "{{ ca_name }}"
+    authorities: "{{ ca_authorities }}"
+    subject: "{{ ca_subject }}"
+    renewal: "{{ ca_renewal }}"
+    force: "{{ ca_force_reissue | bool }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+  no_log: true
+  tags:
+    - ca_authorities
 
-- name: "CA | Manage certificates"
+- name: Manage certificates
   ansible.builtin.import_tasks: certificates.yml
-  when: ca_certificates | length > 0
   tags: ca_create
 
-- name: "CA | Manage CRLs"
-  ansible.builtin.import_tasks: crls.yml
+- name: "Manage authority CRLs"
+  become: true
+  become_user: "{{ ca_owner }}"
+  jomrr.ca.crl_batch:
+    base_dir: "{{ __ca_base_dir }}"
+    base_url: "{{ ca_base_url }}"
+    ca_name: "{{ ca_name }}"
+    authorities: "{{ ca_authorities }}"
+    revocations: "{{ ca_revocations }}"
+    renew_before_days: "{{ ca_crl_renew_before_days }}"
+    owner: "{{ ca_owner }}"
+    group: "{{ ca_group }}"
+    force: "{{ ca_force_reissue | bool }}"
+  no_log: true
   tags: ca_crl
 
-- name: "CA | Publish AIA and CDP artifacts"
-  ansible.builtin.include_tasks:
-    file: publish.yml
-    apply:
-      tags: ca_publish
-  when: ca_publish_targets | length > 0
+- name: Publish AIA and CDP artifacts
+  ansible.builtin.import_tasks: publish.yml
   tags: ca_publish

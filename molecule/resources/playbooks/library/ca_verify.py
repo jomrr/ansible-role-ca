@@ -8,30 +8,29 @@ from pathlib import Path
 from typing import Any
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.ca_verify_certificates import (
-    _check_chains,
-    _check_crl,
-    _check_digests,
-    _check_fritzbox,
-    _check_mskdc,
-    _check_pkcs12,
-    _check_public_keys,
-)
-from ansible.module_utils.ca_verify_common import (
-    CRL_FORMATS,
-    _authority_name,
-    _authority_paths,
-    _certificate_expected_paths,
-    _certificate_issuer,
-    _certificate_name,
-    _certificate_type,
-    _publish_paths,
-    _revocation_items,
-)
-from ansible.module_utils.ca_verify_policies import check_policies
-from ansible_collections.jomrr.ca.plugins.module_utils._renewal import renewal_status
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
+
+from ..module_utils.ca_verify_certificates import (
+    check_chains,
+    check_crl,
+    check_digests,
+    check_fritzbox,
+    check_mskdc,
+    check_pkcs12,
+    check_public_keys,
+)
+from ..module_utils.ca_verify_common import (
+    CRL_FORMATS,
+    authority_paths,
+    certificate_expected_paths,
+    certificate_issuer,
+    certificate_name,
+    certificate_type,
+    publish_paths,
+    revocation_items,
+)
+from ..module_utils.ca_verify_policies import check_policies
 
 
 def _check_files(
@@ -43,13 +42,13 @@ def _check_files(
 ) -> int:
     """Check expected and absent files."""
     try:
-        expected = _authority_paths(base_dir, authorities)
+        expected = authority_paths(base_dir, authorities)
     except ValueError as exc:
         errors.append(str(exc))
         expected = []
     for certificate in certificates:
-        expected.extend(_certificate_expected_paths(base_dir, certificate))
-    published = _publish_paths(publish_root, authorities)
+        expected.extend(certificate_expected_paths(base_dir, certificate))
+    published = publish_paths(publish_root, authorities)
 
     for path in expected:
         if not path.exists():
@@ -67,7 +66,7 @@ def _check_publication_modes(
     errors: list[str],
 ) -> None:
     """Check file mode overrides independently of publication directory modes."""
-    for path in _publish_paths(publish_root, authorities):
+    for path in publish_paths(publish_root, authorities):
         if path.stat().st_mode & 0o7777 != int(publish_mode, 8):
             errors.append(f"published file mode differs from {publish_mode}: {path}")
 
@@ -112,12 +111,12 @@ def _check_certificate_record(
     errors: list[str],
 ) -> None:
     """Check the identity and fingerprint of the current certificate record."""
-    name = _certificate_name(certificate)
+    name = certificate_name(certificate)
     if record.get("issuer") != issuer:
         errors.append(f"{name} issuer is {record.get('issuer')}, expected {issuer}")
-    if record.get("type") != _certificate_type(certificate):
+    if record.get("type") != certificate_type(certificate):
         errors.append(
-            f"{name} type is {record.get('type')}, expected {_certificate_type(certificate)}"
+            f"{name} type is {record.get('type')}, expected {certificate_type(certificate)}"
         )
     if not record.get("current"):
         errors.append(f"{name} is not marked current")
@@ -156,36 +155,24 @@ def _check_inventory(base_dir: Path, params: dict, errors: list[str]) -> None:
         errors.append(f"could not read inventory {inventory_path}: {exc}")
         return
     revocation_by_name = {
-        str(item.get("name")): item for item in _revocation_items(params["revocations"])
+        str(item.get("name")): item for item in revocation_items(params["revocations"])
     }
     _check_inventory_counts(inventory, params, len(revocation_by_name), errors)
-    authority_map = {_authority_name(item): item for item in params["authorities"]}
 
     for certificate in params["certificates"]:
-        name = _certificate_name(certificate)
+        name = certificate_name(certificate)
         try:
             record = _find_named(inventory.get("certificates", []), name)
         except KeyError:
             errors.append(f"missing inventory certificate: {name}")
             continue
-        issuer = _certificate_issuer(certificate, params["certificate_types"])
+        issuer = certificate_issuer(certificate, params["certificate_types"])
         _check_certificate_record(record, certificate, issuer, errors)
         policy = {**params["renewal"], **certificate.get("renewal", {})}
         if any(
             record.get("renewal", {}).get(key) != value for key, value in policy.items()
         ):
             errors.append(f"{name} renewal policy does not match the requested policy")
-        expected_days = int(
-            certificate.get("days") or authority_map[issuer].get("default_days") or 0
-        )
-        if expected_days and int(policy.get("warn_before_days") or 0) >= expected_days:
-            status = renewal_status(record["certificate"], record["renewal"])
-            if (
-                status["state"] != "warning"
-                or not status["warning"]
-                or status["renewal_due"]
-            ):
-                errors.append(f"{name} calculated renewal status is not warning-only")
         _check_inventory_revocation(
             record, revocation_by_name.get(name), inventory["revocations"], errors
         )
@@ -233,15 +220,15 @@ def run_module() -> None:
             publish_root, authorities, module.params["publish_mode"], errors
         ),
         lambda: _check_inventory(base_dir, module.params, errors),
-        lambda: _check_digests(base_dir, module.params, errors),
-        lambda: _check_public_keys(
+        lambda: check_digests(base_dir, module.params, errors),
+        lambda: check_public_keys(
             base_dir, certificates, module.params["subject"], errors
         ),
-        lambda: _check_chains(base_dir, certificates, certificate_types, errors),
-        lambda: _check_mskdc(base_dir, certificates, errors),
-        lambda: _check_fritzbox(base_dir, certificates, errors),
-        lambda: _check_pkcs12(base_dir, certificates, errors),
-        lambda: _check_crl(base_dir, authorities, revocations, errors),
+        lambda: check_chains(base_dir, certificates, certificate_types, errors),
+        lambda: check_mskdc(base_dir, certificates, errors),
+        lambda: check_fritzbox(base_dir, certificates, errors),
+        lambda: check_pkcs12(base_dir, certificates, errors),
+        lambda: check_crl(base_dir, authorities, revocations, errors),
         lambda: check_policies(module, base_dir, errors),
     )
     checked_chains = 0

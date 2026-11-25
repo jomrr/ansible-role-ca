@@ -2,8 +2,12 @@
 # role: ca
 # file: molecule/resources/playbooks/converge.yml
 
-- name: "Molecule | converge | ca"
+- name: Converge CA without pre-gathered facts
   hosts: all
-  gather_facts: true
+  gather_facts: false
+  pre_tasks:
+    - name: Clear cached facts
+      ansible.builtin.meta: clear_facts
+
   roles:
     - role: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

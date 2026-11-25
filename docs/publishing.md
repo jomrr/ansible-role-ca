@@ -18,8 +18,8 @@ CDP directories receive:
 - every CRL as `<name>-ca.crl.pem`
 - every CRL as `<name>-ca.crl`
 
-Self-signed root CAs do not have chain files because the root chain would be
-identical to the root CA certificate.
+Self-signed root CAs do not have chain files. Chain exports contain only
+intermediates; clients trust the root separately.
 
 The collection retains these URLs for their original issuer generation. A CA
 key or subject change gives subsequent generations distinct filenames. Current
@@ -131,22 +131,16 @@ publication starts.
 
 ## Check Mode
 
-With `jomrr.ca` 1.2.0 or later, the authority, certificate, and CRL batch modules
-predict changes without writing CA state.
+The authority, certificate, and CRL batch modules predict changes without
+writing CA state. Direct local publication predicts file and directory changes
+through `jomrr.ca.publish` without writing destination data.
 
-For remote publishing, check mode creates temporary staging directories and
-archives from the existing public CA artifacts, then transfers the archives to
-the controller. Both staging directories are removed in the `always` cleanup,
-including when publication fails. Target directory management remains in check
-mode and reports predicted changes without applying them. Archive extraction
-also remains in check mode, but Ansible 2.22 skips tar archives because its GNU
-tar handler does not support check mode. It therefore does not predict changes
-to individual published files. The source artifacts and destination webroot
-must already exist; a check run does not generate missing certificates or CRLs.
-
-Direct local publication through `jomrr.ca.publish` predicts file and directory
-changes without writing destination data. This requires collection version
-1.2.1 or later.
+For remote publishing, directory management predicts changes through the file
+module. Archive creation, controller staging, transfer and extraction are skipped
+in check mode. No staging files or directories are created. Ansible's GNU tar
+handler does not support content predictions for these archives, so check mode
+does not report changes to individual remote published files. Run check mode
+after the CA artifacts have been created by a normal convergence.
 
 ## Not Managed
 

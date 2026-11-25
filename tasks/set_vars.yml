@@ -1,0 +1,11 @@
+---
+# role: ca
+# file: tasks/set_vars.yml
+
+- name: set_vars | Gather required facts
+  ansible.builtin.setup:
+    gather_subset: "{{ __ca_required_facts_subsets }}"
+  when: __ca_required_facts | difference(ansible_facts.keys()) | length > 0
+
+- name: set_vars | Load platform settings
+  ansible.builtin.include_vars: "{{ ansible_facts.os_family }}.yml"

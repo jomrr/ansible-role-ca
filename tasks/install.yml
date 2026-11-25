@@ -1,0 +1,10 @@
+---
+# role: ca
+# file: tasks/install.yml
+
+- name: install | Install required packages
+  become: true
+  become_user: root
+  ansible.builtin.package:
+    name: "{{ __ca_packages }}"
+    state: present

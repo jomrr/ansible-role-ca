@@ -9,9 +9,9 @@ argument_specs:
       - Creates and manages a Root CA plus Component, Network, and Identity issuing CAs.
       - Issues declared certificates, CRLs, embeds AIA/CDP URLs, writes a non-secret CA
         inventory, and optionally publishes public AIA/CDP artifacts.
-      - Built-in CA topology and certificate profiles are role vars; certificate format
-        defaults live in the modules; FritzBox bundle order is fixed in the module; validity
-        periods are the intended override points.
+      - Authority definitions configure the CA topology. Certificate type overrides select
+        default issuers; individual certificates may override their issuer. Cryptographic
+        profile and format defaults belong to the collection.
     options:
       ca_name:
         type: str
@@ -20,6 +20,7 @@ argument_specs:
         description:
           - CA name used in CA certificate common names and, lowercased, in the default
             CA working directory.
+          - Must not be empty, `.` or `..`, or contain whitespace or path separators.
       ca_base_dir:
         type: str
         required: false
@@ -413,6 +414,74 @@ argument_specs:
             and `aa_compromise`.
           - PEM and DER CRLs are regenerated from one shared CRL object, so both formats
             have identical CRL Number, AKI, timestamps, and revoked entries.
+      ca_certificate_types:
+        type: dict
+        default: {}
+        description:
+          - Partial overrides of the built-in certificate type issuer assignments.
+          - Overrides are merged recursively with the role defaults, independently of Ansible
+            hash_behaviour.
+          - Unspecified types and fields retain their defaults. An explicit certificate
+            issuer takes precedence.
+          - TLS server, TLS client, MSKDC and FritzBox default to component; Identity profiles
+            to identity; EAP-TLS to network.
+        options:
+          tls_server:
+            type: dict
+            description: Optional issuer override for this certificate type.
+            options:
+              issuer:
+                type: str
+                description: Name of a managed authority used as the default issuer for
+                  this type.
+          tls_client:
+            type: dict
+            description: Optional issuer override for this certificate type.
+            options:
+              issuer:
+                type: str
+                description: Name of a managed authority used as the default issuer for
+                  this type.
+          mskdc:
+            type: dict
+            description: Optional issuer override for this certificate type.
+            options:
+              issuer:
+                type: str
+                description: Name of a managed authority used as the default issuer for
+                  this type.
+          fritzbox:
+            type: dict
+            description: Optional issuer override for this certificate type.
+            options:
+              issuer:
+                type: str
+                description: Name of a managed authority used as the default issuer for
+                  this type.
+          identity_full:
+            type: dict
+            description: Optional issuer override for this certificate type.
+            options:
+              issuer:
+                type: str
+                description: Name of a managed authority used as the default issuer for
+                  this type.
+          identity:
+            type: dict
+            description: Optional issuer override for this certificate type.
+            options:
+              issuer:
+                type: str
+                description: Name of a managed authority used as the default issuer for
+                  this type.
+          eap_tls_client:
+            type: dict
+            description: Optional issuer override for this certificate type.
+            options:
+              issuer:
+                type: str
+                description: Name of a managed authority used as the default issuer for
+                  this type.
       ca_certificates:
         type: list
         elements: dict
@@ -436,6 +505,12 @@ argument_specs:
               - identity
               - eap_tls_client
             description: Built-in certificate profile to use.
+          issuer:
+            type: str
+            description:
+              - Managed authority overriding this certificate type's effective issuer.
+              - Omit or set to null to use the type default; an empty name is invalid.
+              - Issuer validity and policy compatibility are checked by the collection.
           formats:
             type: list
             elements: str
@@ -446,8 +521,9 @@ argument_specs:
                 Identity defaults to `pem,der,txt,pfx`; FritzBox defaults to `pem,der,txt,fritzbox`.
               - Add `fullchain` to create a certificate plus issuing-chain PEM bundle.
               - Add `cer` for DER bytes with a `.cer` extension, independently of `der`.
-              - Add `bundle` for certificate, issuer intermediates, and private key in `<name>-bundle.pem`,
-                excluding the self-signed root.
+              - Add `bundle` for `<name>-bundle.pem`, excluding the self-signed root.
+              - PKCS#8 bundles contain certificate, private key, then intermediates; traditional
+                bundles place the private key last.
               - CSR-signed certificates support `pem`, `der`, `cer`, `txt`, and `fullchain`.
           bundle_key_format:
             type: str
@@ -749,6 +825,7 @@ argument_specs:
               password:
                 type: str
                 required: false
+                no_log: true
                 description: FRITZ!OS password.
               timeout:
                 type: int
