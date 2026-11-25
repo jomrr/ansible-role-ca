@@ -190,14 +190,13 @@ def run_module() -> None:
                 "type": "list",
                 "elements": "dict",
                 "required": True,
-                "no_log": True,
             },
             "certificates": {
                 "type": "list",
                 "elements": "dict",
                 "required": True,
-                "no_log": True,
             },
+            "pkcs12_passphrases": {"type": "dict", "default": {}, "no_log": True},
             "certificate_types": {"type": "dict", "required": True},
             "revocations": {"type": "dict", "default": {}},
             "renewal": {"type": "dict", "default": {}},
@@ -227,7 +226,9 @@ def run_module() -> None:
         lambda: check_chains(base_dir, certificates, certificate_types, errors),
         lambda: check_mskdc(base_dir, certificates, errors),
         lambda: check_fritzbox(base_dir, certificates, errors),
-        lambda: check_pkcs12(base_dir, certificates, errors),
+        lambda: check_pkcs12(
+            base_dir, certificates, module.params["pkcs12_passphrases"], errors
+        ),
         lambda: check_crl(base_dir, authorities, revocations, errors),
         lambda: check_policies(module, base_dir, errors),
     )

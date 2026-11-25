@@ -25,8 +25,19 @@
         base_dir: "{{ __ca_base_dir }}"
         publish_root: /var/www/pki
         publish_mode: "{{ ca_publish_targets[0].mode }}"
-        authorities: "{{ ca_authorities }}"
-        certificates: "{{ ca_certificates }}"
+        authorities: >-
+          {{ ca_authorities | map('dict2items')
+             | map('rejectattr', 'key', 'in', ['key_passphrase', 'parent_key_passphrase', 'archived_key_passphrases'])
+             | map('items2dict') | list }}
+        certificates: >-
+          {{ ca_certificates | map('dict2items')
+             | map('rejectattr', 'key', 'in', ['key_passphrase', 'pfx_passphrase', 'passphrase', 'fritzbox_deploy'])
+             | map('items2dict') | list }}
+        pkcs12_passphrases: >-
+          {{ ca_certificates | selectattr('pfx_passphrase', 'defined')
+             | items2dict(key_name='name', value_name='pfx_passphrase')
+             | combine(ca_certificates | selectattr('passphrase', 'defined') | selectattr('passphrase')
+                       | items2dict(key_name='name', value_name='passphrase')) }}
         certificate_types:
           tls_server: {issuer: component}
           tls_client: {issuer: component}

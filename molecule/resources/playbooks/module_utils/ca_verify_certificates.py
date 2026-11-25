@@ -360,6 +360,7 @@ def check_fritzbox(
 def check_pkcs12(
     base_dir: Path,
     certificates: list[dict[str, Any]],
+    passphrases: dict[str, str],
     errors: list[str],
 ) -> None:
     """Validate Identity PKCS#12 exports."""
@@ -367,9 +368,7 @@ def check_pkcs12(
     for certificate in certificates:
         name = certificate_name(certificate)
         formats = set(certificate_formats(certificate))
-        passphrase = str(
-            certificate.get("passphrase") or certificate.get("pfx_passphrase") or ""
-        )
+        passphrase = passphrases.get(name) or ""
         for bundle_format in sorted(formats.intersection({"pfx", "p12"})):
             if not passphrase:
                 errors.append(f"{name} PKCS#12 bundle has no configured passphrase")

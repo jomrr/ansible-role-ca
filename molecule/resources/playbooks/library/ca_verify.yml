@@ -9,8 +9,8 @@ DOCUMENTATION:
     - Read certificates, chains, CRLs, inventory and public exports without modifying them.
     - Compare signatures and inventory issuers against independently configured type expectations and certificate overrides.
     - Validate matching and nonmatching certificate policies through OpenSSL.
-    - Authority and certificate metadata have dynamic schemas and may contain credentials.
-    - Both parameters are redacted in full; diagnostics containing their values may also be redacted.
+    - Authority and certificate metadata contain only public verification settings.
+    - PKCS#12 passphrases are supplied separately and redacted without masking public metadata.
   author: Jonas Mauer
   requirements:
     - cryptography >= 43
@@ -33,15 +33,19 @@ DOCUMENTATION:
       type: str
       default: '0644'
     authorities:
-      description: Authority fixture definitions; treated as secret-bearing metadata.
+      description: Authority fixture definitions without current, parent or archived key passphrases.
       type: list
       elements: dict
       required: true
     certificates:
-      description: Certificate fixture definitions, including PKCS#12 credentials.
+      description: Certificate fixture definitions without key passphrases, PKCS#12 passphrases or deployment credentials.
       type: list
       elements: dict
       required: true
+    pkcs12_passphrases:
+      description: PKCS#12 export passphrases keyed by certificate name; values are redacted.
+      type: dict
+      default: {}
     certificate_types:
       description: Expected effective type issuer assignments, independent of role implementation.
       type: dict
@@ -70,8 +74,9 @@ EXAMPLES: |
       ca_name: Example
       base_dir: /etc/pki/example
       publish_root: /var/www/pki
-      authorities: "{{ ca_authorities }}"
-      certificates: "{{ ca_certificates }}"
+      authorities: "{{ public_authority_metadata }}"
+      certificates: "{{ public_certificate_metadata }}"
+      pkcs12_passphrases: "{{ pkcs12_passphrases }}"
       certificate_types: "{{ expected_certificate_types }}"
       subject: "{{ ca_subject }}"
       renewal: "{{ ca_renewal }}"
